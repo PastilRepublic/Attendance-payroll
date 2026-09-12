@@ -366,12 +366,6 @@ function PhotoCapture({
     onCaptured(dataUrl);
   }, [onCaptured]);
 
-  useEffect(() => {
-    if (!ready) return;
-    const t = setTimeout(capture, 1500);
-    return () => clearTimeout(t);
-  }, [ready, capture]);
-
   if (failed) {
     return (
       <div className="text-center">
@@ -398,9 +392,10 @@ function PhotoCapture({
       />
       <button
         onClick={capture}
-        className="rounded-xl bg-green-600 hover:bg-green-500 px-6 py-3 text-lg font-medium"
+        disabled={!ready}
+        className="rounded-xl bg-green-600 hover:bg-green-500 disabled:bg-slate-700 disabled:text-slate-500 px-6 py-3 text-lg font-medium"
       >
-        Capture Now
+        {ready ? "Capture Now" : "Starting camera…"}
       </button>
     </div>
   );
