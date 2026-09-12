@@ -177,7 +177,7 @@ model Settings {
   gracePeriodMinutes    Int      @default(10)
   unpaidLunchMinutes    Int      @default(60)
   regularHoursCapPerDay Decimal  @default(8) @db.Decimal(4, 2)
-  requirePhotoOnPunch   Boolean  @default(false)
+  requirePhotoOnPunch   Boolean  @default(true)
   shiftStartTime        String   @default("08:00")
   shiftEndTime          String   @default("17:00")
   payPeriodStartDay     Int      @default(1) // 1 = Monday (ISO weekday)

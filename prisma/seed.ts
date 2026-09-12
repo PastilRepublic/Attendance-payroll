@@ -36,7 +36,7 @@ async function main() {
         gracePeriodMinutes: 10,
         unpaidLunchMinutes: 60,
         regularHoursCapPerDay: 8,
-        requirePhotoOnPunch: false,
+        requirePhotoOnPunch: true,
         shiftStartTime: "08:00",
         shiftEndTime: "17:00",
         payPeriodStartDay: 1,
