@@ -1,0 +1,185 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum PayBasis {
+  HOURLY
+  DAILY
+}
+
+enum PunchType {
+  IN
+  OUT
+}
+
+enum DayStatusType {
+  PAID_LEAVE
+  UNPAID_ABSENCE
+}
+
+enum PayPeriodStatus {
+  OPEN
+  FINALIZED
+}
+
+enum PayslipStatus {
+  DRAFT
+  FINALIZED
+}
+
+model AdminUser {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+
+  createdPunches   Punch[]     @relation("PunchCreatedByAdmin")
+  finalizedPeriods PayPeriod[] @relation("PayPeriodFinalizedByAdmin")
+  auditLogEntries  AuditLog[]  @relation("AuditLogActor")
+}
+
+model Employee {
+  id         String   @id @default(cuid())
+  name       String
+  pinHash    String
+  payBasis   PayBasis
+  payRate    Decimal  @db.Decimal(10, 2)
+  active     Boolean  @default(true)
+  dateHired  DateTime @db.Date
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  punches     Punch[]
+  dayStatuses DayStatus[]
+  payslips    Payslip[]
+}
+
+model Device {
+  id        String   @id @default(cuid())
+  label     String
+  createdAt DateTime @default(now())
+
+  punches Punch[]
+}
+
+model Punch {
+  id        String    @id @default(cuid())
+  employeeId String
+  employee  Employee  @relation(fields: [employeeId], references: [id])
+  timestamp DateTime  @default(now())
+  type      PunchType
+  photoPath String?
+  deviceId  String?
+  device    Device?   @relation(fields: [deviceId], references: [id])
+
+  /** True once this punch has been superseded by an edit, or manually voided (a "deletion"). Never hard-deleted, and excluded from payroll pairing. */
+  voided                Boolean  @default(false)
+
+  isCorrection          Boolean  @default(false)
+  correctedFromPunchId  String?
+  correctedFromPunch    Punch?   @relation("PunchCorrection", fields: [correctedFromPunchId], references: [id])
+  corrections           Punch[]  @relation("PunchCorrection")
+  correctionReason      String?
+
+  createdByAdminId String?
+  createdByAdmin    AdminUser? @relation("PunchCreatedByAdmin", fields: [createdByAdminId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([employeeId, timestamp])
+}
+
+model DayStatus {
+  id         String        @id @default(cuid())
+  employeeId String
+  employee   Employee      @relation(fields: [employeeId], references: [id])
+  date       DateTime      @db.Date
+  status     DayStatusType
+  note       String?
+  setByAdminId String?
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  @@unique([employeeId, date])
+}
+
+model PayPeriod {
+  id          String          @id @default(cuid())
+  startDate   DateTime        @db.Date
+  endDate     DateTime        @db.Date
+  status      PayPeriodStatus @default(OPEN)
+  finalizedAt DateTime?
+  finalizedByAdminId String?
+  finalizedByAdmin   AdminUser? @relation("PayPeriodFinalizedByAdmin", fields: [finalizedByAdminId], references: [id])
+  createdAt   DateTime        @default(now())
+
+  payslips Payslip[]
+
+  @@unique([startDate, endDate])
+}
+
+model Payslip {
+  id            String        @id @default(cuid())
+  employeeId    String
+  employee      Employee      @relation(fields: [employeeId], references: [id])
+  payPeriodId   String
+  payPeriod     PayPeriod     @relation(fields: [payPeriodId], references: [id])
+  regularHours  Decimal       @db.Decimal(10, 2)
+  overtimeHours Decimal       @db.Decimal(10, 2)
+  basePay       Decimal       @db.Decimal(10, 2)
+  grossPay      Decimal       @db.Decimal(10, 2)
+  status        PayslipStatus @default(DRAFT)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  adjustments PayslipAdjustment[]
+
+  @@unique([employeeId, payPeriodId])
+}
+
+model PayslipAdjustment {
+  id        String   @id @default(cuid())
+  payslipId String
+  payslip   Payslip  @relation(fields: [payslipId], references: [id])
+  label     String
+  amount    Decimal  @db.Decimal(10, 2)
+  note      String?
+  createdAt DateTime @default(now())
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  actorAdminId String?
+  actorAdmin   AdminUser? @relation("AuditLogActor", fields: [actorAdminId], references: [id])
+  action      String
+  targetTable String
+  targetId    String
+  beforeJson  Json?
+  afterJson   Json?
+  reason      String?
+  timestamp   DateTime @default(now())
+
+  @@index([targetTable, targetId])
+}
+
+model Settings {
+  id                    Int      @id @default(1)
+  otMultiplier          Decimal  @default(1.25) @db.Decimal(4, 2)
+  gracePeriodMinutes    Int      @default(10)
+  unpaidLunchMinutes    Int      @default(60)
+  regularHoursCapPerDay Decimal  @default(8) @db.Decimal(4, 2)
+  requirePhotoOnPunch   Boolean  @default(false)
+  shiftStartTime        String   @default("08:00")
+  shiftEndTime          String   @default("17:00")
+  payPeriodStartDay     Int      @default(1) // 1 = Monday (ISO weekday)
+  updatedAt             DateTime @updatedAt
+}

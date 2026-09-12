@@ -1,0 +1,187 @@
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { prisma } from "@/lib/prisma";
+import { getOrRefreshDraftPayslip, adjustmentsTotal } from "@/lib/payrollService";
+import { addAdjustment, removeAdjustment, finalizePeriod, unlockPayslip } from "../actions";
+
+export default async function PayPeriodDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const period = await prisma.payPeriod.findUnique({ where: { id } });
+  if (!period) notFound();
+
+  const employees = await prisma.employee.findMany({
+    where: { active: true },
+    orderBy: { name: "asc" },
+  });
+
+  const payslips = await Promise.all(
+    employees.map(async (emp) => ({
+      employee: emp,
+      payslip: await getOrRefreshDraftPayslip(emp.id, id),
+    }))
+  );
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <Link href="/admin/payroll" className="text-sm text-slate-500 hover:underline">
+            ← Pay Periods
+          </Link>
+          <h1 className="text-xl font-semibold text-slate-900">
+            {period.startDate.toISOString().slice(0, 10)} — {period.endDate.toISOString().slice(0, 10)}
+          </h1>
+        </div>
+        <div className="flex items-center gap-3">
+          <span
+            className={`px-2 py-0.5 rounded-full text-xs ${
+              period.status === "FINALIZED"
+                ? "bg-green-100 text-green-700"
+                : "bg-amber-100 text-amber-700"
+            }`}
+          >
+            {period.status}
+          </span>
+          {period.status === "OPEN" && (
+            <form action={finalizePeriod}>
+              <input type="hidden" name="payPeriodId" value={period.id} />
+              <button className="rounded-md bg-slate-900 text-white text-sm font-medium px-4 py-2 hover:bg-slate-800">
+                Finalize Period
+              </button>
+            </form>
+          )}
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        {payslips.map(({ employee, payslip }) => {
+          const adjTotal = adjustmentsTotal(payslip.adjustments);
+          const total = Number(payslip.grossPay) + adjTotal;
+
+          return (
+            <div key={employee.id} className="bg-white rounded-lg shadow p-4">
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <span className="font-medium text-slate-900">{employee.name}</span>
+                  <span className="text-xs text-slate-500 ml-2">
+                    {Number(payslip.regularHours).toFixed(2)}h regular
+                    {Number(payslip.overtimeHours) > 0 &&
+                      ` + ${Number(payslip.overtimeHours).toFixed(2)}h OT`}
+                  </span>
+                </div>
+                <div className="text-right">
+                  <div className="font-semibold text-slate-900">₱{total.toFixed(2)}</div>
+                  <div className="text-xs text-slate-500">
+                    base ₱{Number(payslip.grossPay).toFixed(2)}
+                    {adjTotal !== 0 && ` ${adjTotal > 0 ? "+" : ""}${adjTotal.toFixed(2)} adj.`}
+                  </div>
+                </div>
+              </div>
+
+              {payslip.adjustments.length > 0 && (
+                <table className="w-full text-xs mb-2">
+                  <tbody>
+                    {payslip.adjustments.map((adj) => (
+                      <tr key={adj.id} className="border-t border-slate-100">
+                        <td className="py-1 text-slate-700">{adj.label}</td>
+                        <td className="py-1 text-slate-500">{adj.note}</td>
+                        <td className="py-1 text-right">
+                          {Number(adj.amount) > 0 ? "+" : ""}
+                          {Number(adj.amount).toFixed(2)}
+                        </td>
+                        <td className="py-1 text-right">
+                          {payslip.status !== "FINALIZED" && (
+                            <form action={removeAdjustment}>
+                              <input type="hidden" name="adjustmentId" value={adj.id} />
+                              <button className="text-red-600 hover:underline">Remove</button>
+                            </form>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+
+              {payslip.status !== "FINALIZED" ? (
+                <details className="mt-1">
+                  <summary className="text-xs text-slate-500 cursor-pointer hover:underline">
+                    + Add adjustment
+                  </summary>
+                  <form action={addAdjustment} className="flex flex-wrap items-end gap-2 mt-2">
+                    <input type="hidden" name="payslipId" value={payslip.id} />
+                    <div>
+                      <label className="block text-xs text-slate-500">Label</label>
+                      <input
+                        name="label"
+                        required
+                        placeholder="Cash advance"
+                        className="rounded-md border border-slate-300 px-2 py-1 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-slate-500">Amount (+/-)</label>
+                      <input
+                        name="amount"
+                        type="number"
+                        step="0.01"
+                        required
+                        placeholder="-500"
+                        className="rounded-md border border-slate-300 px-2 py-1 text-xs w-28"
+                      />
+                    </div>
+                    <div className="flex-1 min-w-[140px]">
+                      <label className="block text-xs text-slate-500">Note</label>
+                      <input
+                        name="note"
+                        className="w-full rounded-md border border-slate-300 px-2 py-1 text-xs"
+                      />
+                    </div>
+                    <button className="rounded-md bg-slate-900 text-white text-xs px-3 py-1.5 hover:bg-slate-800">
+                      Add
+                    </button>
+                  </form>
+                </details>
+              ) : (
+                <div className="flex items-center justify-between mt-2">
+                  <Link
+                    href={`/admin/payslip/${payslip.id}/print`}
+                    target="_blank"
+                    className="text-xs text-slate-600 hover:underline"
+                  >
+                    Print / Export
+                  </Link>
+                  <details className="text-right">
+                    <summary className="text-xs text-red-600 cursor-pointer hover:underline inline">
+                      Unlock
+                    </summary>
+                    <form
+                      action={unlockPayslip}
+                      className="absolute z-10 mt-1 right-4 bg-white shadow-lg rounded-md border border-slate-200 p-3 flex flex-col gap-2 w-64"
+                    >
+                      <input type="hidden" name="payslipId" value={payslip.id} />
+                      <label className="block text-xs text-slate-500">Reason (required)</label>
+                      <input
+                        name="reason"
+                        required
+                        minLength={3}
+                        className="w-full rounded-md border border-slate-300 px-2 py-1 text-xs"
+                      />
+                      <button className="rounded-md bg-red-600 text-white text-xs px-3 py-1.5 hover:bg-red-500">
+                        Confirm Unlock
+                      </button>
+                    </form>
+                  </details>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
