@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   enqueuePunch,
@@ -149,7 +150,16 @@ export default function KioskClient() {
   return (
     <div className="fixed inset-0 bg-slate-900 text-white flex flex-col select-none">
       <div className="flex justify-between items-center px-6 py-3 text-xs text-slate-400">
-        <span>Attendance Kiosk</span>
+        <div className="flex items-center gap-3">
+          {screen === "idle" ? (
+            <Link href="/" className="hover:text-slate-200">
+              ← Back
+            </Link>
+          ) : (
+            <span className="text-slate-600">← Back</span>
+          )}
+          <span>Attendance Kiosk</span>
+        </div>
         <div className="flex gap-3">
           {pendingCount > 0 && (
             <span className="text-amber-400">{pendingCount} punch(es) syncing…</span>
