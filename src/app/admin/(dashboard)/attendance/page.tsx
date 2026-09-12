@@ -126,6 +126,7 @@ export default async function AttendancePage({
                     <th className="py-1 pr-2 font-normal">Type</th>
                     <th className="py-1 pr-2 font-normal">Time</th>
                     <th className="py-1 pr-2 font-normal">Source</th>
+                    <th className="py-1 pr-2 font-normal">Photo</th>
                     <th className="py-1 font-normal"></th>
                   </tr>
                 </thead>
@@ -138,7 +139,24 @@ export default async function AttendancePage({
                       </td>
                       <td className="py-1.5 pr-2 text-slate-500">
                         {p.isCorrection ? "Correction" : "Kiosk"}
-                        {p.photoPath ? " · 📷" : ""}
+                      </td>
+                      <td className="py-1.5 pr-2">
+                        {p.photoPath ? (
+                          <a
+                            href={`/api/admin/punch-photo/${p.photoPath}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={`/api/admin/punch-photo/${p.photoPath}`}
+                              alt="Punch photo"
+                              className="w-10 h-10 rounded object-cover border border-slate-200 hover:opacity-80"
+                            />
+                          </a>
+                        ) : (
+                          <span className="text-slate-300">—</span>
+                        )}
                       </td>
                       <td className="py-1.5 text-right space-x-3 relative">
                         <EditPunchForm punch={p} date={date} />
@@ -148,7 +166,7 @@ export default async function AttendancePage({
                   ))}
                   {empPunches.length === 0 && (
                     <tr>
-                      <td colSpan={4} className="py-2 text-slate-400">
+                      <td colSpan={5} className="py-2 text-slate-400">
                         No punches
                       </td>
                     </tr>
