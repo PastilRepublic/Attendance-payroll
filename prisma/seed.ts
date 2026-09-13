@@ -52,24 +52,26 @@ async function main() {
   });
   console.log(`Ensured device: ${device.label} (${device.id})`);
 
-  const sampleEmployees = [
-    { name: "Maria Santos", pin: "1234", payBasis: "HOURLY" as const, payRate: 90 },
-    { name: "Juan Dela Cruz", pin: "5678", payBasis: "DAILY" as const, payRate: 720 },
-  ];
+  if (process.env.SEED_SAMPLE_DATA === "true") {
+    const sampleEmployees = [
+      { name: "Maria Santos", pin: "1234", payBasis: "HOURLY" as const, payRate: 90 },
+      { name: "Juan Dela Cruz", pin: "5678", payBasis: "DAILY" as const, payRate: 720 },
+    ];
 
-  for (const emp of sampleEmployees) {
-    const existing = await prisma.employee.findFirst({ where: { name: emp.name } });
-    if (existing) continue;
-    await prisma.employee.create({
-      data: {
-        name: emp.name,
-        pinHash: await hashPin(emp.pin),
-        payBasis: emp.payBasis,
-        payRate: emp.payRate,
-        dateHired: new Date(),
-      },
-    });
-    console.log(`Created sample employee: ${emp.name} (PIN ${emp.pin})`);
+    for (const emp of sampleEmployees) {
+      const existing = await prisma.employee.findFirst({ where: { name: emp.name } });
+      if (existing) continue;
+      await prisma.employee.create({
+        data: {
+          name: emp.name,
+          pinHash: await hashPin(emp.pin),
+          payBasis: emp.payBasis,
+          payRate: emp.payRate,
+          dateHired: new Date(),
+        },
+      });
+      console.log(`Created sample employee: ${emp.name} (PIN ${emp.pin})`);
+    }
   }
 }
 

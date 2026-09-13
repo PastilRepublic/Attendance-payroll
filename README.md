@@ -46,11 +46,13 @@ $env:PGPASSWORD = "<password from .env>"
 npm install
 npx prisma generate
 npx prisma migrate dev   # applies migrations to your local DB
-npm run db:seed          # creates the first admin user + sample employees + default settings
+npm run db:seed          # creates the first admin user + default settings
 npm run dev
 ```
 
 Seeded admin login: printed to the console by `db:seed` (defaults to `periodtoffice@gmail.com` / `ChangeMe123!` unless overridden with `ADMIN_SEED_EMAIL` / `ADMIN_SEED_PASSWORD` env vars). **Change this password after first login** — there's no self-service password-change UI yet; update it directly via the database or add one.
+
+`db:seed` only creates the admin user, default settings, and the `kiosk-1` device — no fake employees, so it's safe to run against a real (including production) database. For local testing, add two sample employees (Maria Santos, PIN 1234; Juan Dela Cruz, PIN 5678) by setting `SEED_SAMPLE_DATA=true` before seeding.
 
 Open:
 - `http://localhost:3000/kiosk` — the tablet kiosk (PIN entry, no login)
