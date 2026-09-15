@@ -54,6 +54,8 @@ Seeded admin login: printed to the console by `db:seed` (defaults to `periodtoff
 
 `db:seed` only creates the admin user, default settings, and the `kiosk-1` device — no fake employees, so it's safe to run against a real (including production) database. For local testing, add two sample employees (Maria Santos, PIN 1234; Juan Dela Cruz, PIN 5678) by setting `SEED_SAMPLE_DATA=true` before seeding.
 
+Punch photo capture needs `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in `.env` even for local dev (see Deployment section below for where to get them) — without them, kiosk punches still work, but saving a photo will throw. Everything else works fine locally without these two set.
+
 Open:
 - `http://localhost:3000/kiosk` — the tablet kiosk (PIN entry, no login)
 - `http://localhost:3000/admin` — the admin dashboard (login required)
@@ -80,7 +82,6 @@ npx eslint .       # lint
 
 ## Known gaps / next steps
 
-- **Photo storage** is local filesystem (`storage/punch-photos/`, gitignored) for Phase 1 dev. It's not yet swapped for a cloud blob provider, so uploaded punch photos will NOT survive a Vercel redeploy (Vercel's filesystem is ephemeral). Swap `src/lib/storage.ts` for a cloud blob provider (Vercel Blob, S3, etc.) before relying on photo capture in production.
 - **No self-service admin password change/reset UI** — the only admin account is the seeded one. Change the default seeded password directly in the database, or add a change-password page.
 - **PDF export** is a print-optimized page (browser "Save as PDF"), not a server-generated PDF file. Fine for Phase 1; revisit if you want emailable payslips.
 
@@ -92,6 +93,8 @@ Live at `attendance-payroll-lovat.vercel.app`, deployed from this repo's `main` 
 - `DATABASE_URL` — Supabase's **pooled** (Transaction pooler) connection string, port `6543`, e.g. `postgresql://postgres.<project-ref>:<password>@aws-0-<region>.pooler.supabase.com:6543/postgres?pgbouncer=true`. **Do not add `sslmode=require`** to this string — see the gotcha below.
 - `AUTH_SECRET` — a random secret (`node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`)
 - `NEXTAUTH_URL` — the exact production URL (must match Vercel's assigned domain exactly, no trailing slash)
+- `SUPABASE_URL` — `https://<project-ref>.supabase.co`
+- `SUPABASE_SERVICE_ROLE_KEY` — from Supabase → Project Settings → API → service_role key. Used server-side only (punch photo upload/download via a private Storage bucket named `punch-photos` — create that bucket manually in Supabase → Storage before this works).
 
 **Gotchas hit getting this working, in case they resurface:**
 1. **Edge proxy can't import Prisma.** `src/proxy.ts` (middleware) runs on Vercel's Edge runtime, which can't use the `pg` driver. Auth config is split: `src/lib/auth.config.ts` (no Prisma, used by the proxy) vs `src/lib/auth.ts` (full config with the Prisma-backed Credentials provider, used everywhere else).
