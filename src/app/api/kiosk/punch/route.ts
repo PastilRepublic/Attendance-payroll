@@ -59,8 +59,9 @@ export async function POST(request: Request) {
     try {
       const photoPath = await savePunchPhoto(punch.id, photoDataUrl);
       await prisma.punch.update({ where: { id: punch.id }, data: { photoPath } });
-    } catch {
+    } catch (err) {
       // Photo capture failing should never lose the punch itself.
+      console.error("[punch] photo save failed:", err);
     }
   }
 
