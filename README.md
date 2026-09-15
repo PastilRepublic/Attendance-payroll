@@ -80,7 +80,28 @@ npx eslint .       # lint
 
 ## Known gaps / next steps
 
-- **Photo storage** is local filesystem (`storage/punch-photos/`, gitignored) for Phase 1 dev. Swap `src/lib/storage.ts` for a cloud blob provider before deploying so photos survive redeploys and are reachable from wherever the app is hosted.
-- **No self-service admin password change/reset UI** — the only admin account is the seeded one.
-- **Deployment**: not yet deployed. Confirmed plan: **Vercel** (hosting) + **Supabase** (managed production Postgres), once Phase 1 is feature-complete. Steps when that time comes: create a Vercel account and a Supabase project (both require the owner — not something Claude can do), push this repo to a Git remote Vercel can pull from, set `DATABASE_URL`/`AUTH_SECRET`/`NEXTAUTH_URL` as Vercel env vars pointing at the Supabase connection string, run `npx prisma migrate deploy` against it, and swap `src/lib/storage.ts` for a cloud blob provider (Vercel's filesystem isn't persistent).
+- **Photo storage** is local filesystem (`storage/punch-photos/`, gitignored) for Phase 1 dev. It's not yet swapped for a cloud blob provider, so uploaded punch photos will NOT survive a Vercel redeploy (Vercel's filesystem is ephemeral). Swap `src/lib/storage.ts` for a cloud blob provider (Vercel Blob, S3, etc.) before relying on photo capture in production.
+- **No self-service admin password change/reset UI** — the only admin account is the seeded one. Change the default seeded password directly in the database, or add a change-password page.
 - **PDF export** is a print-optimized page (browser "Save as PDF"), not a server-generated PDF file. Fine for Phase 1; revisit if you want emailable payslips.
+
+## Deployment (Vercel + Supabase)
+
+Live at `attendance-payroll-lovat.vercel.app`, deployed from this repo's `main` branch (auto-deploys on every push). Production Postgres is a Supabase project.
+
+**Environment variables** (Vercel → Settings → Environment Variables):
+- `DATABASE_URL` — Supabase's **pooled** (Transaction pooler) connection string, port `6543`, e.g. `postgresql://postgres.<project-ref>:<password>@aws-0-<region>.pooler.supabase.com:6543/postgres?pgbouncer=true`. **Do not add `sslmode=require`** to this string — see the gotcha below.
+- `AUTH_SECRET` — a random secret (`node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`)
+- `NEXTAUTH_URL` — the exact production URL (must match Vercel's assigned domain exactly, no trailing slash)
+
+**Gotchas hit getting this working, in case they resurface:**
+1. **Edge proxy can't import Prisma.** `src/proxy.ts` (middleware) runs on Vercel's Edge runtime, which can't use the `pg` driver. Auth config is split: `src/lib/auth.config.ts` (no Prisma, used by the proxy) vs `src/lib/auth.ts` (full config with the Prisma-backed Credentials provider, used everywhere else).
+2. **Prisma client must be generated on every install.** `package.json` has `"postinstall": "prisma generate"` — without it, Vercel's build never generates `src/generated/prisma` and every route touching Prisma fails to build.
+3. **`sslmode=require` in the connection string breaks TLS against Supabase.** Newer `pg-connection-string` versions treat `sslmode=require` as an alias for `verify-full` (strict certificate chain verification), which fails against Supabase's cert chain ("self-signed certificate in certificate chain") — and this takes priority over an explicit `ssl` option passed alongside a connection string, so a code-level fix alone isn't enough. Fix: don't put `sslmode` in the connection string at all; `src/lib/prisma.ts` detects a Supabase host and applies `ssl: { rejectUnauthorized: false }` itself (still encrypted, just not strict chain verification).
+4. **Migrations need the direct connection, not the pooler.** `npx prisma migrate deploy` hung indefinitely over the pooled (port 6543) connection — schema changes need a stable session, which PgBouncer's transaction-mode pooling doesn't provide. Run migrations with `DATABASE_URL` temporarily set to the **direct** connection (port 5432, plain `postgres` user, no `pgbouncer`) instead, then switch back to the pooled URL for the app itself.
+
+**To run migrations or seed against production** (from a local terminal, needs the real Supabase password — never commit it):
+```powershell
+$env:DATABASE_URL = "postgresql://postgres:<password>@db.<project-ref>.supabase.co:5432/postgres"
+npx prisma migrate deploy
+npm run db:seed
+```
