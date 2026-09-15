@@ -3,7 +3,13 @@ import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { hashPassword, hashPin } from "../src/lib/pin";
 
-const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
+// See src/lib/prisma.ts for why this is needed against managed Postgres providers.
+const connectionString = process.env.DATABASE_URL ?? "";
+const useSsl = /supabase\.(co|com)/.test(connectionString);
+const adapter = new PrismaPg({
+  connectionString,
+  ...(useSsl ? { ssl: { rejectUnauthorized: false } } : {}),
+});
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
