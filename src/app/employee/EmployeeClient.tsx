@@ -407,18 +407,38 @@ export default function EmployeeClient() {
                         <p className="text-slate-800">{peso(p.grossPay)}</p>
                       </div>
                     </div>
-                    {p.adjustments.length > 0 && (
-                      <div className="text-sm text-slate-600 mb-2">
-                        <p className="text-slate-400 mb-1">Adjustments</p>
-                        <ul className="list-disc list-inside">
-                          {p.adjustments.map((a, i) => (
-                            <li key={i}>
-                              {a.label}: {peso(a.amount)}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
+                    {(() => {
+                      const bonuses = p.adjustments.filter((a) => a.amount > 0);
+                      const deductions = p.adjustments.filter((a) => a.amount < 0);
+                      return (
+                        <>
+                          {bonuses.length > 0 && (
+                            <div className="text-sm text-slate-600 mb-2">
+                              <p className="text-green-700 mb-1">Bonuses</p>
+                              <ul className="list-disc list-inside">
+                                {bonuses.map((a, i) => (
+                                  <li key={i}>
+                                    {a.label}: +{peso(a.amount)}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          {deductions.length > 0 && (
+                            <div className="text-sm text-slate-600 mb-2">
+                              <p className="text-red-700 mb-1">Deductions</p>
+                              <ul className="list-disc list-inside">
+                                {deductions.map((a, i) => (
+                                  <li key={i}>
+                                    {a.label}: -{peso(Math.abs(a.amount))}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
                     <div className="border-t border-slate-100 pt-2 flex items-center justify-between">
                       <p className="text-sm font-medium text-slate-600">Total pay</p>
                       <p className="text-lg font-bold text-slate-900">{peso(p.totalPay)}</p>

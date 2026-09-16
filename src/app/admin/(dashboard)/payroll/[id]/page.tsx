@@ -99,30 +99,56 @@ export default async function PayPeriodDetailPage({
                 </div>
               </div>
 
-              {payslip.adjustments.length > 0 && (
-                <table className="w-full text-xs mb-2">
-                  <tbody>
-                    {payslip.adjustments.map((adj) => (
-                      <tr key={adj.id} className="border-t border-slate-100">
-                        <td className="py-1 text-slate-700">{adj.label}</td>
-                        <td className="py-1 text-slate-500">{adj.note}</td>
-                        <td className="py-1 text-right">
-                          {Number(adj.amount) > 0 ? "+" : ""}
-                          {Number(adj.amount).toFixed(2)}
-                        </td>
-                        <td className="py-1 text-right">
-                          {payslip.status !== "FINALIZED" && (
-                            <form action={removeAdjustment}>
-                              <input type="hidden" name="adjustmentId" value={adj.id} />
-                              <button className="text-red-600 hover:underline">Remove</button>
-                            </form>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
+              {payslip.adjustments.length > 0 && (() => {
+                const bonuses = payslip.adjustments.filter((a) => Number(a.amount) > 0);
+                const deductions = payslip.adjustments.filter((a) => Number(a.amount) < 0);
+                const bonusTotal = bonuses.reduce((s, a) => s + Number(a.amount), 0);
+                const deductionTotal = deductions.reduce((s, a) => s + Number(a.amount), 0);
+
+                const renderRow = (adj: (typeof payslip.adjustments)[number]) => (
+                  <tr key={adj.id} className="border-t border-slate-100">
+                    <td className="py-1 text-slate-700">{adj.label}</td>
+                    <td className="py-1 text-slate-500">{adj.note}</td>
+                    <td className="py-1 text-right">
+                      {Number(adj.amount) > 0 ? "+" : ""}
+                      {Number(adj.amount).toFixed(2)}
+                    </td>
+                    <td className="py-1 text-right">
+                      {payslip.status !== "FINALIZED" && (
+                        <form action={removeAdjustment}>
+                          <input type="hidden" name="adjustmentId" value={adj.id} />
+                          <button className="text-red-600 hover:underline">Remove</button>
+                        </form>
+                      )}
+                    </td>
+                  </tr>
+                );
+
+                return (
+                  <div className="mb-2">
+                    {bonuses.length > 0 && (
+                      <div className="mb-1">
+                        <p className="text-xs font-medium text-green-700">
+                          Bonuses (+₱{bonusTotal.toFixed(2)})
+                        </p>
+                        <table className="w-full text-xs">
+                          <tbody>{bonuses.map(renderRow)}</tbody>
+                        </table>
+                      </div>
+                    )}
+                    {deductions.length > 0 && (
+                      <div>
+                        <p className="text-xs font-medium text-red-700">
+                          Deductions (₱{deductionTotal.toFixed(2)})
+                        </p>
+                        <table className="w-full text-xs">
+                          <tbody>{deductions.map(renderRow)}</tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               {payslip.status !== "FINALIZED" && suggestedBonuses.length > 0 && (
                 <div className="mb-2 rounded-md bg-amber-50 border border-amber-200 p-2">
@@ -162,9 +188,16 @@ export default async function PayPeriodDetailPage({
                       <input
                         name="label"
                         required
+                        list={`adjustment-label-presets-${employee.id}`}
                         placeholder="Cash advance"
                         className="rounded-md border border-slate-300 px-2 py-1 text-xs"
                       />
+                      <datalist id={`adjustment-label-presets-${employee.id}`}>
+                        <option value="Cash Advance" />
+                        <option value="Negligence" />
+                        <option value="Late" />
+                        <option value="Bonus" />
+                      </datalist>
                     </div>
                     <div>
                       <label className="block text-xs text-slate-500">Amount (+/-)</label>
