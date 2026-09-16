@@ -278,20 +278,17 @@ describe("computeDailyResults - multiple punch pairs in one day", () => {
 });
 
 describe("computePay", () => {
-  it("HOURLY basis: regular + OT at multiplier", () => {
-    const result = computePay(40, 5, "HOURLY", 100, {
-      otMultiplier: 1.25,
+  it("HOURLY basis: pays regular hours only, OT hours are not auto-paid", () => {
+    const result = computePay(40, "HOURLY", 100, {
       regularHoursCapPerDay: 8,
     });
     expect(result.hourlyRate).toBe(100);
     expect(result.basePay).toBe(4000);
-    expect(result.overtimePay).toBe(625); // 5 * 100 * 1.25
-    expect(result.grossPay).toBe(4625);
+    expect(result.grossPay).toBe(4000);
   });
 
   it("DAILY basis: a full 8h day earns exactly the daily rate", () => {
-    const result = computePay(8, 0, "DAILY", 800, {
-      otMultiplier: 1.25,
+    const result = computePay(8, "DAILY", 800, {
       regularHoursCapPerDay: 8,
     });
     expect(result.hourlyRate).toBe(100);
@@ -335,10 +332,9 @@ describe("full period integration - hand-calculable example", () => {
     // OT: Tue 2h only
     expect(overtimeHours).toBeCloseTo(2, 5);
 
-    const pay = computePay(regularHours, overtimeHours, "HOURLY", 100, settings);
-    // base = 38.6667 * 100 = 3866.67; OT = 2 * 100 * 1.25 = 250; gross = 4116.67
+    const pay = computePay(regularHours, "HOURLY", 100, settings);
+    // base = 38.6667 * 100 = 3866.67; OT is tracked (2h, asserted above) but not auto-paid
     expect(pay.basePay).toBeCloseTo(3866.6667, 2);
-    expect(pay.overtimePay).toBeCloseTo(250, 5);
-    expect(pay.grossPay).toBeCloseTo(4116.6667, 2);
+    expect(pay.grossPay).toBeCloseTo(3866.6667, 2);
   });
 });

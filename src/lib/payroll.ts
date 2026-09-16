@@ -48,7 +48,6 @@ export interface PeriodResult {
 export interface PayResult {
   hourlyRate: number;
   basePay: number;
-  overtimePay: number;
   grossPay: number;
 }
 
@@ -246,26 +245,26 @@ export function summarizePeriod(days: DailyResult[]): PeriodResult {
 }
 
 /**
- * Gross pay from regular/overtime hours. For DAILY pay basis, the effective
+ * Gross pay from regular hours only. For DAILY pay basis, the effective
  * hourly rate is payRate / regularHoursCapPerDay (a full 8-hour day earns
- * exactly the daily rate; overtime is paid on top at the OT multiplier).
+ * exactly the daily rate). Hours worked beyond the regular cap are not
+ * auto-paid -- overtime hours are still tracked and shown (see
+ * computeDailyResults) as a reference for the admin to decide on a manual
+ * Bonus adjustment, but never factor into gross pay here.
  */
 export function computePay(
   regularHours: number,
-  overtimeHours: number,
   payBasis: PayBasis,
   payRate: number,
-  settings: Pick<PayrollSettings, "otMultiplier" | "regularHoursCapPerDay">
+  settings: Pick<PayrollSettings, "regularHoursCapPerDay">
 ): PayResult {
   const hourlyRate =
     payBasis === "HOURLY" ? payRate : payRate / settings.regularHoursCapPerDay;
   const basePay = regularHours * hourlyRate;
-  const overtimePay = overtimeHours * hourlyRate * settings.otMultiplier;
   return {
     hourlyRate,
     basePay,
-    overtimePay,
-    grossPay: basePay + overtimePay,
+    grossPay: basePay,
   };
 }
 

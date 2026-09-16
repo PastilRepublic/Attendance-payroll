@@ -66,35 +66,25 @@ export default async function SettingsPage() {
               defaultValue={Number(settings.regularHoursCapPerDay)}
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
             />
+            <p className="text-xs text-slate-500 mt-1">
+              Hours worked beyond this are tracked as OT hours for reference, but are not
+              automatically paid -- add a manual Bonus adjustment on the payslip if you want to
+              compensate them.
+            </p>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              Overtime multiplier
-            </label>
-            <input
-              name="otMultiplier"
-              type="number"
-              step="0.01"
-              min="1"
-              defaultValue={Number(settings.otMultiplier)}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              Late grace period (minutes)
-            </label>
-            <input
-              name="gracePeriodMinutes"
-              type="number"
-              min="0"
-              defaultValue={settings.gracePeriodMinutes}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-            />
-          </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">
+            Late grace period (minutes)
+          </label>
+          <input
+            name="gracePeriodMinutes"
+            type="number"
+            min="0"
+            defaultValue={settings.gracePeriodMinutes}
+            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+          />
         </div>
 
         <div>

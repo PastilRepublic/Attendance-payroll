@@ -8,7 +8,6 @@ import { logAudit } from "@/lib/audit";
 import { hashPassword, verifyPassword } from "@/lib/pin";
 
 const settingsSchema = z.object({
-  otMultiplier: z.coerce.number().positive(),
   gracePeriodMinutes: z.coerce.number().int().min(0),
   unpaidLunchMinutes: z.coerce.number().int().min(0),
   regularHoursCapPerDay: z.coerce.number().positive(),
@@ -23,7 +22,6 @@ export async function updateSettings(formData: FormData) {
   if (!session?.user) throw new Error("Unauthorized");
 
   const parsed = settingsSchema.parse({
-    otMultiplier: formData.get("otMultiplier"),
     gracePeriodMinutes: formData.get("gracePeriodMinutes"),
     unpaidLunchMinutes: formData.get("unpaidLunchMinutes"),
     regularHoursCapPerDay: formData.get("regularHoursCapPerDay"),

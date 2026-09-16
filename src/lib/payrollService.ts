@@ -53,7 +53,7 @@ export async function getOrRefreshDraftPayslip(employeeId: string, payPeriodId: 
     endDate
   );
   const { regularHours, overtimeHours } = summarizePeriod(days);
-  const pay = computePay(regularHours, overtimeHours, employee.payBasis, Number(employee.payRate), settings);
+  const pay = computePay(regularHours, employee.payBasis, Number(employee.payRate), settings);
 
   const data = {
     regularHours,
