@@ -36,11 +36,11 @@ function addDaysStr(dateStr: string, days: number): string {
 // down a week/month makes the same weekday easy to pattern-match.
 const DAY_ABBREV_STYLES = [
   { label: "Sun", className: "bg-red-100 text-red-700" },
-  { label: "Mon", className: "bg-blue-100 text-blue-700" },
-  { label: "Tue", className: "bg-purple-100 text-purple-700" },
-  { label: "Wed", className: "bg-teal-100 text-teal-700" },
-  { label: "Thu", className: "bg-green-100 text-green-700" },
-  { label: "Fri", className: "bg-amber-100 text-amber-700" },
+  { label: "Mon", className: "bg-indigo-100 text-indigo-700" },
+  { label: "Tue", className: "bg-fuchsia-100 text-fuchsia-700" },
+  { label: "Wed", className: "bg-emerald-100 text-emerald-700" },
+  { label: "Thu", className: "bg-cyan-100 text-cyan-700" },
+  { label: "Fri", className: "bg-yellow-100 text-yellow-800" },
   { label: "Sat", className: "bg-orange-100 text-orange-700" },
 ] as const;
 
@@ -358,12 +358,12 @@ export default async function AttendancePage({
                     <tr key={d.date} className="border-t border-slate-100 align-top">
                       <td className="px-2 py-2 whitespace-nowrap text-slate-800">
                         <span className="flex items-center gap-1.5">
-                          {d.date}
                           <span
-                            className={`px-1.5 py-0.5 rounded text-xs font-medium ${dayAbbrev(d.date).className}`}
+                            className={`w-9 shrink-0 py-0.5 rounded text-xs font-medium text-center ${dayAbbrev(d.date).className}`}
                           >
                             {dayAbbrev(d.date).label}
                           </span>
+                          {d.date}
                         </span>
                       </td>
                       <td className="px-2 py-2 text-right whitespace-nowrap text-slate-700">
