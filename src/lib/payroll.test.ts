@@ -106,6 +106,60 @@ describe("computeDailyResults - late + undertime day", () => {
   });
 });
 
+describe("computeDailyResults - early arrival before shift start", () => {
+  it("does not earn extra regular/OT for time worked before shift start", () => {
+    const punches = [
+      { timestamp: atManila("2026-01-05", 7, 30), type: "IN" as const },
+      { timestamp: atManila("2026-01-05", 17, 0), type: "OUT" as const },
+    ];
+    const [day] = computeDailyResults(
+      punches,
+      [],
+      settings,
+      "2026-01-05",
+      "2026-01-05"
+    );
+    // Treated as if they started at 08:00 (shift start): 9h - 1h lunch = 8h net.
+    expect(day.regularMinutes).toBe(8 * 60);
+    expect(day.overtimeMinutes).toBe(0);
+    expect(day.isLate).toBe(false);
+  });
+
+  it("still counts hours worked after shift end as OT, even with an early start", () => {
+    const punches = [
+      { timestamp: atManila("2026-01-05", 7, 30), type: "IN" as const },
+      { timestamp: atManila("2026-01-05", 18, 0), type: "OUT" as const },
+    ];
+    const [day] = computeDailyResults(
+      punches,
+      [],
+      settings,
+      "2026-01-05",
+      "2026-01-05"
+    );
+    // Clipped to 08:00-18:00 = 10h - 1h lunch = 9h net -> 8h regular + 1h OT
+    // (the hour after the 17:00 shift end). The 07:30-08:00 head start earns nothing.
+    expect(day.regularMinutes).toBe(8 * 60);
+    expect(day.overtimeMinutes).toBe(60);
+    expect(day.isUndertime).toBe(false);
+  });
+
+  it("a late arrival is never clipped and is still flagged Late", () => {
+    const punches = [
+      { timestamp: atManila("2026-01-05", 8, 20), type: "IN" as const },
+      { timestamp: atManila("2026-01-05", 17, 0), type: "OUT" as const },
+    ];
+    const [day] = computeDailyResults(
+      punches,
+      [],
+      settings,
+      "2026-01-05",
+      "2026-01-05"
+    );
+    expect(day.isLate).toBe(true);
+  });
+});
+
 describe("computeDailyResults - shift override for one date", () => {
   it("uses the override start/end for Late/Undertime instead of the default", () => {
     const punches = [

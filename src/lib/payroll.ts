@@ -1,4 +1,4 @@
-import { toZonedTime, formatInTimeZone } from "date-fns-tz";
+import { toZonedTime, formatInTimeZone, fromZonedTime } from "date-fns-tz";
 import { addDays, eachDayOfInterval, parseISO } from "date-fns";
 
 export const TIMEZONE = "Asia/Manila";
@@ -65,6 +65,35 @@ function localMinutesOfDay(instant: Date): number {
 function parseHHmm(hhmm: string): number {
   const [h, m] = hhmm.split(":").map(Number);
   return h * 60 + m;
+}
+
+/** Builds a UTC Date for a given local (Asia/Manila) calendar date and minutes-of-day. */
+function atLocalMinutesOfDay(dateKey: string, minutesOfDay: number): Date {
+  const hh = String(Math.floor(minutesOfDay / 60)).padStart(2, "0");
+  const mm = String(minutesOfDay % 60).padStart(2, "0");
+  return fromZonedTime(`${dateKey}T${hh}:${mm}:00`, TIMEZONE);
+}
+
+/**
+ * If the day's first punch is an IN earlier than the shift start, replaces
+ * its timestamp with the shift start time. Arriving early doesn't earn extra
+ * regular or overtime pay -- only hours after the shift's actual end do.
+ */
+function clipEarlyArrival(
+  dayPunches: PunchInput[],
+  dateKey: string,
+  shiftStartMinutes: number
+): PunchInput[] {
+  if (dayPunches.length === 0) return dayPunches;
+  const sorted = [...dayPunches].sort(
+    (a, b) => a.timestamp.getTime() - b.timestamp.getTime()
+  );
+  const first = sorted[0];
+  if (first.type !== "IN" || localMinutesOfDay(first.timestamp) >= shiftStartMinutes) {
+    return sorted;
+  }
+  sorted[0] = { ...first, timestamp: atLocalMinutesOfDay(dateKey, shiftStartMinutes) };
+  return sorted;
 }
 
 /**
@@ -136,8 +165,15 @@ export function computeDailyResults(
   }).map((d) => formatInTimeZone(d, TIMEZONE, "yyyy-MM-dd"));
 
   return days.map((date) => {
-    const dayPunches = punchesByDay.get(date) ?? [];
+    const rawDayPunches = punchesByDay.get(date) ?? [];
     const dayStatus = statusByDay.get(date) ?? null;
+
+    const override = overrideByDay.get(date);
+    const shiftStartMinutes = parseHHmm(override?.shiftStartTime ?? settings.shiftStartTime);
+    const shiftEndMinutes = parseHHmm(override?.shiftEndTime ?? settings.shiftEndTime);
+    const lateThreshold = shiftStartMinutes + settings.gracePeriodMinutes;
+
+    const dayPunches = clipEarlyArrival(rawDayPunches, date, shiftStartMinutes);
     const { workedMinutes, segments } = pairPunches(dayPunches);
 
     if (dayStatus === "PAID_LEAVE") {
@@ -173,17 +209,13 @@ export function computeDailyResults(
     const regularMinutes = Math.min(netMinutes, capMinutes);
     const overtimeMinutes = Math.max(netMinutes - capMinutes, 0);
 
-    const override = overrideByDay.get(date);
-    const shiftStartMinutes = parseHHmm(override?.shiftStartTime ?? settings.shiftStartTime);
-    const shiftEndMinutes = parseHHmm(override?.shiftEndTime ?? settings.shiftEndTime);
-    const lateThreshold = shiftStartMinutes + settings.gracePeriodMinutes;
+    // dayPunches is already sorted ascending by clipEarlyArrival.
+    const firstIn = dayPunches.find((p) => p.type === "IN");
+    const lastOut = [...dayPunches].reverse().find((p) => p.type === "OUT");
 
-    const sortedPunches = [...dayPunches].sort(
-      (a, b) => a.timestamp.getTime() - b.timestamp.getTime()
-    );
-    const firstIn = sortedPunches.find((p) => p.type === "IN");
-    const lastOut = [...sortedPunches].reverse().find((p) => p.type === "OUT");
-
+    // The clipped firstIn can never read as late (it's pinned to shiftStart
+    // when it was early); a genuinely late arrival is never clipped, so this
+    // still reflects their real arrival time.
     const isLate = firstIn
       ? localMinutesOfDay(firstIn.timestamp) > lateThreshold
       : false;
