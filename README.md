@@ -50,7 +50,7 @@ npm run db:seed          # creates the first admin user + default settings
 npm run dev
 ```
 
-Seeded admin login: printed to the console by `db:seed` (defaults to `periodtoffice@gmail.com` / `ChangeMe123!` unless overridden with `ADMIN_SEED_EMAIL` / `ADMIN_SEED_PASSWORD` env vars). **Change this password after first login** — there's no self-service password-change UI yet; update it directly via the database or add one.
+Seeded admin login: printed to the console by `db:seed` (defaults to `periodtoffice@gmail.com` / `ChangeMe123!` unless overridden with `ADMIN_SEED_EMAIL` / `ADMIN_SEED_PASSWORD` env vars). **Change this password after first login** via Settings → Change Admin Password.
 
 `db:seed` only creates the admin user, default settings, and the `kiosk-1` device — no fake employees, so it's safe to run against a real (including production) database. For local testing, add two sample employees (Maria Santos, PIN 1234; Juan Dela Cruz, PIN 5678) by setting `SEED_SAMPLE_DATA=true` before seeding.
 
@@ -82,7 +82,7 @@ npx eslint .       # lint
 
 ## Known gaps / next steps
 
-- **No self-service admin password change/reset UI** — the only admin account is the seeded one. Change the default seeded password directly in the database, or add a change-password page.
+- **No password reset flow for a forgotten password** — there's a self-service change-password form on the Settings page (requires knowing the current password), but no "forgot password" / email-reset flow. If the admin password is ever forgotten, it needs a direct database update.
 - **PDF export** is a print-optimized page (browser "Save as PDF"), not a server-generated PDF file. Fine for Phase 1; revisit if you want emailable payslips.
 
 ## Deployment (Vercel + Supabase)
