@@ -312,20 +312,25 @@ export default function EmployeeClient() {
                       </tr>
                     </thead>
                     <tbody>
-                      {(days ?? []).map((d) => (
+                      {(days ?? []).map((d) => {
+                        // Paid Leave / Unpaid Absence pay is fixed regardless of
+                        // punches, so showing raw times next to that status would
+                        // look contradictory.
+                        const showTimes = d.dayStatus === null;
+                        return (
                         <tr key={d.date} className="border-t border-slate-100">
                           <td className="px-4 py-2 text-slate-800 whitespace-nowrap">{d.date}</td>
                           <td className="px-4 py-2 text-right text-slate-800 whitespace-nowrap">
-                            {d.morningIn ?? <span className="text-slate-300">—</span>}
+                            {showTimes ? d.morningIn ?? <span className="text-slate-300">—</span> : <span className="text-slate-300">—</span>}
                           </td>
                           <td className="px-4 py-2 text-right text-slate-800 whitespace-nowrap">
-                            {d.morningOut ?? <span className="text-slate-300">—</span>}
+                            {showTimes ? d.morningOut ?? <span className="text-slate-300">—</span> : <span className="text-slate-300">—</span>}
                           </td>
                           <td className="px-4 py-2 text-right text-slate-800 whitespace-nowrap">
-                            {d.afternoonIn ?? <span className="text-slate-300">—</span>}
+                            {showTimes ? d.afternoonIn ?? <span className="text-slate-300">—</span> : <span className="text-slate-300">—</span>}
                           </td>
                           <td className="px-4 py-2 text-right text-slate-800 whitespace-nowrap">
-                            {d.afternoonOut ?? <span className="text-slate-300">—</span>}
+                            {showTimes ? d.afternoonOut ?? <span className="text-slate-300">—</span> : <span className="text-slate-300">—</span>}
                           </td>
                           <td className="px-4 py-2 text-right text-slate-800 whitespace-nowrap">
                             {d.regularHours.toFixed(2)} hr
@@ -341,7 +346,7 @@ export default function EmployeeClient() {
                                 </span>
                               )}
                               {d.dayStatus === "UNPAID_ABSENCE" && (
-                                <span className="rounded-full bg-slate-200 text-slate-600 text-xs px-2 py-0.5">
+                                <span className="rounded-full bg-red-100 text-red-700 text-xs px-2 py-0.5">
                                   Unpaid absence
                                 </span>
                               )}
@@ -358,7 +363,8 @@ export default function EmployeeClient() {
                             </div>
                           </td>
                         </tr>
-                      ))}
+                        );
+                      })}
                       {(days ?? []).length === 0 && (
                         <tr>
                           <td colSpan={8} className="px-4 py-6 text-center text-slate-400">

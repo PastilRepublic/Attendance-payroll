@@ -158,20 +158,25 @@ export default async function AttendancePage({
                 {days.map((d) => {
                   const slots = computeDaySlots(punchesByDay.get(d.date) ?? []);
                   const dayStatus = statusByDay.get(d.date) ?? "NORMAL";
+                  // Paid Leave / Unpaid Absence pay is fixed regardless of punches,
+                  // so showing the raw times next to that status reads as a
+                  // contradiction. The punches themselves are untouched and still
+                  // reachable via Manage -- just not surfaced as if they counted.
+                  const showTimes = dayStatus === "NORMAL";
                   return (
                     <tr key={d.date} className="border-t border-slate-100 align-top">
                       <td className="px-2 py-2 whitespace-nowrap text-slate-800">{d.date}</td>
                       <td className="px-2 py-2 text-right whitespace-nowrap text-slate-700">
-                        {slots.morningIn ?? <span className="text-slate-300">—</span>}
+                        {showTimes ? slots.morningIn ?? <span className="text-slate-300">—</span> : <span className="text-slate-300">—</span>}
                       </td>
                       <td className="px-2 py-2 text-right whitespace-nowrap text-slate-700">
-                        {slots.morningOut ?? <span className="text-slate-300">—</span>}
+                        {showTimes ? slots.morningOut ?? <span className="text-slate-300">—</span> : <span className="text-slate-300">—</span>}
                       </td>
                       <td className="px-2 py-2 text-right whitespace-nowrap text-slate-700">
-                        {slots.afternoonIn ?? <span className="text-slate-300">—</span>}
+                        {showTimes ? slots.afternoonIn ?? <span className="text-slate-300">—</span> : <span className="text-slate-300">—</span>}
                       </td>
                       <td className="px-2 py-2 text-right whitespace-nowrap text-slate-700">
-                        {slots.afternoonOut ?? <span className="text-slate-300">—</span>}
+                        {showTimes ? slots.afternoonOut ?? <span className="text-slate-300">—</span> : <span className="text-slate-300">—</span>}
                       </td>
                       <td className="px-2 py-2 text-right whitespace-nowrap text-slate-700">
                         {(d.regularMinutes / 60).toFixed(2)}h
@@ -187,7 +192,7 @@ export default async function AttendancePage({
                             </span>
                           )}
                           {d.dayStatus === "UNPAID_ABSENCE" && (
-                            <span className="px-2 py-0.5 rounded-full text-xs bg-slate-200 text-slate-600">
+                            <span className="px-2 py-0.5 rounded-full text-xs bg-red-100 text-red-700">
                               Absent
                             </span>
                           )}
