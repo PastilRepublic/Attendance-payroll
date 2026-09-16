@@ -307,7 +307,6 @@ export default function EmployeeClient() {
                         <th className="text-right px-4 py-2 font-medium">Afternoon In</th>
                         <th className="text-right px-4 py-2 font-medium">Afternoon Out</th>
                         <th className="text-right px-4 py-2 font-medium">Regular</th>
-                        <th className="text-right px-4 py-2 font-medium">Overtime</th>
                         <th className="text-left px-4 py-2 font-medium">Notes</th>
                       </tr>
                     </thead>
@@ -334,9 +333,6 @@ export default function EmployeeClient() {
                           </td>
                           <td className="px-4 py-2 text-right text-slate-800 whitespace-nowrap">
                             {d.regularHours.toFixed(2)} hr
-                          </td>
-                          <td className="px-4 py-2 text-right text-slate-800 whitespace-nowrap">
-                            {d.overtimeHours.toFixed(2)} hr
                           </td>
                           <td className="px-4 py-2">
                             <div className="flex flex-wrap gap-1">
@@ -367,7 +363,7 @@ export default function EmployeeClient() {
                       })}
                       {(days ?? []).length === 0 && (
                         <tr>
-                          <td colSpan={8} className="px-4 py-6 text-center text-slate-400">
+                          <td colSpan={7} className="px-4 py-6 text-center text-slate-400">
                             No attendance records yet.
                           </td>
                         </tr>
@@ -396,14 +392,10 @@ export default function EmployeeClient() {
                         {p.status === "FINALIZED" ? "Finalized" : "Draft — subject to change"}
                       </span>
                     </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm text-slate-600 mb-2">
+                    <div className="grid grid-cols-3 gap-2 text-sm text-slate-600 mb-2">
                       <div>
                         <p className="text-slate-400">Regular hrs</p>
                         <p className="text-slate-800">{p.regularHours.toFixed(2)}</p>
-                      </div>
-                      <div>
-                        <p className="text-slate-400">Overtime hrs</p>
-                        <p className="text-slate-800">{p.overtimeHours.toFixed(2)}</p>
                       </div>
                       <div>
                         <p className="text-slate-400">Base pay</p>
