@@ -52,18 +52,77 @@ export async function POST(request: Request) {
     endDate
   );
 
+  const punchesByDay = new Map<string, typeof relevantPunches>();
+  for (const p of relevantPunches) {
+    const key = localDateKey(p.timestamp);
+    if (!punchesByDay.has(key)) punchesByDay.set(key, []);
+    punchesByDay.get(key)!.push(p);
+  }
+
+  // Groups a day's punches into IN/OUT segments. A normal day has one segment
+  // (a single continuous shift); an actual lunch-break punch-out/in produces
+  // a second segment.
+  function buildSegments(dayPunches: typeof relevantPunches) {
+    const segments: { in?: Date; out?: Date }[] = [];
+    let current: { in?: Date; out?: Date } | null = null;
+    for (const p of dayPunches) {
+      if (p.type === "IN") {
+        if (current) segments.push(current);
+        current = { in: p.timestamp };
+      } else {
+        if (current) {
+          current.out = p.timestamp;
+          segments.push(current);
+          current = null;
+        } else {
+          segments.push({ out: p.timestamp });
+        }
+      }
+    }
+    if (current) segments.push(current);
+    return segments;
+  }
+
+  const formatTime = (t?: Date) => (t ? formatInTimeZone(t, TIMEZONE, "h:mm a") : null);
+
   return NextResponse.json({
     employeeName: matched.name,
     days: days
       .slice()
       .reverse()
-      .map((d) => ({
-        date: d.date,
-        regularHours: Math.round((d.regularMinutes / 60) * 100) / 100,
-        overtimeHours: Math.round((d.overtimeMinutes / 60) * 100) / 100,
-        isLate: d.isLate,
-        isUndertime: d.isUndertime,
-        dayStatus: d.dayStatus,
-      })),
+      .map((d) => {
+        const dayPunches = (punchesByDay.get(d.date) ?? [])
+          .slice()
+          .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+        const segments = buildSegments(dayPunches);
+
+        // One segment = a normal single continuous shift: In goes under
+        // "Morning", Out goes under "Afternoon" (no lunch-break punch was
+        // recorded). Two or more segments = an actual split day.
+        const slots =
+          segments.length <= 1
+            ? {
+                morningIn: formatTime(segments[0]?.in),
+                morningOut: null,
+                afternoonIn: null,
+                afternoonOut: formatTime(segments[0]?.out),
+              }
+            : {
+                morningIn: formatTime(segments[0]?.in),
+                morningOut: formatTime(segments[0]?.out),
+                afternoonIn: formatTime(segments[1]?.in),
+                afternoonOut: formatTime(segments[1]?.out),
+              };
+
+        return {
+          date: d.date,
+          ...slots,
+          regularHours: Math.round((d.regularMinutes / 60) * 100) / 100,
+          overtimeHours: Math.round((d.overtimeMinutes / 60) * 100) / 100,
+          isLate: d.isLate,
+          isUndertime: d.isUndertime,
+          dayStatus: d.dayStatus,
+        };
+      }),
   });
 }

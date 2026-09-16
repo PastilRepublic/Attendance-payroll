@@ -141,7 +141,7 @@ describe("computeDailyResults - unpaid absence day", () => {
 });
 
 describe("computeDailyResults - multiple punch pairs in one day", () => {
-  it("sums worked minutes across pairs (e.g. a mid-day errand)", () => {
+  it("does not double-deduct lunch when the employee punches out/in for it", () => {
     const punches = [
       { timestamp: atManila("2026-01-05", 8, 0), type: "IN" as const },
       { timestamp: atManila("2026-01-05", 12, 0), type: "OUT" as const },
@@ -155,9 +155,29 @@ describe("computeDailyResults - multiple punch pairs in one day", () => {
       "2026-01-05",
       "2026-01-05"
     );
-    // 4h + 4h = 8h worked, minus 1h unpaid lunch = 7h net (all regular)
+    // 4h + 4h = 8h worked. The 12:00-13:00 gap between the two segments IS
+    // the lunch break, already excluded -- the flat unpaid-lunch minutes
+    // must not also be subtracted on top of it.
     expect(day.workedMinutes).toBe(8 * 60);
-    expect(day.regularMinutes).toBe(7 * 60);
+    expect(day.regularMinutes).toBe(8 * 60);
+    expect(day.overtimeMinutes).toBe(0);
+  });
+
+  it("still deducts the flat unpaid lunch for a single continuous shift", () => {
+    const punches = [
+      { timestamp: atManila("2026-01-05", 8, 0), type: "IN" as const },
+      { timestamp: atManila("2026-01-05", 17, 0), type: "OUT" as const },
+    ];
+    const [day] = computeDailyResults(
+      punches,
+      [],
+      settings,
+      "2026-01-05",
+      "2026-01-05"
+    );
+    // 9h worked, no separate lunch punch -- minus 1h unpaid lunch = 8h net
+    expect(day.workedMinutes).toBe(9 * 60);
+    expect(day.regularMinutes).toBe(8 * 60);
     expect(day.overtimeMinutes).toBe(0);
   });
 });

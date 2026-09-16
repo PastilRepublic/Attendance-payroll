@@ -67,22 +67,31 @@ function parseHHmm(hhmm: string): number {
   return h * 60 + m;
 }
 
-/** Pairs sequential IN/OUT punches (sorted ascending) into worked minutes for one day. */
-function pairPunches(punches: PunchInput[]): number {
+/**
+ * Pairs sequential IN/OUT punches (sorted ascending) into worked minutes for
+ * one day, and counts how many IN->OUT segments were closed. A normal day
+ * has one segment (a single continuous shift, lunch not punched separately).
+ * An actual lunch-break punch-out/punch-in produces a second segment, whose
+ * gap already excludes the break -- so the flat unpaid-lunch deduction
+ * should not also apply on top of it (see computeDailyResults below).
+ */
+function pairPunches(punches: PunchInput[]): { workedMinutes: number; segments: number } {
   const sorted = [...punches].sort(
     (a, b) => a.timestamp.getTime() - b.timestamp.getTime()
   );
   let workedMs = 0;
+  let segments = 0;
   let openIn: Date | null = null;
   for (const p of sorted) {
     if (p.type === "IN") {
       openIn = p.timestamp;
     } else if (p.type === "OUT" && openIn) {
       workedMs += p.timestamp.getTime() - openIn.getTime();
+      segments += 1;
       openIn = null;
     }
   }
-  return workedMs / 60000;
+  return { workedMinutes: workedMs / 60000, segments };
 }
 
 /**
@@ -119,7 +128,7 @@ export function computeDailyResults(
   return days.map((date) => {
     const dayPunches = punchesByDay.get(date) ?? [];
     const dayStatus = statusByDay.get(date) ?? null;
-    const workedMinutes = pairPunches(dayPunches);
+    const { workedMinutes, segments } = pairPunches(dayPunches);
 
     if (dayStatus === "PAID_LEAVE") {
       return {
@@ -144,7 +153,13 @@ export function computeDailyResults(
       };
     }
 
-    const netMinutes = Math.max(workedMinutes - settings.unpaidLunchMinutes, 0);
+    // A second (or later) segment means the employee actually punched out and
+    // back in for lunch -- that gap is already excluded from workedMinutes,
+    // so don't also subtract the flat unpaid-lunch minutes on top of it.
+    const netMinutes =
+      segments >= 2
+        ? workedMinutes
+        : Math.max(workedMinutes - settings.unpaidLunchMinutes, 0);
     const regularMinutes = Math.min(netMinutes, capMinutes);
     const overtimeMinutes = Math.max(netMinutes - capMinutes, 0);
 
