@@ -85,6 +85,7 @@ export default async function TasksPage({
       </div>
 
       <div className="bg-white rounded-lg shadow p-4">
+        <div className="overflow-x-auto">
         <table className="w-full text-sm mb-4">
           <thead className="text-slate-500 text-left">
             <tr>
@@ -136,6 +137,7 @@ export default async function TasksPage({
             )}
           </tbody>
         </table>
+        </div>
 
         <form action={assignTask} className="flex flex-wrap items-end gap-3 border-t border-slate-100 pt-4">
           <input type="hidden" name="date" value={date} />

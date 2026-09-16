@@ -120,6 +120,7 @@ export default async function AttendancePage({
                 </form>
               </div>
 
+              <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="text-slate-500 text-left">
                   <tr>
@@ -173,6 +174,7 @@ export default async function AttendancePage({
                   )}
                 </tbody>
               </table>
+              </div>
 
               <AddPunchForm employeeId={emp.id} date={date} />
             </div>
