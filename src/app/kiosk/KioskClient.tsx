@@ -11,8 +11,10 @@ import {
 import { getDeviceId, setCachedRequirePhoto } from "./kioskCache";
 
 type Screen =
+  | "selectName"
   | "idle"
   | "working"
+  | "chooseType"
   | "photo"
   | "submitting"
   | "confirm"
@@ -31,11 +33,16 @@ interface PendingTask {
   bonusAmount: number | null;
 }
 
+interface EmployeeOption {
+  id: string;
+  name: string;
+}
+
 const AUTO_RESET_MS = 2200;
 const TASKS_AUTO_FINISH_MS = 15000;
 
 export default function KioskClient() {
-  const [screen, setScreen] = useState<Screen>("idle");
+  const [screen, setScreen] = useState<Screen>("selectName");
   const [pin, setPin] = useState("");
   const [confirmInfo, setConfirmInfo] = useState<ConfirmInfo | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
@@ -43,6 +50,12 @@ export default function KioskClient() {
   const [failedCount, setFailedCount] = useState(0);
   const [pendingTasks, setPendingTasks] = useState<PendingTask[]>([]);
   const [doneTaskIds, setDoneTaskIds] = useState<Set<string>>(new Set());
+  const [employees, setEmployees] = useState<EmployeeOption[]>([]);
+  const [employeesFailed, setEmployeesFailed] = useState(false);
+  const [selectedEmployee, setSelectedEmployee] = useState<EmployeeOption | null>(null);
+  const [suggestedType, setSuggestedType] = useState<"IN" | "OUT">("IN");
+  const [chosenType, setChosenType] = useState<"IN" | "OUT" | null>(null);
+  const [requirePhoto, setRequirePhoto] = useState(false);
   const deviceIdRef = useRef<string>("");
 
   const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -67,13 +80,28 @@ export default function KioskClient() {
     };
   }, [refreshCounts]);
 
+  useEffect(() => {
+    fetch("/api/kiosk/employees")
+      .then((res) => (res.ok ? res.json() : Promise.reject()))
+      .then((data) => setEmployees(Array.isArray(data.employees) ? data.employees : []))
+      .catch(() => setEmployeesFailed(true));
+  }, []);
+
   const resetToIdle = useCallback(() => {
-    setScreen("idle");
+    setScreen("selectName");
     setPin("");
     setConfirmInfo(null);
     setErrorMessage("");
     setPendingTasks([]);
     setDoneTaskIds(new Set());
+    setSelectedEmployee(null);
+    setChosenType(null);
+  }, []);
+
+  const chooseEmployee = useCallback((employee: EmployeeOption | null) => {
+    setSelectedEmployee(employee);
+    setPin("");
+    setScreen("idle");
   }, []);
 
   const scheduleReset = useCallback(
@@ -123,8 +151,14 @@ export default function KioskClient() {
   }, [screen, resetToIdle]);
 
   const queueOffline = useCallback(
-    (pinToQueue: string, photoDataUrl?: string) => {
-      const err = enqueuePunch({ pin: pinToQueue, deviceId: deviceIdRef.current, photoDataUrl });
+    (pinToQueue: string, type: "IN" | "OUT" | null, photoDataUrl?: string) => {
+      const err = enqueuePunch({
+        pin: pinToQueue,
+        employeeId: selectedEmployee?.id,
+        type: type ?? undefined,
+        deviceId: deviceIdRef.current,
+        photoDataUrl,
+      });
       refreshCounts();
       if (err) {
         setErrorMessage(err);
@@ -135,17 +169,23 @@ export default function KioskClient() {
         scheduleReset(2600);
       }
     },
-    [refreshCounts, scheduleReset]
+    [refreshCounts, scheduleReset, selectedEmployee]
   );
 
   const submitPunch = useCallback(
-    async (pinToSubmit: string, photoDataUrl?: string) => {
+    async (pinToSubmit: string, type: "IN" | "OUT" | null, photoDataUrl?: string) => {
       setScreen("submitting");
       try {
         const res = await fetch("/api/kiosk/punch", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ pin: pinToSubmit, deviceId: deviceIdRef.current, photoDataUrl }),
+          body: JSON.stringify({
+            pin: pinToSubmit,
+            employeeId: selectedEmployee?.id,
+            type,
+            deviceId: deviceIdRef.current,
+            photoDataUrl,
+          }),
         });
         if (res.ok) {
           const data = await res.json();
@@ -157,13 +197,13 @@ export default function KioskClient() {
           setScreen("error");
           scheduleReset();
         } else {
-          queueOffline(pinToSubmit, photoDataUrl);
+          queueOffline(pinToSubmit, type, photoDataUrl);
         }
       } catch {
-        queueOffline(pinToSubmit, photoDataUrl);
+        queueOffline(pinToSubmit, type, photoDataUrl);
       }
     },
-    [queueOffline, finishAfterConfirm, scheduleReset]
+    [queueOffline, finishAfterConfirm, scheduleReset, selectedEmployee]
   );
 
   const handleSubmitPin = useCallback(async () => {
@@ -173,29 +213,40 @@ export default function KioskClient() {
       const res = await fetch("/api/kiosk/identify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pin }),
+        body: JSON.stringify({ pin, employeeId: selectedEmployee?.id }),
       });
       if (res.ok) {
         const data = await res.json();
         setCachedRequirePhoto(Boolean(data.requirePhoto));
+        setRequirePhoto(Boolean(data.requirePhoto));
+        setSuggestedType(data.nextType === "OUT" ? "OUT" : "IN");
+        setChosenType(null);
         setPendingTasks(Array.isArray(data.pendingTasks) ? data.pendingTasks : []);
         setDoneTaskIds(new Set());
-        if (data.requirePhoto) {
-          setScreen("photo");
-        } else {
-          submitPunch(pin);
-        }
+        setScreen("chooseType");
       } else if (res.status === 401) {
         setErrorMessage("PIN not recognized. Please try again.");
         setScreen("error");
         scheduleReset();
       } else {
-        queueOffline(pin);
+        queueOffline(pin, null);
       }
     } catch {
-      queueOffline(pin);
+      queueOffline(pin, null);
     }
-  }, [pin, submitPunch, queueOffline, scheduleReset]);
+  }, [pin, queueOffline, scheduleReset, selectedEmployee]);
+
+  const confirmType = useCallback(
+    (type: "IN" | "OUT") => {
+      setChosenType(type);
+      if (requirePhoto) {
+        setScreen("photo");
+      } else {
+        submitPunch(pin, type);
+      }
+    },
+    [requirePhoto, pin, submitPunch]
+  );
 
   const handleDigit = (d: string) => {
     if (screen !== "idle") return;
@@ -208,7 +259,7 @@ export default function KioskClient() {
     <div className="fixed inset-0 bg-slate-900 text-white flex flex-col select-none">
       <div className="flex justify-between items-center px-6 py-3 text-xs text-slate-400">
         <div className="flex items-center gap-3">
-          {screen === "idle" ? (
+          {screen === "selectName" ? (
             <Link href="/" className="hover:text-slate-200">
               ← Back
             </Link>
@@ -227,23 +278,38 @@ export default function KioskClient() {
         </div>
       </div>
 
-      <div className="flex-1 flex items-center justify-center px-4">
+      <div className="flex-1 flex items-center justify-center px-4 py-4 overflow-y-auto">
+        {screen === "selectName" && (
+          <NameSelect
+            employees={employees}
+            failed={employeesFailed}
+            onSelect={chooseEmployee}
+            onEnterPinDirectly={() => chooseEmployee(null)}
+          />
+        )}
+
         {screen === "idle" && (
           <PinPad
             pin={pin}
+            employeeName={selectedEmployee?.name ?? null}
             onDigit={handleDigit}
             onBackspace={handleBackspace}
             onClear={handleClear}
             onSubmit={handleSubmitPin}
+            onChooseAgain={() => setScreen("selectName")}
           />
         )}
 
         {screen === "working" && <StatusMessage text="Checking..." />}
 
+        {screen === "chooseType" && (
+          <ChooseType suggested={suggestedType} onChoose={confirmType} />
+        )}
+
         {screen === "photo" && (
           <PhotoCapture
-            onCaptured={(photoDataUrl) => submitPunch(pin, photoDataUrl)}
-            onSkip={() => submitPunch(pin)}
+            onCaptured={(photoDataUrl) => submitPunch(pin, chosenType, photoDataUrl)}
+            onSkip={() => submitPunch(pin, chosenType)}
           />
         )}
 
@@ -303,25 +369,131 @@ function StatusMessage({
   );
 }
 
+function NameSelect({
+  employees,
+  failed,
+  onSelect,
+  onEnterPinDirectly,
+}: {
+  employees: EmployeeOption[];
+  failed: boolean;
+  onSelect: (employee: EmployeeOption) => void;
+  onEnterPinDirectly: () => void;
+}) {
+  const loading = !failed && employees.length === 0;
+
+  return (
+    <div className="text-center w-full max-w-xl">
+      <p className="text-3xl font-semibold mb-8">Tap your name</p>
+
+      {loading && <p className="text-slate-400 text-lg">Loading employees…</p>}
+
+      {failed && (
+        <p className="text-red-400 text-lg mb-6">
+          Could not load the employee list — you can still enter your PIN directly.
+        </p>
+      )}
+
+      {!loading && employees.length > 0 && (
+        <div className="grid grid-cols-2 gap-4 mb-8">
+          {employees.map((emp) => (
+            <button
+              key={emp.id}
+              onClick={() => onSelect(emp)}
+              className="rounded-2xl bg-slate-800 hover:bg-slate-700 px-6 py-6 text-xl font-semibold"
+            >
+              {emp.name}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <button
+        onClick={onEnterPinDirectly}
+        className="text-sm text-slate-400 hover:text-slate-200 underline"
+      >
+        Enter PIN directly instead
+      </button>
+    </div>
+  );
+}
+
+function ChooseType({
+  suggested,
+  onChoose,
+}: {
+  suggested: "IN" | "OUT";
+  onChoose: (type: "IN" | "OUT") => void;
+}) {
+  return (
+    <div className="text-center">
+      <p className="text-2xl font-semibold mb-8">Time In or Time Out?</p>
+      <div className="flex gap-6">
+        <button
+          onClick={() => onChoose("IN")}
+          className={`w-40 h-40 rounded-2xl text-3xl font-bold flex flex-col items-center justify-center gap-2 ${
+            suggested === "IN"
+              ? "bg-green-600 hover:bg-green-500"
+              : "bg-slate-800 hover:bg-slate-700"
+          }`}
+        >
+          Time In
+          {suggested === "IN" && <span className="text-sm font-normal">Suggested</span>}
+        </button>
+        <button
+          onClick={() => onChoose("OUT")}
+          className={`w-40 h-40 rounded-2xl text-3xl font-bold flex flex-col items-center justify-center gap-2 ${
+            suggested === "OUT"
+              ? "bg-green-600 hover:bg-green-500"
+              : "bg-slate-800 hover:bg-slate-700"
+          }`}
+        >
+          Time Out
+          {suggested === "OUT" && <span className="text-sm font-normal">Suggested</span>}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function PinPad({
   pin,
+  employeeName,
   onDigit,
   onBackspace,
   onClear,
   onSubmit,
+  onChooseAgain,
 }: {
   pin: string;
+  employeeName: string | null;
   onDigit: (d: string) => void;
   onBackspace: () => void;
   onClear: () => void;
   onSubmit: () => void;
+  onChooseAgain: () => void;
 }) {
   const digits = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "clear", "0", "back"];
 
   return (
     <div className="flex flex-col items-center">
-      <p className="text-3xl font-semibold mb-6">Enter your PIN</p>
-      <div className="flex gap-3 mb-8">
+      {employeeName ? (
+        <>
+          <p className="text-2xl font-semibold mb-1">Hi, {employeeName}</p>
+          <div className="flex items-center gap-3 mb-3">
+            <p className="text-base text-slate-400">Enter your PIN</p>
+            <button
+              onClick={onChooseAgain}
+              className="text-xs text-slate-400 hover:text-slate-200 underline"
+            >
+              Not you? Choose again
+            </button>
+          </div>
+        </>
+      ) : (
+        <p className="text-3xl font-semibold mb-4">Enter your PIN</p>
+      )}
+      <div className="flex gap-3 mb-5">
         {Array.from({ length: 6 }).map((_, i) => (
           <div
             key={i}
@@ -371,7 +543,7 @@ function PinPad({
       <button
         onClick={onSubmit}
         disabled={pin.length < 4}
-        className="mt-8 w-72 h-16 rounded-2xl bg-green-600 hover:bg-green-500 disabled:bg-slate-700 disabled:text-slate-500 text-2xl font-semibold"
+        className="mt-5 w-72 h-16 rounded-2xl bg-green-600 hover:bg-green-500 disabled:bg-slate-700 disabled:text-slate-500 text-2xl font-semibold"
       >
         Enter
       </button>

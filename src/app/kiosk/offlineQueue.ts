@@ -4,6 +4,8 @@ const FAILED_QUEUE_KEY = "kiosk-punch-failed-queue";
 export interface QueuedPunch {
   id: string;
   pin: string;
+  employeeId?: string;
+  type?: "IN" | "OUT";
   deviceId: string;
   photoDataUrl?: string;
   queuedAt: string;
@@ -83,6 +85,8 @@ export async function flushQueue(): Promise<{ synced: number; failed: number; re
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           pin: item.pin,
+          employeeId: item.employeeId,
+          type: item.type,
           deviceId: item.deviceId,
           photoDataUrl: item.photoDataUrl,
         }),

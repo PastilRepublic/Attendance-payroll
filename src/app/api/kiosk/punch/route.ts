@@ -1,31 +1,22 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyPin } from "@/lib/pin";
 import { savePunchPhoto } from "@/lib/storage";
+import { resolveEmployeeByPin } from "@/lib/kioskAuth";
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const pin = typeof body?.pin === "string" ? body.pin : null;
+  const employeeId = typeof body?.employeeId === "string" ? body.employeeId : null;
   const deviceId = typeof body?.deviceId === "string" ? body.deviceId : null;
   const photoDataUrl = typeof body?.photoDataUrl === "string" ? body.photoDataUrl : null;
+  const requestedType: "IN" | "OUT" | null =
+    body?.type === "IN" || body?.type === "OUT" ? body.type : null;
 
   if (!pin) {
     return NextResponse.json({ error: "PIN is required" }, { status: 400 });
   }
 
-  const activeEmployees = await prisma.employee.findMany({
-    where: { active: true },
-    select: { id: true, name: true, pinHash: true },
-  });
-
-  let matched: { id: string; name: string } | null = null;
-  for (const emp of activeEmployees) {
-    if (await verifyPin(pin, emp.pinHash)) {
-      matched = { id: emp.id, name: emp.name };
-      break;
-    }
-  }
-
+  const matched = await resolveEmployeeByPin(pin, employeeId);
   if (!matched) {
     return NextResponse.json({ error: "PIN not recognized" }, { status: 401 });
   }
@@ -38,13 +29,20 @@ export async function POST(request: Request) {
     });
   }
 
-  // Re-derive the next punch type server-side at creation time — never trust
-  // a client-supplied type, so a stale identify() result can't flip it.
-  const lastPunch = await prisma.punch.findFirst({
-    where: { employeeId: matched.id },
-    orderBy: { timestamp: "desc" },
-  });
-  const type: "IN" | "OUT" = lastPunch?.type === "IN" ? "OUT" : "IN";
+  // The employee explicitly picks Time In/Out on the kiosk now (rather than
+  // a silent auto-toggle), so an explicit choice is honored here. Only when
+  // none is given (e.g. an older queued offline punch) do we fall back to
+  // auto-deriving it from the last punch.
+  let type: "IN" | "OUT";
+  if (requestedType) {
+    type = requestedType;
+  } else {
+    const lastPunch = await prisma.punch.findFirst({
+      where: { employeeId: matched.id },
+      orderBy: { timestamp: "desc" },
+    });
+    type = lastPunch?.type === "IN" ? "OUT" : "IN";
+  }
 
   const punch = await prisma.punch.create({
     data: {
