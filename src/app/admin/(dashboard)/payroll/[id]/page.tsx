@@ -185,19 +185,20 @@ export default async function PayPeriodDetailPage({
                     <input type="hidden" name="payslipId" value={payslip.id} />
                     <div>
                       <label className="block text-xs text-slate-500">Label</label>
-                      <input
+                      <select
                         name="label"
                         required
-                        list={`adjustment-label-presets-${employee.id}`}
-                        placeholder="Cash advance"
+                        defaultValue=""
                         className="rounded-md border border-slate-300 px-2 py-1 text-xs"
-                      />
-                      <datalist id={`adjustment-label-presets-${employee.id}`}>
-                        <option value="Cash Advance" />
-                        <option value="Negligence" />
-                        <option value="Late" />
-                        <option value="Bonus" />
-                      </datalist>
+                      >
+                        <option value="" disabled>
+                          Select...
+                        </option>
+                        <option value="Cash Advance">Cash Advance</option>
+                        <option value="Negligence">Negligence</option>
+                        <option value="Late">Late</option>
+                        <option value="Bonus">Bonus</option>
+                      </select>
                     </div>
                     <div>
                       <label className="block text-xs text-slate-500">Amount (+/-)</label>
