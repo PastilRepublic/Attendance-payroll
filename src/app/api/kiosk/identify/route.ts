@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
+import { formatInTimeZone } from "date-fns-tz";
 import { prisma } from "@/lib/prisma";
 import { verifyPin } from "@/lib/pin";
 import { getRequirePhotoOnPunch } from "@/lib/settings";
+import { TIMEZONE } from "@/lib/payroll";
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
@@ -33,10 +35,25 @@ export async function POST(request: Request) {
   });
   const nextType: "IN" | "OUT" = lastPunch?.type === "IN" ? "OUT" : "IN";
 
+  const today = formatInTimeZone(new Date(), TIMEZONE, "yyyy-MM-dd");
+  const pendingTasks = await prisma.taskAssignment.findMany({
+    where: {
+      employeeId: matched.id,
+      date: new Date(`${today}T00:00:00.000Z`),
+      status: "PENDING",
+    },
+    include: { template: true },
+  });
+
   return NextResponse.json({
     employeeId: matched.id,
     employeeName: matched.name,
     nextType,
     requirePhoto: await getRequirePhotoOnPunch(),
+    pendingTasks: pendingTasks.map((t) => ({
+      id: t.id,
+      name: t.template.name,
+      bonusAmount: t.bonusAmount ? Number(t.bonusAmount) : null,
+    })),
   });
 }

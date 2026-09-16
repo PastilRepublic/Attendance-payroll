@@ -35,6 +35,22 @@ enum PayslipStatus {
   FINALIZED
 }
 
+enum InventoryCategory {
+  INGREDIENT
+  PRODUCT
+  PACKAGING
+}
+
+enum StockMovementType {
+  IN
+  OUT
+}
+
+enum TaskAssignmentStatus {
+  PENDING
+  DONE
+}
+
 model AdminUser {
   id           String   @id @default(cuid())
   name         String
@@ -45,6 +61,8 @@ model AdminUser {
   createdPunches   Punch[]     @relation("PunchCreatedByAdmin")
   finalizedPeriods PayPeriod[] @relation("PayPeriodFinalizedByAdmin")
   auditLogEntries  AuditLog[]  @relation("AuditLogActor")
+  stockMovements   StockMovement[]  @relation("StockMovementCreatedByAdmin")
+  assignedTasks    TaskAssignment[] @relation("TaskAssignmentAssignedByAdmin")
 }
 
 model Employee {
@@ -58,9 +76,10 @@ model Employee {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  punches     Punch[]
-  dayStatuses DayStatus[]
-  payslips    Payslip[]
+  punches         Punch[]
+  dayStatuses     DayStatus[]
+  payslips        Payslip[]
+  taskAssignments TaskAssignment[]
 }
 
 model Device {
@@ -154,6 +173,8 @@ model PayslipAdjustment {
   amount    Decimal  @db.Decimal(10, 2)
   note      String?
   createdAt DateTime @default(now())
+
+  taskAssignment TaskAssignment?
 }
 
 model AuditLog {
@@ -182,4 +203,65 @@ model Settings {
   shiftEndTime          String   @default("17:00")
   payPeriodStartDay     Int      @default(1) // 1 = Monday (ISO weekday)
   updatedAt             DateTime @updatedAt
+}
+
+model InventoryItem {
+  id                String            @id @default(cuid())
+  name              String
+  category          InventoryCategory
+  unit              String
+  quantity          Decimal           @default(0) @db.Decimal(12, 2)
+  lowStockThreshold Decimal           @default(0) @db.Decimal(12, 2)
+  active            Boolean           @default(true)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  movements StockMovement[]
+}
+
+model StockMovement {
+  id        String             @id @default(cuid())
+  itemId    String
+  item      InventoryItem      @relation(fields: [itemId], references: [id])
+  type      StockMovementType
+  quantity  Decimal            @db.Decimal(12, 2)
+  reason    String
+  createdByAdminId String?
+  createdByAdmin   AdminUser?  @relation("StockMovementCreatedByAdmin", fields: [createdByAdminId], references: [id])
+  createdAt DateTime           @default(now())
+
+  @@index([itemId, createdAt])
+}
+
+model TaskTemplate {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  assignments TaskAssignment[]
+}
+
+model TaskAssignment {
+  id          String               @id @default(cuid())
+  templateId  String
+  template    TaskTemplate         @relation(fields: [templateId], references: [id])
+  employeeId  String
+  employee    Employee             @relation(fields: [employeeId], references: [id])
+  date        DateTime             @db.Date
+  bonusAmount Decimal?             @db.Decimal(10, 2)
+  status      TaskAssignmentStatus @default(PENDING)
+  completedAt DateTime?
+
+  assignedByAdminId String?
+  assignedByAdmin   AdminUser?     @relation("TaskAssignmentAssignedByAdmin", fields: [assignedByAdminId], references: [id])
+
+  /** Set once an admin turns this bonus into a real PayslipAdjustment, so it can never be suggested or applied twice. */
+  payslipAdjustmentId String?             @unique
+  payslipAdjustment   PayslipAdjustment?  @relation(fields: [payslipAdjustmentId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([employeeId, date])
 }

@@ -16,6 +16,7 @@ type Screen =
   | "photo"
   | "submitting"
   | "confirm"
+  | "tasks"
   | "queued"
   | "error";
 
@@ -24,7 +25,14 @@ interface ConfirmInfo {
   type: "IN" | "OUT";
 }
 
+interface PendingTask {
+  id: string;
+  name: string;
+  bonusAmount: number | null;
+}
+
 const AUTO_RESET_MS = 2200;
+const TASKS_AUTO_FINISH_MS = 15000;
 
 export default function KioskClient() {
   const [screen, setScreen] = useState<Screen>("idle");
@@ -33,6 +41,8 @@ export default function KioskClient() {
   const [errorMessage, setErrorMessage] = useState("");
   const [pendingCount, setPendingCount] = useState(0);
   const [failedCount, setFailedCount] = useState(0);
+  const [pendingTasks, setPendingTasks] = useState<PendingTask[]>([]);
+  const [doneTaskIds, setDoneTaskIds] = useState<Set<string>>(new Set());
   const deviceIdRef = useRef<string>("");
 
   const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -57,15 +67,60 @@ export default function KioskClient() {
     };
   }, [refreshCounts]);
 
-  const scheduleReset = useCallback((ms: number = AUTO_RESET_MS) => {
+  const resetToIdle = useCallback(() => {
+    setScreen("idle");
+    setPin("");
+    setConfirmInfo(null);
+    setErrorMessage("");
+    setPendingTasks([]);
+    setDoneTaskIds(new Set());
+  }, []);
+
+  const scheduleReset = useCallback(
+    (ms: number = AUTO_RESET_MS) => {
+      if (resetTimer.current) clearTimeout(resetTimer.current);
+      resetTimer.current = setTimeout(resetToIdle, ms);
+    },
+    [resetToIdle]
+  );
+
+  const finishAfterConfirm = useCallback(() => {
     if (resetTimer.current) clearTimeout(resetTimer.current);
     resetTimer.current = setTimeout(() => {
-      setScreen("idle");
-      setPin("");
-      setConfirmInfo(null);
-      setErrorMessage("");
-    }, ms);
-  }, []);
+      setPendingTasks((current) => {
+        if (current.length > 0) {
+          setScreen("tasks");
+        } else {
+          resetToIdle();
+        }
+        return current;
+      });
+    }, AUTO_RESET_MS);
+  }, [resetToIdle]);
+
+  const completeTask = useCallback(
+    async (taskId: string) => {
+      try {
+        const res = await fetch("/api/kiosk/tasks/complete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pin, taskAssignmentId: taskId }),
+        });
+        if (res.ok) {
+          setDoneTaskIds((prev) => new Set(prev).add(taskId));
+        }
+      } catch {
+        // Best-effort: task stays pending, admin can still see/manage it directly.
+      }
+    },
+    [pin]
+  );
+
+  useEffect(() => {
+    if (screen !== "tasks") return;
+    const t = setTimeout(resetToIdle, TASKS_AUTO_FINISH_MS);
+    return () => clearTimeout(t);
+  }, [screen, resetToIdle]);
 
   const queueOffline = useCallback(
     (pinToQueue: string, photoDataUrl?: string) => {
@@ -96,7 +151,7 @@ export default function KioskClient() {
           const data = await res.json();
           setConfirmInfo({ employeeName: data.employeeName, type: data.type });
           setScreen("confirm");
-          scheduleReset();
+          finishAfterConfirm();
         } else if (res.status === 401) {
           setErrorMessage("PIN not recognized. Please try again.");
           setScreen("error");
@@ -108,7 +163,7 @@ export default function KioskClient() {
         queueOffline(pinToSubmit, photoDataUrl);
       }
     },
-    [queueOffline, scheduleReset]
+    [queueOffline, finishAfterConfirm, scheduleReset]
   );
 
   const handleSubmitPin = useCallback(async () => {
@@ -123,6 +178,8 @@ export default function KioskClient() {
       if (res.ok) {
         const data = await res.json();
         setCachedRequirePhoto(Boolean(data.requirePhoto));
+        setPendingTasks(Array.isArray(data.pendingTasks) ? data.pendingTasks : []);
+        setDoneTaskIds(new Set());
         if (data.requirePhoto) {
           setScreen("photo");
         } else {
@@ -198,6 +255,15 @@ export default function KioskClient() {
             color="text-green-400"
             text={`${confirmInfo.type === "IN" ? "Time In" : "Time Out"}`}
             subtext={confirmInfo.employeeName}
+          />
+        )}
+
+        {screen === "tasks" && (
+          <TaskChecklist
+            tasks={pendingTasks}
+            doneIds={doneTaskIds}
+            onComplete={completeTask}
+            onFinish={resetToIdle}
           />
         )}
 
@@ -308,6 +374,57 @@ function PinPad({
         className="mt-8 w-72 h-16 rounded-2xl bg-green-600 hover:bg-green-500 disabled:bg-slate-700 disabled:text-slate-500 text-2xl font-semibold"
       >
         Enter
+      </button>
+    </div>
+  );
+}
+
+function TaskChecklist({
+  tasks,
+  doneIds,
+  onComplete,
+  onFinish,
+}: {
+  tasks: PendingTask[];
+  doneIds: Set<string>;
+  onComplete: (taskId: string) => void;
+  onFinish: () => void;
+}) {
+  return (
+    <div className="text-center w-full max-w-md">
+      <p className="text-2xl font-semibold mb-6">Your tasks today</p>
+      <div className="space-y-3 mb-8 text-left">
+        {tasks.map((t) => {
+          const done = doneIds.has(t.id);
+          return (
+            <button
+              key={t.id}
+              onClick={() => !done && onComplete(t.id)}
+              disabled={done}
+              className={`w-full flex items-center justify-between rounded-xl px-5 py-4 text-lg ${
+                done
+                  ? "bg-green-900/40 text-green-300"
+                  : "bg-slate-800 hover:bg-slate-700"
+              }`}
+            >
+              <span>{t.name}</span>
+              <span className="flex items-center gap-3">
+                {t.bonusAmount ? (
+                  <span className="text-sm text-amber-300">
+                    +₱{t.bonusAmount.toFixed(2)}
+                  </span>
+                ) : null}
+                {done && <span>✓</span>}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      <button
+        onClick={onFinish}
+        className="rounded-2xl bg-slate-700 hover:bg-slate-600 px-8 py-3 text-lg font-medium"
+      >
+        Finish
       </button>
     </div>
   );
