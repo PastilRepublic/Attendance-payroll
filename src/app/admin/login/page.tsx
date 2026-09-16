@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AuthError } from "next-auth";
 import { signIn } from "@/lib/auth";
@@ -32,7 +33,12 @@ export default async function LoginPage({
   const callbackUrl = params.callbackUrl ?? "/admin";
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-100 px-4">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-slate-100 px-4">
+      <div className="w-full max-w-sm mb-3">
+        <Link href="/" className="text-sm text-slate-500 hover:text-slate-700">
+          ← Home
+        </Link>
+      </div>
       <div className="w-full max-w-sm bg-white rounded-xl shadow p-8">
         <h1 className="text-xl font-semibold text-slate-900 mb-1">Admin Login</h1>
         <p className="text-sm text-slate-500 mb-6">
