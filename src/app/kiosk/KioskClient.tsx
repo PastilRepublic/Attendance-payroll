@@ -46,6 +46,7 @@ export default function KioskClient() {
   const [pin, setPin] = useState("");
   const [confirmInfo, setConfirmInfo] = useState<ConfirmInfo | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
+  const [errorNeedsAck, setErrorNeedsAck] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
   const [failedCount, setFailedCount] = useState(0);
   const [pendingTasks, setPendingTasks] = useState<PendingTask[]>([]);
@@ -92,6 +93,7 @@ export default function KioskClient() {
     setPin("");
     setConfirmInfo(null);
     setErrorMessage("");
+    setErrorNeedsAck(false);
     setPendingTasks([]);
     setDoneTaskIds(new Set());
     setSelectedEmployee(null);
@@ -162,6 +164,7 @@ export default function KioskClient() {
       refreshCounts();
       if (err) {
         setErrorMessage(err);
+        setErrorNeedsAck(false);
         setScreen("error");
         scheduleReset(5000);
       } else {
@@ -194,6 +197,7 @@ export default function KioskClient() {
           finishAfterConfirm();
         } else if (res.status === 401) {
           setErrorMessage("PIN not recognized. Please try again.");
+          setErrorNeedsAck(false);
           setScreen("error");
           scheduleReset();
         } else if (res.status === 409) {
@@ -201,8 +205,8 @@ export default function KioskClient() {
           setErrorMessage(
             data?.message ?? "This action isn't allowed right now. Please see your admin."
           );
+          setErrorNeedsAck(true);
           setScreen("error");
-          scheduleReset(4000);
         } else {
           queueOffline(pinToSubmit, type, photoDataUrl);
         }
@@ -233,6 +237,7 @@ export default function KioskClient() {
         setScreen("chooseType");
       } else if (res.status === 401) {
         setErrorMessage("PIN not recognized. Please try again.");
+        setErrorNeedsAck(false);
         setScreen("error");
         scheduleReset();
       } else {
@@ -350,7 +355,17 @@ export default function KioskClient() {
         )}
 
         {screen === "error" && (
-          <StatusMessage big color="text-red-400" text="Oops" subtext={errorMessage} />
+          <div className="text-center">
+            <StatusMessage big color="text-red-400" text="Oops" subtext={errorMessage} />
+            {errorNeedsAck && (
+              <button
+                onClick={resetToIdle}
+                className="mt-8 w-48 h-14 rounded-2xl bg-slate-700 hover:bg-slate-600 text-xl font-semibold"
+              >
+                OK
+              </button>
+            )}
+          </div>
         )}
       </div>
     </div>
