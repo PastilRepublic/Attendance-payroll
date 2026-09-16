@@ -98,7 +98,7 @@ export async function flushQueue(): Promise<{ synced: number; failed: number; re
     if (res.ok) {
       removeFromQueue(item.id);
       synced += 1;
-    } else if (res.status === 401 || res.status === 400) {
+    } else if (res.status === 401 || res.status === 400 || res.status === 409) {
       moveToFailedQueue(item);
       failed += 1;
     } else {

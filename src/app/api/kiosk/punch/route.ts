@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
+import { fromZonedTime } from "date-fns-tz";
+import { addDays } from "date-fns";
 import { prisma } from "@/lib/prisma";
 import { savePunchPhoto } from "@/lib/storage";
 import { resolveEmployeeByPin } from "@/lib/kioskAuth";
+import { localDateKey, TIMEZONE } from "@/lib/payroll";
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
@@ -42,6 +45,29 @@ export async function POST(request: Request) {
       orderBy: { timestamp: "desc" },
     });
     type = lastPunch?.type === "IN" ? "OUT" : "IN";
+  }
+
+  if (type === "OUT") {
+    const todayKey = localDateKey(new Date());
+    const dayStart = fromZonedTime(`${todayKey}T00:00:00`, TIMEZONE);
+    const dayEnd = addDays(dayStart, 1);
+    const lastToday = await prisma.punch.findFirst({
+      where: {
+        employeeId: matched.id,
+        voided: false,
+        timestamp: { gte: dayStart, lt: dayEnd },
+      },
+      orderBy: { timestamp: "desc" },
+    });
+    if (!lastToday || lastToday.type !== "IN") {
+      return NextResponse.json(
+        {
+          error: "NOT_TIMED_IN",
+          message: "You haven't timed in yet today. Please see your admin for assistance.",
+        },
+        { status: 409 }
+      );
+    }
   }
 
   const punch = await prisma.punch.create({

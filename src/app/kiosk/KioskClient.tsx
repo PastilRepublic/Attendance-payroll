@@ -196,6 +196,13 @@ export default function KioskClient() {
           setErrorMessage("PIN not recognized. Please try again.");
           setScreen("error");
           scheduleReset();
+        } else if (res.status === 409) {
+          const data = await res.json().catch(() => null);
+          setErrorMessage(
+            data?.message ?? "This action isn't allowed right now. Please see your admin."
+          );
+          setScreen("error");
+          scheduleReset(4000);
         } else {
           queueOffline(pinToSubmit, type, photoDataUrl);
         }
