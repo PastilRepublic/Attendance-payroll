@@ -351,7 +351,7 @@ export default function EmployeeClient() {
                                 </span>
                               )}
                               {d.isLate && (
-                                <span className="rounded-full bg-amber-100 text-amber-700 text-xs px-2 py-0.5">
+                                <span className="rounded-full bg-rose-100 text-rose-700 text-xs px-2 py-0.5">
                                   Late
                                 </span>
                               )}
