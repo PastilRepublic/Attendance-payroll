@@ -4,7 +4,7 @@ import { computeDailyResults, localDateKey } from "@/lib/payroll";
 import { computeDaySlots } from "@/lib/attendanceSlots";
 import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
 import { TIMEZONE } from "@/lib/payroll";
-import { addPunch, editPunch, voidPunch, setDayStatus } from "./actions";
+import { addPunch, editPunch, voidPunch, setDayStatus, setShiftOverride, removeShiftOverride } from "./actions";
 import AutoRefresh from "./AutoRefresh";
 
 function currentMonthManila(): string {
@@ -43,6 +43,16 @@ export default async function AttendancePage({
 
   const settings = await getSettings();
 
+  const shiftOverrides = await prisma.shiftOverride.findMany({
+    where: {
+      date: {
+        gte: new Date(`${monthStart}T00:00:00.000Z`),
+        lte: new Date(`${monthEnd}T00:00:00.000Z`),
+      },
+    },
+    orderBy: { date: "asc" },
+  });
+
   const [punches, dayStatuses] = employeeId
     ? await Promise.all([
         prisma.punch.findMany({
@@ -78,13 +88,20 @@ export default async function AttendancePage({
     dayStatuses.map((d) => [d.date.toISOString().slice(0, 10), d.status])
   );
 
+  const shiftOverrideInputs = shiftOverrides.map((o) => ({
+    date: o.date.toISOString().slice(0, 10),
+    shiftStartTime: o.shiftStartTime,
+    shiftEndTime: o.shiftEndTime,
+  }));
+
   const days = employeeId
     ? computeDailyResults(
         punches.map((p) => ({ timestamp: p.timestamp, type: p.type })),
         dayStatuses.map((d) => ({ date: d.date.toISOString().slice(0, 10), status: d.status })),
         settings,
         monthStart,
-        monthEnd
+        monthEnd,
+        shiftOverrideInputs
       )
     : [];
 
@@ -126,6 +143,8 @@ export default async function AttendancePage({
           </button>
         </form>
       </div>
+
+      <ShiftOverridesPanel overrides={shiftOverrides} />
 
       {employees.length === 0 ? (
         <p className="text-slate-400 text-center py-12">No active employees.</p>
@@ -225,6 +244,87 @@ export default async function AttendancePage({
         </div>
       )}
     </div>
+  );
+}
+
+function ShiftOverridesPanel({
+  overrides,
+}: {
+  overrides: { id: string; date: Date; shiftStartTime: string; shiftEndTime: string }[];
+}) {
+  return (
+    <details className="bg-white rounded-lg shadow p-4 mb-4">
+      <summary className="text-sm font-medium text-slate-700 cursor-pointer">
+        Shift start/end overrides for this month
+        {overrides.length > 0 && ` (${overrides.length})`}
+      </summary>
+      <p className="text-xs text-slate-500 mt-2 mb-3">
+        Use this when work starts later than usual for everyone that day (e.g. ingredients
+        arrived late). It only affects that date&apos;s Late/Undertime flags -- pay is always
+        based on actual hours worked.
+      </p>
+
+      {overrides.length > 0 && (
+        <table className="w-full text-xs mb-3">
+          <thead className="text-slate-500 text-left">
+            <tr>
+              <th className="py-1 pr-2 font-normal">Date</th>
+              <th className="py-1 pr-2 font-normal">Shift start</th>
+              <th className="py-1 pr-2 font-normal">Shift end</th>
+              <th className="py-1 font-normal"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {overrides.map((o) => (
+              <tr key={o.id} className="border-t border-slate-100">
+                <td className="py-1.5 pr-2">{o.date.toISOString().slice(0, 10)}</td>
+                <td className="py-1.5 pr-2">{o.shiftStartTime}</td>
+                <td className="py-1.5 pr-2">{o.shiftEndTime}</td>
+                <td className="py-1.5 text-right">
+                  <form action={removeShiftOverride}>
+                    <input type="hidden" name="overrideId" value={o.id} />
+                    <button className="text-red-600 hover:underline">Remove</button>
+                  </form>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      <form action={setShiftOverride} className="flex flex-wrap items-end gap-2">
+        <div>
+          <label className="block text-xs text-slate-500">Date</label>
+          <input
+            type="date"
+            name="date"
+            required
+            className="rounded-md border border-slate-300 px-2 py-1 text-xs"
+          />
+        </div>
+        <div>
+          <label className="block text-xs text-slate-500">Shift start</label>
+          <input
+            type="time"
+            name="shiftStartTime"
+            required
+            className="rounded-md border border-slate-300 px-2 py-1 text-xs"
+          />
+        </div>
+        <div>
+          <label className="block text-xs text-slate-500">Shift end</label>
+          <input
+            type="time"
+            name="shiftEndTime"
+            required
+            className="rounded-md border border-slate-300 px-2 py-1 text-xs"
+          />
+        </div>
+        <button className="rounded-md bg-slate-900 text-white text-xs px-3 py-1.5 hover:bg-slate-800">
+          Set
+        </button>
+      </form>
+    </details>
   );
 }
 

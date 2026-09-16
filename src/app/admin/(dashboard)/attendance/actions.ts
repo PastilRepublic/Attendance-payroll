@@ -18,6 +18,65 @@ function localToUtc(date: string, time: string): Date {
   return fromZonedTime(`${date}T${time}:00`, TIMEZONE);
 }
 
+const shiftOverrideSchema = z.object({
+  date: z.string().min(1),
+  shiftStartTime: z.string().regex(/^\d{2}:\d{2}$/),
+  shiftEndTime: z.string().regex(/^\d{2}:\d{2}$/),
+});
+
+export async function setShiftOverride(formData: FormData) {
+  const admin = await requireAdmin();
+  const parsed = shiftOverrideSchema.parse({
+    date: formData.get("date"),
+    shiftStartTime: formData.get("shiftStartTime"),
+    shiftEndTime: formData.get("shiftEndTime"),
+  });
+
+  const date = new Date(`${parsed.date}T00:00:00.000Z`);
+  const override = await prisma.shiftOverride.upsert({
+    where: { date },
+    update: { shiftStartTime: parsed.shiftStartTime, shiftEndTime: parsed.shiftEndTime, setByAdminId: admin.id },
+    create: {
+      date,
+      shiftStartTime: parsed.shiftStartTime,
+      shiftEndTime: parsed.shiftEndTime,
+      setByAdminId: admin.id,
+    },
+  });
+
+  await logAudit({
+    actorAdminId: admin.id,
+    action: "SET_SHIFT_OVERRIDE",
+    targetTable: "ShiftOverride",
+    targetId: override.id,
+    after: { date: parsed.date, shiftStartTime: parsed.shiftStartTime, shiftEndTime: parsed.shiftEndTime },
+  });
+
+  revalidatePath("/admin/attendance");
+}
+
+export async function removeShiftOverride(formData: FormData) {
+  const admin = await requireAdmin();
+  const id = String(formData.get("overrideId"));
+
+  const existing = await prisma.shiftOverride.findUniqueOrThrow({ where: { id } });
+  await prisma.shiftOverride.delete({ where: { id } });
+
+  await logAudit({
+    actorAdminId: admin.id,
+    action: "REMOVE_SHIFT_OVERRIDE",
+    targetTable: "ShiftOverride",
+    targetId: id,
+    before: {
+      date: existing.date.toISOString().slice(0, 10),
+      shiftStartTime: existing.shiftStartTime,
+      shiftEndTime: existing.shiftEndTime,
+    },
+  });
+
+  revalidatePath("/admin/attendance");
+}
+
 const addPunchSchema = z.object({
   employeeId: z.string().min(1),
   date: z.string().min(1),

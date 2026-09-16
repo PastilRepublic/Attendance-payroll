@@ -98,12 +98,22 @@ function pairPunches(punches: PunchInput[]): { workedMinutes: number; segments: 
  * Computes per-day regular/overtime minutes and late/undertime flags for every
  * local calendar day in [periodStartDate, periodEndDate] (inclusive, YYYY-MM-DD).
  */
+export interface ShiftOverrideInput {
+  /** Local (Asia/Manila) calendar date, YYYY-MM-DD */
+  date: string;
+  /** "HH:mm" in Asia/Manila local time */
+  shiftStartTime: string;
+  /** "HH:mm" in Asia/Manila local time */
+  shiftEndTime: string;
+}
+
 export function computeDailyResults(
   punches: PunchInput[],
   dayStatuses: DayStatusInput[],
   settings: PayrollSettings,
   periodStartDate: string,
-  periodEndDate: string
+  periodEndDate: string,
+  shiftOverrides: ShiftOverrideInput[] = []
 ): DailyResult[] {
   const punchesByDay = new Map<string, PunchInput[]>();
   for (const p of punches) {
@@ -115,10 +125,10 @@ export function computeDailyResults(
   const statusByDay = new Map<string, DayStatusType>();
   for (const s of dayStatuses) statusByDay.set(s.date, s.status);
 
+  const overrideByDay = new Map<string, ShiftOverrideInput>();
+  for (const o of shiftOverrides) overrideByDay.set(o.date, o);
+
   const capMinutes = settings.regularHoursCapPerDay * 60;
-  const shiftStartMinutes = parseHHmm(settings.shiftStartTime);
-  const shiftEndMinutes = parseHHmm(settings.shiftEndTime);
-  const lateThreshold = shiftStartMinutes + settings.gracePeriodMinutes;
 
   const days = eachDayOfInterval({
     start: parseISO(periodStartDate),
@@ -162,6 +172,11 @@ export function computeDailyResults(
         : Math.max(workedMinutes - settings.unpaidLunchMinutes, 0);
     const regularMinutes = Math.min(netMinutes, capMinutes);
     const overtimeMinutes = Math.max(netMinutes - capMinutes, 0);
+
+    const override = overrideByDay.get(date);
+    const shiftStartMinutes = parseHHmm(override?.shiftStartTime ?? settings.shiftStartTime);
+    const shiftEndMinutes = parseHHmm(override?.shiftEndTime ?? settings.shiftEndTime);
+    const lateThreshold = shiftStartMinutes + settings.gracePeriodMinutes;
 
     const sortedPunches = [...dayPunches].sort(
       (a, b) => a.timestamp.getTime() - b.timestamp.getTime()

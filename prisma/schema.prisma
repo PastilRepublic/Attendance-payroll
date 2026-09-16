@@ -205,6 +205,18 @@ model Settings {
   updatedAt             DateTime @updatedAt
 }
 
+/** A one-off shift start/end time for a specific date (e.g. work started late
+ * because ingredients arrived late), applying to everyone that day. Only
+ * affects the Late/Undertime flags -- pay is always actual hours worked. */
+model ShiftOverride {
+  id             String   @id @default(cuid())
+  date           DateTime @unique @db.Date
+  shiftStartTime String
+  shiftEndTime   String
+  setByAdminId   String?
+  createdAt      DateTime @default(now())
+}
+
 model InventoryItem {
   id                String            @id @default(cuid())
   name              String

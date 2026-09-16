@@ -106,6 +106,47 @@ describe("computeDailyResults - late + undertime day", () => {
   });
 });
 
+describe("computeDailyResults - shift override for one date", () => {
+  it("uses the override start/end for Late/Undertime instead of the default", () => {
+    const punches = [
+      { timestamp: atManila("2026-01-05", 10, 0), type: "IN" as const },
+      { timestamp: atManila("2026-01-05", 19, 0), type: "OUT" as const },
+    ];
+    const [day] = computeDailyResults(
+      punches,
+      [],
+      settings,
+      "2026-01-05",
+      "2026-01-05",
+      [{ date: "2026-01-05", shiftStartTime: "10:00", shiftEndTime: "19:00" }]
+    );
+    // Same 8-hour shift, just shifted two hours later -- not late, not undertime.
+    expect(day.isLate).toBe(false);
+    expect(day.isUndertime).toBe(false);
+    expect(day.regularMinutes).toBe(8 * 60);
+  });
+
+  it("only applies to the overridden date, not other days in the same range", () => {
+    const punches = [
+      { timestamp: atManila("2026-01-05", 10, 0), type: "IN" as const },
+      { timestamp: atManila("2026-01-05", 19, 0), type: "OUT" as const },
+      { timestamp: atManila("2026-01-06", 10, 0), type: "IN" as const },
+      { timestamp: atManila("2026-01-06", 19, 0), type: "OUT" as const },
+    ];
+    const [day1, day2] = computeDailyResults(
+      punches,
+      [],
+      settings,
+      "2026-01-05",
+      "2026-01-06",
+      [{ date: "2026-01-05", shiftStartTime: "10:00", shiftEndTime: "19:00" }]
+    );
+    expect(day1.isLate).toBe(false);
+    // Jan 6 has no override, so the default 08:00 shift start still applies.
+    expect(day2.isLate).toBe(true);
+  });
+});
+
 describe("computeDailyResults - paid leave day", () => {
   it("credits a full regular day regardless of punches", () => {
     const [day] = computeDailyResults(

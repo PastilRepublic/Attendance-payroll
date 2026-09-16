@@ -27,7 +27,7 @@ export async function POST(request: Request) {
   const endDate = formatInTimeZone(new Date(), TIMEZONE, "yyyy-MM-dd");
   const startDate = formatInTimeZone(subDays(new Date(), HISTORY_DAYS - 1), TIMEZONE, "yyyy-MM-dd");
 
-  const [punches, dayStatuses] = await Promise.all([
+  const [punches, dayStatuses, shiftOverrides] = await Promise.all([
     prisma.punch.findMany({
       where: { employeeId: matched.id, voided: false },
       orderBy: { timestamp: "asc" },
@@ -35,6 +35,11 @@ export async function POST(request: Request) {
     prisma.dayStatus.findMany({
       where: {
         employeeId: matched.id,
+        date: { gte: new Date(`${startDate}T00:00:00.000Z`), lte: new Date(`${endDate}T00:00:00.000Z`) },
+      },
+    }),
+    prisma.shiftOverride.findMany({
+      where: {
         date: { gte: new Date(`${startDate}T00:00:00.000Z`), lte: new Date(`${endDate}T00:00:00.000Z`) },
       },
     }),
@@ -50,7 +55,12 @@ export async function POST(request: Request) {
     dayStatuses.map((d) => ({ date: d.date.toISOString().slice(0, 10), status: d.status })),
     settings,
     startDate,
-    endDate
+    endDate,
+    shiftOverrides.map((o) => ({
+      date: o.date.toISOString().slice(0, 10),
+      shiftStartTime: o.shiftStartTime,
+      shiftEndTime: o.shiftEndTime,
+    }))
   );
 
   const punchesByDay = new Map<string, typeof relevantPunches>();
