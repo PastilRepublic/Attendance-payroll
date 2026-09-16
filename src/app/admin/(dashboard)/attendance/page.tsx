@@ -321,7 +321,7 @@ export default async function AttendancePage({
       ) : (
         <div className="bg-white rounded-lg shadow p-4" data-attendance-refresh>
           <div className="flex items-center justify-between mb-3">
-            <span className="font-medium text-slate-900">{selectedEmployee?.name}</span>
+            <span className="text-lg font-bold text-slate-900">{selectedEmployee?.name}</span>
             <span className="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-600">
               {rangeLabel} total: {(periodTotals.regular / 60).toFixed(2)}h regular
               {periodTotals.overtime > 0 && ` + ${(periodTotals.overtime / 60).toFixed(2)}h OT`}
