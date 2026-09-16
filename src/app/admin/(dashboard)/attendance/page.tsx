@@ -266,7 +266,10 @@ export default async function AttendancePage({
         <h1 className="text-xl font-semibold text-slate-900">Attendance</h1>
         <form method="get" className="flex items-center gap-2">
           {range !== "day" && (
-            <EmployeeSelect employees={employees} defaultValue={employeeId} />
+            <EmployeeSelect
+              employees={employees.map((e) => ({ id: e.id, name: e.name }))}
+              defaultValue={employeeId}
+            />
           )}
           <select
             name="range"
