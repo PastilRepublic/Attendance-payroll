@@ -112,7 +112,7 @@ export default async function AttendancePage({
     orderBy: { name: "asc" },
   });
 
-  const employeeId = params.employeeId ?? employees[0]?.id ?? "";
+  const employeeId = params.employeeId ?? "";
   const range = parseRange(params.range);
   const refDate = params.date ?? todayManila();
   const week = params.week ?? isoWeekString(todayManila());
@@ -270,6 +270,9 @@ export default async function AttendancePage({
               defaultValue={employeeId}
               className="rounded-md border border-slate-300 px-3 py-1.5 text-sm"
             >
+              <option value="" disabled>
+                Select employee...
+              </option>
               {employees.map((e) => (
                 <option key={e.id} value={e.id}>
                   {e.name}
@@ -320,6 +323,10 @@ export default async function AttendancePage({
         <p className="text-slate-400 text-center py-12">No active employees.</p>
       ) : range === "day" ? (
         <TodayDashboard rows={todayRows} refDate={refDate} />
+      ) : !employeeId ? (
+        <p className="text-slate-400 text-center py-12">
+          Select an employee above to view their attendance for {periodPhrase}.
+        </p>
       ) : (
         <div className="bg-white rounded-lg shadow p-4" data-attendance-refresh>
           <div className="flex items-center justify-between mb-3">
