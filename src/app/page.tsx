@@ -24,7 +24,7 @@ export default function Home() {
         </Link>
         <Link
           href="/employee"
-          className="rounded-lg bg-white border border-slate-300 text-slate-800 px-10 py-4 text-lg font-medium hover:bg-slate-50"
+          className="rounded-lg bg-white border border-slate-300 text-slate-800 px-10 py-8 text-xl font-semibold hover:bg-slate-50"
         >
           Employee Dashboard
         </Link>
