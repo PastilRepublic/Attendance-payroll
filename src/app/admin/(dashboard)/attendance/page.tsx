@@ -7,6 +7,10 @@ import { TIMEZONE } from "@/lib/payroll";
 import { addPunch, editPunch, voidPunch, setDayStatus, setShiftOverride, removeShiftOverride } from "./actions";
 import AutoRefresh from "./AutoRefresh";
 
+function todayManila(): string {
+  return formatInTimeZone(new Date(), TIMEZONE, "yyyy-MM-dd");
+}
+
 function currentMonthManila(): string {
   return formatInTimeZone(new Date(), TIMEZONE, "yyyy-MM");
 }
@@ -17,17 +21,54 @@ function daysInMonth(month: string): number {
   return new Date(Date.UTC(year, monthNum, 0)).getUTCDate();
 }
 
-function nextMonthFirstDay(month: string): string {
-  const [year, monthNum] = month.split("-").map(Number);
-  return monthNum === 12
-    ? `${year + 1}-01-01`
-    : `${year}-${String(monthNum + 1).padStart(2, "0")}-01`;
+/** The day after a YYYY-MM-DD date string, via plain calendar math. */
+function nextDay(dateStr: string): string {
+  const d = new Date(`${dateStr}T00:00:00.000Z`);
+  return new Date(d.getTime() + 86400000).toISOString().slice(0, 10);
+}
+
+function addDaysStr(dateStr: string, days: number): string {
+  const d = new Date(`${dateStr}T00:00:00.000Z`);
+  return new Date(d.getTime() + days * 86400000).toISOString().slice(0, 10);
+}
+
+/** ISO week string (YYYY-Www) for the week containing this date, via plain calendar math. */
+function isoWeekString(dateStr: string): string {
+  const d = new Date(`${dateStr}T00:00:00.000Z`);
+  // ISO weeks: Thursday of the week determines the week-year.
+  const thursday = new Date(d.getTime() + (3 - ((d.getUTCDay() + 6) % 7)) * 86400000);
+  const year = thursday.getUTCFullYear();
+  const jan1 = new Date(Date.UTC(year, 0, 1));
+  const week = Math.ceil(((thursday.getTime() - jan1.getTime()) / 86400000 + 1) / 7);
+  return `${year}-W${String(week).padStart(2, "0")}`;
+}
+
+/** Monday of a given ISO week string (YYYY-Www). */
+function mondayOfIsoWeek(weekStr: string): string {
+  const [yearStr, weekPart] = weekStr.split("-W");
+  const year = Number(yearStr);
+  const week = Number(weekPart);
+  const jan4 = new Date(Date.UTC(year, 0, 4)); // Jan 4 is always in ISO week 1
+  const week1Monday = new Date(jan4.getTime() - ((jan4.getUTCDay() + 6) % 7) * 86400000);
+  return new Date(week1Monday.getTime() + (week - 1) * 7 * 86400000).toISOString().slice(0, 10);
+}
+
+type AttendanceRange = "day" | "week" | "month";
+
+function parseRange(value: string | undefined): AttendanceRange {
+  return value === "week" || value === "month" ? value : "day";
 }
 
 export default async function AttendancePage({
   searchParams,
 }: {
-  searchParams: Promise<{ employeeId?: string; month?: string }>;
+  searchParams: Promise<{
+    employeeId?: string;
+    range?: string;
+    date?: string;
+    week?: string;
+    month?: string;
+  }>;
 }) {
   const params = await searchParams;
 
@@ -37,17 +78,30 @@ export default async function AttendancePage({
   });
 
   const employeeId = params.employeeId ?? employees[0]?.id ?? "";
+  const range = parseRange(params.range);
+  const refDate = params.date ?? todayManila();
+  const week = params.week ?? isoWeekString(todayManila());
   const month = params.month ?? currentMonthManila();
-  const monthStart = `${month}-01`;
-  const monthEnd = `${month}-${String(daysInMonth(month)).padStart(2, "0")}`;
+
+  let rangeStart: string;
+  let rangeEnd: string;
+  if (range === "day") {
+    rangeStart = rangeEnd = refDate;
+  } else if (range === "week") {
+    rangeStart = mondayOfIsoWeek(week);
+    rangeEnd = addDaysStr(rangeStart, 6);
+  } else {
+    rangeStart = `${month}-01`;
+    rangeEnd = `${month}-${String(daysInMonth(month)).padStart(2, "0")}`;
+  }
 
   const settings = await getSettings();
 
   const shiftOverrides = await prisma.shiftOverride.findMany({
     where: {
       date: {
-        gte: new Date(`${monthStart}T00:00:00.000Z`),
-        lte: new Date(`${monthEnd}T00:00:00.000Z`),
+        gte: new Date(`${rangeStart}T00:00:00.000Z`),
+        lte: new Date(`${rangeEnd}T00:00:00.000Z`),
       },
     },
     orderBy: { date: "asc" },
@@ -60,8 +114,8 @@ export default async function AttendancePage({
             employeeId,
             voided: false,
             timestamp: {
-              gte: fromZonedTime(`${monthStart}T00:00:00`, TIMEZONE),
-              lt: fromZonedTime(`${nextMonthFirstDay(month)}T00:00:00`, TIMEZONE),
+              gte: fromZonedTime(`${rangeStart}T00:00:00`, TIMEZONE),
+              lt: fromZonedTime(`${nextDay(rangeEnd)}T00:00:00`, TIMEZONE),
             },
           },
           orderBy: { timestamp: "asc" },
@@ -70,8 +124,8 @@ export default async function AttendancePage({
           where: {
             employeeId,
             date: {
-              gte: new Date(`${monthStart}T00:00:00.000Z`),
-              lte: new Date(`${monthEnd}T00:00:00.000Z`),
+              gte: new Date(`${rangeStart}T00:00:00.000Z`),
+              lte: new Date(`${rangeEnd}T00:00:00.000Z`),
             },
           },
         }),
@@ -99,13 +153,16 @@ export default async function AttendancePage({
         punches.map((p) => ({ timestamp: p.timestamp, type: p.type })),
         dayStatuses.map((d) => ({ date: d.date.toISOString().slice(0, 10), status: d.status })),
         settings,
-        monthStart,
-        monthEnd,
+        rangeStart,
+        rangeEnd,
         shiftOverrideInputs
       )
     : [];
 
-  const monthTotals = days.reduce(
+  const rangeLabel = range === "day" ? "Today" : range === "week" ? "Week" : "Month";
+  const periodPhrase = range === "day" ? "today" : range === "week" ? "this week" : "this month";
+
+  const periodTotals = days.reduce(
     (sum, d) => ({
       regular: sum.regular + d.regularMinutes,
       overtime: sum.overtime + d.overtimeMinutes,
@@ -132,19 +189,44 @@ export default async function AttendancePage({
               </option>
             ))}
           </select>
-          <input
-            type="month"
-            name="month"
-            defaultValue={month}
+          <select
+            name="range"
+            defaultValue={range}
             className="rounded-md border border-slate-300 px-3 py-1.5 text-sm"
-          />
+          >
+            <option value="day">Today</option>
+            <option value="week">Week</option>
+            <option value="month">Month</option>
+          </select>
+          {range === "month" ? (
+            <input
+              type="month"
+              name="month"
+              defaultValue={month}
+              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm"
+            />
+          ) : range === "week" ? (
+            <input
+              type="week"
+              name="week"
+              defaultValue={week}
+              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm"
+            />
+          ) : (
+            <input
+              type="date"
+              name="date"
+              defaultValue={refDate}
+              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm"
+            />
+          )}
           <button className="rounded-md bg-slate-900 text-white text-sm px-3 py-1.5 hover:bg-slate-800">
             Go
           </button>
         </form>
       </div>
 
-      <ShiftOverridesPanel overrides={shiftOverrides} />
+      <ShiftOverridesPanel overrides={shiftOverrides} periodPhrase={periodPhrase} />
 
       {employees.length === 0 ? (
         <p className="text-slate-400 text-center py-12">No active employees.</p>
@@ -153,8 +235,8 @@ export default async function AttendancePage({
           <div className="flex items-center justify-between mb-3">
             <span className="font-medium text-slate-900">{selectedEmployee?.name}</span>
             <span className="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-600">
-              Month total: {(monthTotals.regular / 60).toFixed(2)}h regular
-              {monthTotals.overtime > 0 && ` + ${(monthTotals.overtime / 60).toFixed(2)}h OT`}
+              {rangeLabel} total: {(periodTotals.regular / 60).toFixed(2)}h regular
+              {periodTotals.overtime > 0 && ` + ${(periodTotals.overtime / 60).toFixed(2)}h OT`}
             </span>
           </div>
 
@@ -249,13 +331,15 @@ export default async function AttendancePage({
 
 function ShiftOverridesPanel({
   overrides,
+  periodPhrase,
 }: {
   overrides: { id: string; date: Date; shiftStartTime: string; shiftEndTime: string }[];
+  periodPhrase: string;
 }) {
   return (
     <details className="bg-white rounded-lg shadow p-4 mb-4">
       <summary className="text-sm font-medium text-slate-700 cursor-pointer">
-        Shift start/end adjustment for this month
+        Shift start/end adjustment for {periodPhrase}
         {overrides.length > 0 && ` (${overrides.length})`}
       </summary>
       <p className="text-xs text-slate-500 mt-2 mb-3">
