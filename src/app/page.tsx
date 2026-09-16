@@ -15,12 +15,18 @@ export default function Home() {
         </Link>
       </div>
 
-      <div className="flex-1 flex items-center justify-center px-4">
+      <div className="flex-1 flex flex-col items-center justify-center gap-4 px-4">
         <Link
           href="/kiosk"
           className="rounded-lg bg-slate-900 text-white px-10 py-8 text-xl font-semibold hover:bg-slate-800"
         >
           Employee Attendance
+        </Link>
+        <Link
+          href="/employee"
+          className="rounded-lg bg-white border border-slate-300 text-slate-800 px-10 py-4 text-lg font-medium hover:bg-slate-50"
+        >
+          Employee Dashboard
         </Link>
       </div>
     </div>
