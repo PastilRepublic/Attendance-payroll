@@ -255,7 +255,7 @@ function ShiftOverridesPanel({
   return (
     <details className="bg-white rounded-lg shadow p-4 mb-4">
       <summary className="text-sm font-medium text-slate-700 cursor-pointer">
-        Shift start/end overrides for this month
+        Shift start/end adjustment for this month
         {overrides.length > 0 && ` (${overrides.length})`}
       </summary>
       <p className="text-xs text-slate-500 mt-2 mb-3">
