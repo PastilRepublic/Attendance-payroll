@@ -36,7 +36,11 @@ export async function POST(request: Request) {
         overtimeHours: Number(p.overtimeHours),
         basePay: Number(p.basePay),
         grossPay: Number(p.grossPay),
-        adjustments: p.adjustments.map((a) => ({ label: a.label, amount: Number(a.amount) })),
+        adjustments: p.adjustments.map((a) => ({
+          label: a.label,
+          amount: Number(a.amount),
+          note: a.note,
+        })),
         adjustmentsTotal,
         totalPay: Number(p.grossPay) + adjustmentsTotal,
       };

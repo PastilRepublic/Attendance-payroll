@@ -24,6 +24,7 @@ interface AttendanceDay {
 interface PayslipAdjustment {
   label: string;
   amount: number;
+  note: string | null;
 }
 
 interface Payslip {
@@ -416,6 +417,7 @@ export default function EmployeeClient() {
                               <tr>
                                 <th className="text-left px-3 py-1.5 font-medium">Type</th>
                                 <th className="text-left px-3 py-1.5 font-medium">Label</th>
+                                <th className="text-left px-3 py-1.5 font-medium">Note</th>
                                 <th className="text-right px-3 py-1.5 font-medium">Amount</th>
                               </tr>
                             </thead>
@@ -436,6 +438,9 @@ export default function EmployeeClient() {
                                       </span>
                                     </td>
                                     <td className="px-3 py-1.5 text-slate-700">{a.label}</td>
+                                    <td className="px-3 py-1.5 text-slate-500">
+                                      {a.note ?? <span className="text-slate-300">—</span>}
+                                    </td>
                                     <td
                                       className={`px-3 py-1.5 text-right font-medium ${
                                         isBonus ? "text-green-700" : "text-red-700"
