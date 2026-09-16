@@ -201,13 +201,14 @@ export default async function PayPeriodDetailPage({
                       </select>
                     </div>
                     <div>
-                      <label className="block text-xs text-slate-500">Amount (+/-)</label>
+                      <label className="block text-xs text-slate-500">Amount</label>
                       <input
                         name="amount"
                         type="number"
                         step="0.01"
+                        min="0.01"
                         required
-                        placeholder="-500"
+                        placeholder="500"
                         className="rounded-md border border-slate-300 px-2 py-1 text-xs w-28"
                       />
                     </div>

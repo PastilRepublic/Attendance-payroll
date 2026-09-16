@@ -41,10 +41,12 @@ export async function createNextPayPeriod() {
   redirect(`/admin/payroll/${period.id}`);
 }
 
+const DEDUCTION_LABELS = ["Cash Advance", "Negligence", "Late"];
+
 const adjustmentSchema = z.object({
   payslipId: z.string().min(1),
-  label: z.string().trim().min(1),
-  amount: z.coerce.number().refine((n) => n !== 0, "Amount cannot be zero"),
+  label: z.enum(["Cash Advance", "Negligence", "Late", "Bonus"]),
+  amount: z.coerce.number().positive("Amount must be greater than zero"),
   note: z.string().trim().optional(),
 });
 
@@ -62,11 +64,16 @@ export async function addAdjustment(formData: FormData) {
     throw new Error("This payslip is finalized. Unlock it first to make changes.");
   }
 
+  // Cash Advance, Negligence, and Late are always deductions; Bonus is
+  // always an incentive -- the admin enters a plain positive amount and the
+  // sign is applied automatically based on the chosen label.
+  const signedAmount = DEDUCTION_LABELS.includes(parsed.label) ? -parsed.amount : parsed.amount;
+
   const adjustment = await prisma.payslipAdjustment.create({
     data: {
       payslipId: parsed.payslipId,
       label: parsed.label,
-      amount: parsed.amount,
+      amount: signedAmount,
       note: parsed.note,
     },
   });
@@ -76,7 +83,7 @@ export async function addAdjustment(formData: FormData) {
     action: "ADD_ADJUSTMENT",
     targetTable: "PayslipAdjustment",
     targetId: adjustment.id,
-    after: { label: parsed.label, amount: parsed.amount, note: parsed.note },
+    after: { label: parsed.label, amount: signedAmount, note: parsed.note },
   });
 
   revalidatePath(`/admin/payroll/${payslip.payPeriodId}`);
