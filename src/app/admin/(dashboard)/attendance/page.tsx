@@ -6,6 +6,7 @@ import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
 import { TIMEZONE } from "@/lib/payroll";
 import { addPunch, editPunch, voidPunch, setDayStatus, setShiftOverride, removeShiftOverride } from "./actions";
 import AutoRefresh from "./AutoRefresh";
+import EmployeeSelect from "./EmployeeSelect";
 
 function todayManila(): string {
   return formatInTimeZone(new Date(), TIMEZONE, "yyyy-MM-dd");
@@ -265,20 +266,7 @@ export default async function AttendancePage({
         <h1 className="text-xl font-semibold text-slate-900">Attendance</h1>
         <form method="get" className="flex items-center gap-2">
           {range !== "day" && (
-            <select
-              name="employeeId"
-              defaultValue={employeeId}
-              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm"
-            >
-              <option value="" disabled>
-                Select employee...
-              </option>
-              {employees.map((e) => (
-                <option key={e.id} value={e.id}>
-                  {e.name}
-                </option>
-              ))}
-            </select>
+            <EmployeeSelect employees={employees} defaultValue={employeeId} />
           )}
           <select
             name="range"
