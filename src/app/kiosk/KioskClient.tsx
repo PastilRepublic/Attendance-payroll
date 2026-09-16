@@ -438,7 +438,6 @@ function ChooseType({
           }`}
         >
           Time In
-          {suggested === "IN" && <span className="text-sm font-normal">Suggested</span>}
         </button>
         <button
           onClick={() => onChoose("OUT")}
@@ -449,7 +448,6 @@ function ChooseType({
           }`}
         >
           Time Out
-          {suggested === "OUT" && <span className="text-sm font-normal">Suggested</span>}
         </button>
       </div>
     </div>
