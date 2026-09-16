@@ -32,6 +32,23 @@ function addDaysStr(dateStr: string, days: number): string {
   return new Date(d.getTime() + days * 86400000).toISOString().slice(0, 10);
 }
 
+// One distinct color per weekday, warmer toward the weekend, so scanning
+// down a week/month makes the same weekday easy to pattern-match.
+const DAY_ABBREV_STYLES = [
+  { label: "Sun", className: "bg-red-100 text-red-700" },
+  { label: "Mon", className: "bg-blue-100 text-blue-700" },
+  { label: "Tue", className: "bg-purple-100 text-purple-700" },
+  { label: "Wed", className: "bg-teal-100 text-teal-700" },
+  { label: "Thu", className: "bg-green-100 text-green-700" },
+  { label: "Fri", className: "bg-amber-100 text-amber-700" },
+  { label: "Sat", className: "bg-orange-100 text-orange-700" },
+] as const;
+
+function dayAbbrev(dateStr: string): { label: string; className: string } {
+  const dow = new Date(`${dateStr}T00:00:00.000Z`).getUTCDay();
+  return DAY_ABBREV_STYLES[dow];
+}
+
 /** ISO week string (YYYY-Www) for the week containing this date, via plain calendar math. */
 function isoWeekString(dateStr: string): string {
   const d = new Date(`${dateStr}T00:00:00.000Z`);
@@ -339,7 +356,16 @@ export default async function AttendancePage({
                   const showTimes = dayStatus === "NORMAL";
                   return (
                     <tr key={d.date} className="border-t border-slate-100 align-top">
-                      <td className="px-2 py-2 whitespace-nowrap text-slate-800">{d.date}</td>
+                      <td className="px-2 py-2 whitespace-nowrap text-slate-800">
+                        <span className="flex items-center gap-1.5">
+                          {d.date}
+                          <span
+                            className={`px-1.5 py-0.5 rounded text-xs font-medium ${dayAbbrev(d.date).className}`}
+                          >
+                            {dayAbbrev(d.date).label}
+                          </span>
+                        </span>
+                      </td>
                       <td className="px-2 py-2 text-right whitespace-nowrap text-slate-700">
                         {showTimes ? slots.morningIn ?? <span className="text-slate-300">—</span> : <span className="text-slate-300">—</span>}
                       </td>
