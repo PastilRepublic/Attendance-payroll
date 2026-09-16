@@ -7,9 +7,32 @@ export async function POST(request: Request) {
   const pin = typeof body?.pin === "string" ? body.pin : null;
   const taskAssignmentId =
     typeof body?.taskAssignmentId === "string" ? body.taskAssignmentId : null;
+  const kind = body?.kind === "SANITATION" ? "SANITATION" : "TASK";
 
   if (!pin || !taskAssignmentId) {
     return NextResponse.json({ error: "PIN and taskAssignmentId are required" }, { status: 400 });
+  }
+
+  if (kind === "SANITATION") {
+    const assignment = await prisma.sanitationAssignment.findUnique({
+      where: { id: taskAssignmentId },
+      include: { employee: true },
+    });
+    if (!assignment) {
+      return NextResponse.json({ error: "Task not found" }, { status: 404 });
+    }
+    const validPin = await verifyPin(pin, assignment.employee.pinHash);
+    if (!validPin || !assignment.employee.active) {
+      return NextResponse.json({ error: "PIN not recognized" }, { status: 401 });
+    }
+    if (assignment.status === "DONE") {
+      return NextResponse.json({ ok: true, alreadyDone: true });
+    }
+    await prisma.sanitationAssignment.update({
+      where: { id: taskAssignmentId },
+      data: { status: "DONE", completedAt: new Date() },
+    });
+    return NextResponse.json({ ok: true });
   }
 
   const assignment = await prisma.taskAssignment.findUnique({

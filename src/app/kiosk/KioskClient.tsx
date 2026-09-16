@@ -29,6 +29,7 @@ interface ConfirmInfo {
 
 interface PendingTask {
   id: string;
+  kind: "TASK" | "SANITATION";
   name: string;
   bonusAmount: number | null;
 }
@@ -129,12 +130,12 @@ export default function KioskClient() {
   }, [resetToIdle]);
 
   const completeTask = useCallback(
-    async (taskId: string) => {
+    async (taskId: string, kind: "TASK" | "SANITATION") => {
       try {
         const res = await fetch("/api/kiosk/tasks/complete", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ pin, taskAssignmentId: taskId }),
+          body: JSON.stringify({ pin, taskAssignmentId: taskId, kind }),
         });
         if (res.ok) {
           setDoneTaskIds((prev) => new Set(prev).add(taskId));
@@ -579,7 +580,7 @@ function TaskChecklist({
 }: {
   tasks: PendingTask[];
   doneIds: Set<string>;
-  onComplete: (taskId: string) => void;
+  onComplete: (taskId: string, kind: "TASK" | "SANITATION") => void;
   onFinish: () => void;
 }) {
   return (
@@ -591,7 +592,7 @@ function TaskChecklist({
           return (
             <button
               key={t.id}
-              onClick={() => !done && onComplete(t.id)}
+              onClick={() => !done && onComplete(t.id, t.kind)}
               disabled={done}
               className={`w-full flex items-center justify-between rounded-xl px-5 py-4 text-lg ${
                 done

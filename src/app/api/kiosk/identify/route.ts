@@ -25,24 +25,43 @@ export async function POST(request: Request) {
   const nextType: "IN" | "OUT" = lastPunch?.type === "IN" ? "OUT" : "IN";
 
   const today = formatInTimeZone(new Date(), TIMEZONE, "yyyy-MM-dd");
-  const pendingTasks = await prisma.taskAssignment.findMany({
-    where: {
-      employeeId: matched.id,
-      date: new Date(`${today}T00:00:00.000Z`),
-      status: "PENDING",
-    },
-    include: { template: true },
-  });
+  const [pendingTasks, pendingSanitation] = await Promise.all([
+    prisma.taskAssignment.findMany({
+      where: {
+        employeeId: matched.id,
+        date: new Date(`${today}T00:00:00.000Z`),
+        status: "PENDING",
+      },
+      include: { template: true },
+    }),
+    prisma.sanitationAssignment.findMany({
+      where: {
+        employeeId: matched.id,
+        date: new Date(`${today}T00:00:00.000Z`),
+        status: "PENDING",
+      },
+      include: { procedure: true },
+    }),
+  ]);
 
   return NextResponse.json({
     employeeId: matched.id,
     employeeName: matched.name,
     nextType,
     requirePhoto: await getRequirePhotoOnPunch(),
-    pendingTasks: pendingTasks.map((t) => ({
-      id: t.id,
-      name: t.template.name,
-      bonusAmount: t.bonusAmount ? Number(t.bonusAmount) : null,
-    })),
+    pendingTasks: [
+      ...pendingTasks.map((t) => ({
+        id: t.id,
+        kind: "TASK" as const,
+        name: t.template.name,
+        bonusAmount: t.bonusAmount ? Number(t.bonusAmount) : null,
+      })),
+      ...pendingSanitation.map((s) => ({
+        id: s.id,
+        kind: "SANITATION" as const,
+        name: s.procedure.name,
+        bonusAmount: null,
+      })),
+    ],
   });
 }

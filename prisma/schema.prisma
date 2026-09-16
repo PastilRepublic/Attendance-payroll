@@ -51,6 +51,16 @@ enum TaskAssignmentStatus {
   DONE
 }
 
+enum SanitationAssignmentStatus {
+  PENDING
+  DONE
+}
+
+enum InspectionResult {
+  PASS
+  FAIL
+}
+
 model AdminUser {
   id           String   @id @default(cuid())
   name         String
@@ -63,6 +73,8 @@ model AdminUser {
   auditLogEntries  AuditLog[]  @relation("AuditLogActor")
   stockMovements   StockMovement[]  @relation("StockMovementCreatedByAdmin")
   assignedTasks    TaskAssignment[] @relation("TaskAssignmentAssignedByAdmin")
+  assignedSanitation  SanitationAssignment[] @relation("SanitationAssignmentAssignedByAdmin")
+  inspectedSanitation SanitationAssignment[] @relation("SanitationAssignmentInspectedByAdmin")
 }
 
 model Employee {
@@ -76,10 +88,11 @@ model Employee {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  punches         Punch[]
-  dayStatuses     DayStatus[]
-  payslips        Payslip[]
-  taskAssignments TaskAssignment[]
+  punches               Punch[]
+  dayStatuses           DayStatus[]
+  payslips              Payslip[]
+  taskAssignments       TaskAssignment[]
+  sanitationAssignments SanitationAssignment[]
 }
 
 model Device {
@@ -276,4 +289,51 @@ model TaskAssignment {
   createdAt DateTime @default(now())
 
   @@index([employeeId, date])
+}
+
+/** A sanitation/cleaning SOP -- equipment/area, chemicals, step-by-step
+ * procedure, frequency, and the role generally responsible. Reference
+ * documentation, reused across many scheduled assignments. */
+model SanitationProcedure {
+  id             String   @id @default(cuid())
+  name           String
+  areaEquipment  String
+  chemicals      String
+  steps          String
+  frequency      String
+  responsibleRole String
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  assignments SanitationAssignment[]
+}
+
+/** One scheduled occurrence of a SanitationProcedure for one employee on one
+ * date. The employee self-reports completion (status); a supervisor then
+ * independently inspects it (inspectionResult) -- self-reporting alone isn't
+ * proof, so these are deliberately separate fields. */
+model SanitationAssignment {
+  id          String                     @id @default(cuid())
+  procedureId String
+  procedure   SanitationProcedure        @relation(fields: [procedureId], references: [id])
+  employeeId  String
+  employee    Employee                   @relation(fields: [employeeId], references: [id])
+  date        DateTime                   @db.Date
+  status      SanitationAssignmentStatus @default(PENDING)
+  completedAt DateTime?
+
+  assignedByAdminId String?
+  assignedByAdmin   AdminUser? @relation("SanitationAssignmentAssignedByAdmin", fields: [assignedByAdminId], references: [id])
+
+  inspectedByAdminId String?
+  inspectedByAdmin   AdminUser?        @relation("SanitationAssignmentInspectedByAdmin", fields: [inspectedByAdminId], references: [id])
+  inspectedAt        DateTime?
+  inspectionResult   InspectionResult?
+  inspectionNote     String?
+
+  createdAt DateTime @default(now())
+
+  @@index([employeeId, date])
+  @@index([date])
 }

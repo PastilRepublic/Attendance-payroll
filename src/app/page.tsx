@@ -28,6 +28,12 @@ export default function Home() {
         >
           Employee Dashboard
         </Link>
+        <Link
+          href="/sanitation"
+          className="rounded-lg bg-white border border-slate-300 text-slate-800 px-10 py-8 text-xl font-semibold hover:bg-slate-50"
+        >
+          Sanitation Inspection &amp; Schedule
+        </Link>
       </div>
     </div>
   );
