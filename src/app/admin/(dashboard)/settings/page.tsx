@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
-import { updateSettings } from "./actions";
+import { updateSettings, changePassword } from "./actions";
+import PasswordInput from "@/components/PasswordInput";
 
 const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -131,6 +132,30 @@ export default async function SettingsPage() {
           className="w-full rounded-md bg-slate-900 text-white text-sm font-medium py-2 hover:bg-slate-800"
         >
           Save Settings
+        </button>
+      </form>
+
+      <form action={changePassword} className="bg-white rounded-lg shadow p-6 space-y-4 mt-6">
+        <h2 className="text-sm font-semibold text-slate-900">Change Admin Password</h2>
+        <PasswordInput
+          name="currentPassword"
+          label="Current password"
+          autoComplete="current-password"
+        />
+        <PasswordInput name="newPassword" label="New password" autoComplete="new-password" />
+        <PasswordInput
+          name="confirmPassword"
+          label="Confirm new password"
+          autoComplete="new-password"
+        />
+        <p className="text-xs text-slate-500">
+          You&apos;ll be signed out after changing your password and need to log in again.
+        </p>
+        <button
+          type="submit"
+          className="w-full rounded-md bg-slate-100 text-slate-900 text-sm font-medium py-2 hover:bg-slate-200"
+        >
+          Change Password
         </button>
       </form>
     </div>

@@ -2,17 +2,26 @@
 
 import { useState } from "react";
 
-export default function PasswordField() {
+export default function PasswordInput({
+  name,
+  label,
+  autoComplete,
+}: {
+  name: string;
+  label: string;
+  autoComplete?: string;
+}) {
   const [visible, setVisible] = useState(false);
 
   return (
     <div>
-      <label className="block text-sm font-medium text-slate-700 mb-1">Password</label>
+      <label className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
       <div className="relative">
         <input
           type={visible ? "text" : "password"}
-          name="password"
+          name={name}
           required
+          autoComplete={autoComplete}
           className="w-full rounded-md border border-slate-300 px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-slate-500"
         />
         <button
