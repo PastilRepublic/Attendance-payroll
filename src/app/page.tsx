@@ -8,7 +8,7 @@ export default function Home() {
           href="/kiosk"
           className="rounded-lg bg-slate-900 text-white px-8 py-6 text-lg font-semibold hover:bg-slate-800"
         >
-          Open Kiosk
+          Employee Attendance
         </Link>
         <Link
           href="/admin"
