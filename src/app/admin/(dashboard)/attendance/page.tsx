@@ -59,6 +59,25 @@ function parseRange(value: string | undefined): AttendanceRange {
   return value === "week" || value === "month" ? value : "day";
 }
 
+interface PunchRow {
+  id: string;
+  employeeId: string;
+  type: "IN" | "OUT";
+  timestamp: Date;
+  isCorrection: boolean;
+  photoPath: string | null;
+}
+
+interface TodayRow {
+  employee: { id: string; name: string };
+  punches: PunchRow[];
+  dayStatus: string;
+  slots: ReturnType<typeof computeDaySlots>;
+  timedIn: boolean;
+  isLate: boolean;
+  isUndertime: boolean;
+}
+
 export default async function AttendancePage({
   searchParams,
 }: {
@@ -106,71 +125,123 @@ export default async function AttendancePage({
     },
     orderBy: { date: "asc" },
   });
-
-  const [punches, dayStatuses] = employeeId
-    ? await Promise.all([
-        prisma.punch.findMany({
-          where: {
-            employeeId,
-            voided: false,
-            timestamp: {
-              gte: fromZonedTime(`${rangeStart}T00:00:00`, TIMEZONE),
-              lt: fromZonedTime(`${nextDay(rangeEnd)}T00:00:00`, TIMEZONE),
-            },
-          },
-          orderBy: { timestamp: "asc" },
-        }),
-        prisma.dayStatus.findMany({
-          where: {
-            employeeId,
-            date: {
-              gte: new Date(`${rangeStart}T00:00:00.000Z`),
-              lte: new Date(`${rangeEnd}T00:00:00.000Z`),
-            },
-          },
-        }),
-      ])
-    : [[], []];
-
-  const punchesByDay = new Map<string, typeof punches>();
-  for (const p of punches) {
-    const key = localDateKey(p.timestamp);
-    if (!punchesByDay.has(key)) punchesByDay.set(key, []);
-    punchesByDay.get(key)!.push(p);
-  }
-  const statusByDay = new Map(
-    dayStatuses.map((d) => [d.date.toISOString().slice(0, 10), d.status])
-  );
-
   const shiftOverrideInputs = shiftOverrides.map((o) => ({
     date: o.date.toISOString().slice(0, 10),
     shiftStartTime: o.shiftStartTime,
     shiftEndTime: o.shiftEndTime,
   }));
 
-  const days = employeeId
-    ? computeDailyResults(
-        punches.map((p) => ({ timestamp: p.timestamp, type: p.type })),
-        dayStatuses.map((d) => ({ date: d.date.toISOString().slice(0, 10), status: d.status })),
-        settings,
-        rangeStart,
-        rangeEnd,
-        shiftOverrideInputs
-      )
-    : [];
-
   const rangeLabel = range === "day" ? "Today" : range === "week" ? "Week" : "Month";
   const periodPhrase = range === "day" ? "today" : range === "week" ? "this week" : "this month";
 
-  const periodTotals = days.reduce(
-    (sum, d) => ({
-      regular: sum.regular + d.regularMinutes,
-      overtime: sum.overtime + d.overtimeMinutes,
-    }),
-    { regular: 0, overtime: 0 }
-  );
-
+  // "Today" is a dashboard across everyone; Week/Month drill into one employee's history.
+  let todayRows: TodayRow[] = [];
+  const punchesByDay = new Map<string, PunchRow[]>();
+  let statusByDay = new Map<string, string>();
+  let days: ReturnType<typeof computeDailyResults> = [];
+  let periodTotals = { regular: 0, overtime: 0 };
   const selectedEmployee = employees.find((e) => e.id === employeeId);
+
+  if (range === "day") {
+    const employeeIds = employees.map((e) => e.id);
+    const [allPunches, allDayStatuses] = employeeIds.length
+      ? await Promise.all([
+          prisma.punch.findMany({
+            where: {
+              employeeId: { in: employeeIds },
+              voided: false,
+              timestamp: {
+                gte: fromZonedTime(`${refDate}T00:00:00`, TIMEZONE),
+                lt: fromZonedTime(`${nextDay(refDate)}T00:00:00`, TIMEZONE),
+              },
+            },
+            orderBy: { timestamp: "asc" },
+          }),
+          prisma.dayStatus.findMany({
+            where: {
+              employeeId: { in: employeeIds },
+              date: new Date(`${refDate}T00:00:00.000Z`),
+            },
+          }),
+        ])
+      : [[], []];
+
+    const punchesByEmployee = new Map<string, PunchRow[]>();
+    for (const p of allPunches) {
+      if (!punchesByEmployee.has(p.employeeId)) punchesByEmployee.set(p.employeeId, []);
+      punchesByEmployee.get(p.employeeId)!.push(p);
+    }
+    const statusByEmployee = new Map(allDayStatuses.map((d) => [d.employeeId, d.status]));
+
+    todayRows = employees.map((emp) => {
+      const empPunches = punchesByEmployee.get(emp.id) ?? [];
+      const dayStatus = statusByEmployee.get(emp.id) ?? "NORMAL";
+      const [computed] = computeDailyResults(
+        empPunches.map((p) => ({ timestamp: p.timestamp, type: p.type })),
+        dayStatus === "NORMAL" ? [] : [{ date: refDate, status: dayStatus as "PAID_LEAVE" | "UNPAID_ABSENCE" }],
+        settings,
+        refDate,
+        refDate,
+        shiftOverrideInputs
+      );
+      return {
+        employee: emp,
+        punches: empPunches,
+        dayStatus,
+        slots: computeDaySlots(empPunches),
+        timedIn: empPunches.some((p) => p.type === "IN"),
+        isLate: computed.isLate,
+        isUndertime: computed.isUndertime,
+      };
+    });
+  } else if (employeeId) {
+    const [punches, dayStatuses] = await Promise.all([
+      prisma.punch.findMany({
+        where: {
+          employeeId,
+          voided: false,
+          timestamp: {
+            gte: fromZonedTime(`${rangeStart}T00:00:00`, TIMEZONE),
+            lt: fromZonedTime(`${nextDay(rangeEnd)}T00:00:00`, TIMEZONE),
+          },
+        },
+        orderBy: { timestamp: "asc" },
+      }),
+      prisma.dayStatus.findMany({
+        where: {
+          employeeId,
+          date: {
+            gte: new Date(`${rangeStart}T00:00:00.000Z`),
+            lte: new Date(`${rangeEnd}T00:00:00.000Z`),
+          },
+        },
+      }),
+    ]);
+
+    for (const p of punches) {
+      const key = localDateKey(p.timestamp);
+      if (!punchesByDay.has(key)) punchesByDay.set(key, []);
+      punchesByDay.get(key)!.push(p);
+    }
+    statusByDay = new Map(dayStatuses.map((d) => [d.date.toISOString().slice(0, 10), d.status]));
+
+    days = computeDailyResults(
+      punches.map((p) => ({ timestamp: p.timestamp, type: p.type })),
+      dayStatuses.map((d) => ({ date: d.date.toISOString().slice(0, 10), status: d.status })),
+      settings,
+      rangeStart,
+      rangeEnd,
+      shiftOverrideInputs
+    );
+
+    periodTotals = days.reduce(
+      (sum, d) => ({
+        regular: sum.regular + d.regularMinutes,
+        overtime: sum.overtime + d.overtimeMinutes,
+      }),
+      { regular: 0, overtime: 0 }
+    );
+  }
 
   return (
     <div>
@@ -178,17 +249,19 @@ export default async function AttendancePage({
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-xl font-semibold text-slate-900">Attendance</h1>
         <form method="get" className="flex items-center gap-2">
-          <select
-            name="employeeId"
-            defaultValue={employeeId}
-            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm"
-          >
-            {employees.map((e) => (
-              <option key={e.id} value={e.id}>
-                {e.name}
-              </option>
-            ))}
-          </select>
+          {range !== "day" && (
+            <select
+              name="employeeId"
+              defaultValue={employeeId}
+              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm"
+            >
+              {employees.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.name}
+                </option>
+              ))}
+            </select>
+          )}
           <select
             name="range"
             defaultValue={range}
@@ -230,6 +303,8 @@ export default async function AttendancePage({
 
       {employees.length === 0 ? (
         <p className="text-slate-400 text-center py-12">No active employees.</p>
+      ) : range === "day" ? (
+        <TodayDashboard rows={todayRows} refDate={refDate} />
       ) : (
         <div className="bg-white rounded-lg shadow p-4" data-attendance-refresh>
           <div className="flex items-center justify-between mb-3">
@@ -325,6 +400,93 @@ export default async function AttendancePage({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function TodayDashboard({ rows, refDate }: { rows: TodayRow[]; refDate: string }) {
+  return (
+    <div className="bg-white rounded-lg shadow p-4">
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-slate-50 text-slate-600 text-left">
+            <tr>
+              <th className="px-2 py-2 font-medium">Name</th>
+              <th className="px-2 py-2 font-medium text-right">Timed In</th>
+              <th className="px-2 py-2 font-medium text-right">Timed Out</th>
+              <th className="px-2 py-2 font-medium">Status</th>
+              <th className="px-2 py-2 font-medium"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => {
+              const { employee, punches, dayStatus, slots, timedIn, isLate, isUndertime } = row;
+              return (
+                <tr key={employee.id} className="border-t border-slate-100 align-top">
+                  <td className="px-2 py-2 whitespace-nowrap">
+                    <span className="text-base font-bold text-slate-900">{employee.name}</span>
+                  </td>
+                  <td className="px-2 py-2 text-right whitespace-nowrap text-slate-700">
+                    {dayStatus === "NORMAL" && slots.morningIn ? (
+                      slots.morningIn
+                    ) : (
+                      <span className="text-slate-300">—</span>
+                    )}
+                  </td>
+                  <td className="px-2 py-2 text-right whitespace-nowrap text-slate-700">
+                    {dayStatus === "NORMAL" && slots.afternoonOut ? (
+                      slots.afternoonOut
+                    ) : (
+                      <span className="text-slate-300">—</span>
+                    )}
+                  </td>
+                  <td className="px-2 py-2">
+                    <div className="flex flex-wrap gap-1.5">
+                      {dayStatus === "PAID_LEAVE" && (
+                        <span className="px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-700">
+                          Paid leave
+                        </span>
+                      )}
+                      {dayStatus === "UNPAID_ABSENCE" && (
+                        <span className="px-2 py-0.5 rounded-full text-xs bg-red-100 text-red-700">
+                          Absent
+                        </span>
+                      )}
+                      {dayStatus === "NORMAL" && !timedIn && (
+                        <span className="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-500">
+                          Not yet timed in
+                        </span>
+                      )}
+                      {dayStatus === "NORMAL" && timedIn && (
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-xs ${
+                            isLate ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"
+                          }`}
+                        >
+                          {isLate ? "Late" : "On time"}
+                        </span>
+                      )}
+                      {dayStatus === "NORMAL" && isUndertime && (
+                        <span className="px-2 py-0.5 rounded-full text-xs bg-orange-100 text-orange-700">
+                          Undertime
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-2 py-2 relative">
+                    <ManageDayForm
+                      employeeId={employee.id}
+                      date={refDate}
+                      dayStatus={dayStatus}
+                      punches={punches}
+                    />
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
