@@ -100,52 +100,81 @@ export default async function PayPeriodDetailPage({
               </div>
 
               {payslip.adjustments.length > 0 && (() => {
-                const bonuses = payslip.adjustments.filter((a) => Number(a.amount) > 0);
-                const deductions = payslip.adjustments.filter((a) => Number(a.amount) < 0);
-                const bonusTotal = bonuses.reduce((s, a) => s + Number(a.amount), 0);
-                const deductionTotal = deductions.reduce((s, a) => s + Number(a.amount), 0);
-
-                const renderRow = (adj: (typeof payslip.adjustments)[number]) => (
-                  <tr key={adj.id} className="border-t border-slate-100">
-                    <td className="py-1 text-slate-700">{adj.label}</td>
-                    <td className="py-1 text-slate-500">{adj.note}</td>
-                    <td className="py-1 text-right">
-                      {Number(adj.amount) > 0 ? "+" : ""}
-                      {Number(adj.amount).toFixed(2)}
-                    </td>
-                    <td className="py-1 text-right">
-                      {payslip.status !== "FINALIZED" && (
-                        <form action={removeAdjustment}>
-                          <input type="hidden" name="adjustmentId" value={adj.id} />
-                          <button className="text-red-600 hover:underline">Remove</button>
-                        </form>
-                      )}
-                    </td>
-                  </tr>
+                const sorted = [...payslip.adjustments].sort(
+                  (a, b) => Number(b.amount) - Number(a.amount)
                 );
+                const netTotal = sorted.reduce((s, a) => s + Number(a.amount), 0);
 
                 return (
-                  <div className="mb-2">
-                    {bonuses.length > 0 && (
-                      <div className="mb-1">
-                        <p className="text-xs font-medium text-green-700">
-                          Bonuses (+₱{bonusTotal.toFixed(2)})
-                        </p>
-                        <table className="w-full text-xs">
-                          <tbody>{bonuses.map(renderRow)}</tbody>
-                        </table>
-                      </div>
-                    )}
-                    {deductions.length > 0 && (
-                      <div>
-                        <p className="text-xs font-medium text-red-700">
-                          Deductions (₱{deductionTotal.toFixed(2)})
-                        </p>
-                        <table className="w-full text-xs">
-                          <tbody>{deductions.map(renderRow)}</tbody>
-                        </table>
-                      </div>
-                    )}
+                  <div className="mb-2 border border-slate-200 rounded-md overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead className="bg-slate-50 text-slate-600">
+                        <tr>
+                          <th className="text-left px-2 py-1.5 font-medium">Type</th>
+                          <th className="text-left px-2 py-1.5 font-medium">Label</th>
+                          <th className="text-left px-2 py-1.5 font-medium">Note</th>
+                          <th className="text-right px-2 py-1.5 font-medium">Amount</th>
+                          <th className="px-2 py-1.5"></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {sorted.map((adj) => {
+                          const amount = Number(adj.amount);
+                          const isBonus = amount > 0;
+                          return (
+                            <tr key={adj.id} className="border-t border-slate-100">
+                              <td className="px-2 py-1.5">
+                                <span
+                                  className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                                    isBonus
+                                      ? "bg-green-100 text-green-700"
+                                      : "bg-red-100 text-red-700"
+                                  }`}
+                                >
+                                  {isBonus ? "Bonus" : "Deduction"}
+                                </span>
+                              </td>
+                              <td className="px-2 py-1.5 text-slate-700">{adj.label}</td>
+                              <td className="px-2 py-1.5 text-slate-500">{adj.note}</td>
+                              <td
+                                className={`px-2 py-1.5 text-right font-medium ${
+                                  isBonus ? "text-green-700" : "text-red-700"
+                                }`}
+                              >
+                                {isBonus ? "+" : "-"}
+                                {Math.abs(amount).toFixed(2)}
+                              </td>
+                              <td className="px-2 py-1.5 text-right">
+                                {payslip.status !== "FINALIZED" && (
+                                  <form action={removeAdjustment}>
+                                    <input type="hidden" name="adjustmentId" value={adj.id} />
+                                    <button className="text-red-600 hover:underline">
+                                      Remove
+                                    </button>
+                                  </form>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                      <tfoot>
+                        <tr className="border-t border-slate-200 bg-slate-50 font-medium">
+                          <td colSpan={3} className="px-2 py-1.5 text-right text-slate-600">
+                            Net adjustments
+                          </td>
+                          <td
+                            className={`px-2 py-1.5 text-right ${
+                              netTotal >= 0 ? "text-green-700" : "text-red-700"
+                            }`}
+                          >
+                            {netTotal >= 0 ? "+" : "-"}
+                            {Math.abs(netTotal).toFixed(2)}
+                          </td>
+                          <td></td>
+                        </tr>
+                      </tfoot>
+                    </table>
                   </div>
                 );
               })()}

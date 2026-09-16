@@ -407,36 +407,49 @@ export default function EmployeeClient() {
                         <p className="text-slate-800">{peso(p.grossPay)}</p>
                       </div>
                     </div>
-                    {(() => {
-                      const bonuses = p.adjustments.filter((a) => a.amount > 0);
-                      const deductions = p.adjustments.filter((a) => a.amount < 0);
+                    {p.adjustments.length > 0 && (() => {
+                      const sorted = [...p.adjustments].sort((a, b) => b.amount - a.amount);
                       return (
-                        <>
-                          {bonuses.length > 0 && (
-                            <div className="text-sm text-slate-600 mb-2">
-                              <p className="text-green-700 mb-1">Bonuses</p>
-                              <ul className="list-disc list-inside">
-                                {bonuses.map((a, i) => (
-                                  <li key={i}>
-                                    {a.label}: +{peso(a.amount)}
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-                          {deductions.length > 0 && (
-                            <div className="text-sm text-slate-600 mb-2">
-                              <p className="text-red-700 mb-1">Deductions</p>
-                              <ul className="list-disc list-inside">
-                                {deductions.map((a, i) => (
-                                  <li key={i}>
-                                    {a.label}: -{peso(Math.abs(a.amount))}
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-                        </>
+                        <div className="mb-2 border border-slate-200 rounded-md overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead className="bg-slate-50 text-slate-500">
+                              <tr>
+                                <th className="text-left px-3 py-1.5 font-medium">Type</th>
+                                <th className="text-left px-3 py-1.5 font-medium">Label</th>
+                                <th className="text-right px-3 py-1.5 font-medium">Amount</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {sorted.map((a, i) => {
+                                const isBonus = a.amount > 0;
+                                return (
+                                  <tr key={i} className="border-t border-slate-100">
+                                    <td className="px-3 py-1.5">
+                                      <span
+                                        className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                                          isBonus
+                                            ? "bg-green-100 text-green-700"
+                                            : "bg-red-100 text-red-700"
+                                        }`}
+                                      >
+                                        {isBonus ? "Bonus" : "Deduction"}
+                                      </span>
+                                    </td>
+                                    <td className="px-3 py-1.5 text-slate-700">{a.label}</td>
+                                    <td
+                                      className={`px-3 py-1.5 text-right font-medium ${
+                                        isBonus ? "text-green-700" : "text-red-700"
+                                      }`}
+                                    >
+                                      {isBonus ? "+" : "-"}
+                                      {peso(Math.abs(a.amount))}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
                       );
                     })()}
                     <div className="border-t border-slate-100 pt-2 flex items-center justify-between">
