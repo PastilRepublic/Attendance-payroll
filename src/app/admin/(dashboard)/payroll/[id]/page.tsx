@@ -83,7 +83,7 @@ export default async function PayPeriodDetailPage({
             <div key={employee.id} className="bg-white rounded-lg shadow p-4">
               <div className="flex items-center justify-between mb-2">
                 <div>
-                  <span className="font-medium text-slate-900">{employee.name}</span>
+                  <span className="text-lg font-bold text-slate-900">{employee.name}</span>
                   <span className="text-xs text-slate-500 ml-2">
                     {Number(payslip.regularHours).toFixed(2)}h regular
                     {Number(payslip.overtimeHours) > 0 &&
