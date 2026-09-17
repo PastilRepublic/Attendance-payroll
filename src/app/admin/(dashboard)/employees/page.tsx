@@ -5,6 +5,7 @@ import { setEmployeeActive } from "./actions";
 export default async function EmployeesPage() {
   const employees = await prisma.employee.findMany({
     orderBy: { name: "asc" },
+    include: { adminAccount: true },
   });
 
   return (
@@ -34,7 +35,20 @@ export default async function EmployeesPage() {
           <tbody>
             {employees.map((emp) => (
               <tr key={emp.id} className="border-t border-slate-100">
-                <td className="px-4 py-3 font-medium text-slate-900">{emp.name}</td>
+                <td className="px-4 py-3 font-medium text-slate-900">
+                  {emp.name}
+                  {emp.adminAccount && (
+                    <span
+                      className={`ml-2 px-1.5 py-0.5 rounded-full text-xs font-normal ${
+                        emp.adminAccount.active
+                          ? "bg-indigo-100 text-indigo-700"
+                          : "bg-slate-200 text-slate-500"
+                      }`}
+                    >
+                      {emp.adminAccount.active ? "Supervisor" : "Access revoked"}
+                    </span>
+                  )}
+                </td>
                 <td className="px-4 py-3 text-slate-600">{emp.payBasis}</td>
                 <td className="px-4 py-3 text-slate-600">
                   ₱{Number(emp.payRate).toFixed(2)}

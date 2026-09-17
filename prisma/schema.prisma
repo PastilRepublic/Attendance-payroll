@@ -78,7 +78,15 @@ model AdminUser {
   email        String    @unique
   passwordHash String
   role         AdminRole @default(OWNER)
+  /** True unless access has been revoked -- kept rather than deleted, since
+   * audit log entries and other history reference this account. */
+  active       Boolean   @default(true)
   createdAt    DateTime  @default(now())
+
+  /** Links a SUPERVISOR login to the Employee record for the same person
+   * (so they also punch in/out normally). Null for the OWNER account. */
+  employeeId String?   @unique
+  employee   Employee? @relation(fields: [employeeId], references: [id])
 
   createdPunches   Punch[]     @relation("PunchCreatedByAdmin")
   finalizedPeriods PayPeriod[] @relation("PayPeriodFinalizedByAdmin")
@@ -99,6 +107,8 @@ model Employee {
   dateHired  DateTime @db.Date
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+
+  adminAccount AdminUser?
 
   punches               Punch[]
   dayStatuses           DayStatus[]

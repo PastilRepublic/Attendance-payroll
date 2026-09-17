@@ -68,6 +68,41 @@ export default function NewEmployeePage() {
             className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
           />
         </div>
+        <details className="border border-slate-200 rounded-md p-3">
+          <summary className="cursor-pointer text-sm font-medium text-slate-700">
+            + Also grant supervisor access (optional)
+          </summary>
+          <div className="mt-3 space-y-3">
+            <p className="text-xs text-slate-500">
+              Gives this person a login to the admin dashboard with Supervisor access
+              (Attendance, Sanitation, Inventory, operational Settings) -- not Payroll,
+              Employees, Tasks, or financial Settings.
+            </p>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Login email
+              </label>
+              <input
+                name="supervisorEmail"
+                type="email"
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Temporary password
+              </label>
+              <input
+                name="supervisorPassword"
+                type="password"
+                minLength={8}
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              />
+              <p className="text-xs text-slate-500 mt-1">They can change this after logging in.</p>
+            </div>
+          </div>
+        </details>
+
         <button
           type="submit"
           className="w-full rounded-md bg-slate-900 text-white text-sm font-medium py-2 hover:bg-slate-800"
