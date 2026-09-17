@@ -1,99 +1,50 @@
 import { formatInTimeZone } from "date-fns-tz";
 import { TIMEZONE } from "./payroll";
 
-export interface DaySlots {
-  morningIn: string | null;
-  morningOut: string | null;
-  afternoonIn: string | null;
-  afternoonOut: string | null;
+export interface DayTimeline {
+  timeIn: string | null;
+  breakIn: string | null;
+  breakOut: string | null;
+  timeOut: string | null;
 }
 
 interface PunchLike {
-  type: "IN" | "OUT";
-  timestamp: Date;
-}
-
-/** Groups a day's punches (already sorted ascending) into IN/OUT segments. */
-function buildSegments(dayPunches: PunchLike[]) {
-  const segments: { in?: Date; out?: Date }[] = [];
-  let current: { in?: Date; out?: Date } | null = null;
-  for (const p of dayPunches) {
-    if (p.type === "IN") {
-      if (current) segments.push(current);
-      current = { in: p.timestamp };
-    } else if (current) {
-      current.out = p.timestamp;
-      segments.push(current);
-      current = null;
-    } else {
-      segments.push({ out: p.timestamp });
-    }
-  }
-  if (current) segments.push(current);
-  return segments;
-}
-
-/**
- * Maps one day's punches onto the standard Morning In/Out, Afternoon In/Out
- * slots. One segment (a single continuous shift, lunch not punched
- * separately) maps In to Morning and Out to Afternoon. Two or more segments
- * (an actual lunch-break punch-out/in) map the first to Morning, the second
- * to Afternoon.
- */
-export function computeDaySlots(dayPunches: PunchLike[]): DaySlots {
-  const sorted = [...dayPunches].sort(
-    (a, b) => a.timestamp.getTime() - b.timestamp.getTime()
-  );
-  const segments = buildSegments(sorted);
-  const formatTime = (t?: Date) => (t ? formatInTimeZone(t, TIMEZONE, "h:mm a") : null);
-
-  if (segments.length <= 1) {
-    return {
-      morningIn: formatTime(segments[0]?.in),
-      morningOut: null,
-      afternoonIn: null,
-      afternoonOut: formatTime(segments[0]?.out),
-    };
-  }
-  return {
-    morningIn: formatTime(segments[0]?.in),
-    morningOut: formatTime(segments[0]?.out),
-    afternoonIn: formatTime(segments[1]?.in),
-    afternoonOut: formatTime(segments[1]?.out),
-  };
-}
-
-export interface BreakSlot {
-  breakIn: string | null;
-  breakOut: string | null;
-}
-
-interface BreakPunchLike {
-  type: "BREAK_START" | "BREAK_END";
+  type: "IN" | "OUT" | "BREAK_START" | "BREAK_END";
   timestamp: Date;
 }
 
 /**
- * The first complete Start Break -> End Break pair for a day (typical case:
- * one lunch break/day). Kept as a small standalone function, separate from
- * computeDaySlots, since Morning/Afternoon In/Out deliberately never
- * includes break punches -- this is purely for showing an actual break
- * record next to the derived "Late from break" badge.
+ * One day's attendance as the same four actions the kiosk itself offers --
+ * Time In, Start Break, End Break, Time Out -- rather than the old Morning/
+ * Afternoon segment-index model. Time In is the day's first IN punch, Time
+ * Out is the day's last OUT punch (so a full day still resolves correctly
+ * even if something unusual happened mid-day), and Break In/Out is the
+ * first complete Start Break -> End Break pair (typical case: one lunch
+ * break/day).
  */
-export function computeBreakSlot(dayPunches: BreakPunchLike[]): BreakSlot {
+export function computeDayTimeline(dayPunches: PunchLike[]): DayTimeline {
   const sorted = [...dayPunches].sort(
     (a, b) => a.timestamp.getTime() - b.timestamp.getTime()
   );
   const formatTime = (t?: Date) => (t ? formatInTimeZone(t, TIMEZONE, "h:mm a") : null);
 
-  let start: Date | undefined;
-  let end: Date | undefined;
+  const firstIn = sorted.find((p) => p.type === "IN");
+  const lastOut = [...sorted].reverse().find((p) => p.type === "OUT");
+
+  let breakStart: Date | undefined;
+  let breakEnd: Date | undefined;
   for (const p of sorted) {
-    if (p.type === "BREAK_START" && !start) {
-      start = p.timestamp;
-    } else if (p.type === "BREAK_END" && start && !end) {
-      end = p.timestamp;
+    if (p.type === "BREAK_START" && !breakStart) {
+      breakStart = p.timestamp;
+    } else if (p.type === "BREAK_END" && breakStart && !breakEnd) {
+      breakEnd = p.timestamp;
     }
   }
-  return { breakIn: formatTime(start), breakOut: formatTime(end) };
+
+  return {
+    timeIn: formatTime(firstIn?.timestamp),
+    breakIn: formatTime(breakStart),
+    breakOut: formatTime(breakEnd),
+    timeOut: formatTime(lastOut?.timestamp),
+  };
 }

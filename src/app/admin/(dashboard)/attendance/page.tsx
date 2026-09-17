@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
 import { computeDailyResults, localDateKey } from "@/lib/payroll";
-import { computeDaySlots, computeBreakSlot } from "@/lib/attendanceSlots";
+import { computeDayTimeline } from "@/lib/attendanceSlots";
 import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
 import { TIMEZONE } from "@/lib/payroll";
 import { addPunch, editPunch, voidPunch, setDayStatus, setShiftOverride, removeShiftOverride } from "./actions";
@@ -92,25 +92,11 @@ interface PunchRow {
   photoPath: string | null;
 }
 
-function inOrOutOnly(punches: PunchRow[]): (PunchRow & { type: "IN" | "OUT" })[] {
-  return punches.filter(
-    (p): p is PunchRow & { type: "IN" | "OUT" } => p.type === "IN" || p.type === "OUT"
-  );
-}
-
-function breakOnly(punches: PunchRow[]): (PunchRow & { type: "BREAK_START" | "BREAK_END" })[] {
-  return punches.filter(
-    (p): p is PunchRow & { type: "BREAK_START" | "BREAK_END" } =>
-      p.type === "BREAK_START" || p.type === "BREAK_END"
-  );
-}
-
 interface TodayRow {
   employee: { id: string; name: string; photoPath: string | null };
   punches: PunchRow[];
   dayStatus: string;
-  slots: ReturnType<typeof computeDaySlots>;
-  breakSlot: ReturnType<typeof computeBreakSlot>;
+  timeline: ReturnType<typeof computeDayTimeline>;
   timedIn: boolean;
   isLate: boolean;
   isUndertime: boolean;
@@ -232,8 +218,7 @@ export default async function AttendancePage({
         employee: emp,
         punches: empPunches,
         dayStatus,
-        slots: computeDaySlots(inOrOutOnly(empPunches)),
-        breakSlot: computeBreakSlot(breakOnly(empPunches)),
+        timeline: computeDayTimeline(empPunches),
         timedIn: empPunches.some((p) => p.type === "IN"),
         isLate: computed.isLate,
         isUndertime: computed.isUndertime,
@@ -365,12 +350,10 @@ export default async function AttendancePage({
               <thead className="bg-slate-50 text-slate-600 text-left">
                 <tr>
                   <th className="px-2 py-2 font-medium">Date</th>
-                  <th className="px-2 py-2 font-medium text-right">Morning In</th>
-                  <th className="px-2 py-2 font-medium text-right">Morning Out</th>
-                  <th className="px-2 py-2 font-medium text-right">Afternoon In</th>
-                  <th className="px-2 py-2 font-medium text-right">Afternoon Out</th>
-                  <th className="px-2 py-2 font-medium text-right">Break In</th>
-                  <th className="px-2 py-2 font-medium text-right">Break Out</th>
+                  <th className="px-2 py-2 font-medium text-right">Time In</th>
+                  <th className="px-2 py-2 font-medium text-right">Start Break</th>
+                  <th className="px-2 py-2 font-medium text-right">End Break</th>
+                  <th className="px-2 py-2 font-medium text-right">Time Out</th>
                   <th className="px-2 py-2 font-medium text-right">Regular</th>
                   <th className="px-2 py-2 font-medium text-right">OT</th>
                   <th className="px-2 py-2 font-medium">Notes</th>
@@ -380,8 +363,7 @@ export default async function AttendancePage({
               <tbody>
                 {days.map((d) => {
                   const dayPunches = punchesByDay.get(d.date) ?? [];
-                  const slots = computeDaySlots(inOrOutOnly(dayPunches));
-                  const breakSlot = computeBreakSlot(breakOnly(dayPunches));
+                  const timeline = computeDayTimeline(dayPunches);
                   const dayStatus = statusByDay.get(d.date) ?? "NORMAL";
                   // Paid Leave / Unpaid Absence pay is fixed regardless of punches,
                   // so showing the raw times next to that status reads as a
@@ -401,22 +383,16 @@ export default async function AttendancePage({
                         </span>
                       </td>
                       <td className="px-2 py-2 text-right whitespace-nowrap text-slate-700">
-                        {showTimes ? slots.morningIn ?? <span className="text-slate-300">—</span> : <span className="text-slate-300">—</span>}
+                        {showTimes ? timeline.timeIn ?? <span className="text-slate-300">—</span> : <span className="text-slate-300">—</span>}
                       </td>
                       <td className="px-2 py-2 text-right whitespace-nowrap text-slate-700">
-                        {showTimes ? slots.morningOut ?? <span className="text-slate-300">—</span> : <span className="text-slate-300">—</span>}
-                      </td>
-                      <td className="px-2 py-2 text-right whitespace-nowrap text-slate-700">
-                        {showTimes ? slots.afternoonIn ?? <span className="text-slate-300">—</span> : <span className="text-slate-300">—</span>}
-                      </td>
-                      <td className="px-2 py-2 text-right whitespace-nowrap text-slate-700">
-                        {showTimes ? slots.afternoonOut ?? <span className="text-slate-300">—</span> : <span className="text-slate-300">—</span>}
-                      </td>
-                      <td className="px-2 py-2 text-right whitespace-nowrap text-slate-700">
-                        {showTimes ? breakSlot.breakIn ?? <span className="text-slate-300">—</span> : <span className="text-slate-300">—</span>}
+                        {showTimes ? timeline.breakIn ?? <span className="text-slate-300">—</span> : <span className="text-slate-300">—</span>}
                       </td>
                       <td className={`px-2 py-2 text-right whitespace-nowrap ${d.returnedLateFromBreak ? "text-amber-600 font-medium" : "text-slate-700"}`}>
-                        {showTimes ? breakSlot.breakOut ?? <span className="text-slate-300">—</span> : <span className="text-slate-300">—</span>}
+                        {showTimes ? timeline.breakOut ?? <span className="text-slate-300">—</span> : <span className="text-slate-300">—</span>}
+                      </td>
+                      <td className="px-2 py-2 text-right whitespace-nowrap text-slate-700">
+                        {showTimes ? timeline.timeOut ?? <span className="text-slate-300">—</span> : <span className="text-slate-300">—</span>}
                       </td>
                       <td className="px-2 py-2 text-right whitespace-nowrap text-slate-700">
                         {(d.regularMinutes / 60).toFixed(2)}h
@@ -461,19 +437,17 @@ function TodayDashboard({ rows, refDate }: { rows: TodayRow[]; refDate: string }
           <thead className="bg-slate-50 text-slate-600 text-left">
             <tr>
               <th className="px-2 py-2 font-medium">Name</th>
-              <th className="px-2 py-2 font-medium text-right">Morning In</th>
-              <th className="px-2 py-2 font-medium text-right">Morning Out</th>
-              <th className="px-2 py-2 font-medium text-right">Afternoon In</th>
-              <th className="px-2 py-2 font-medium text-right">Afternoon Out</th>
-              <th className="px-2 py-2 font-medium text-right">Break In</th>
-              <th className="px-2 py-2 font-medium text-right">Break Out</th>
+              <th className="px-2 py-2 font-medium text-right">Time In</th>
+              <th className="px-2 py-2 font-medium text-right">Start Break</th>
+              <th className="px-2 py-2 font-medium text-right">End Break</th>
+              <th className="px-2 py-2 font-medium text-right">Time Out</th>
               <th className="px-2 py-2 font-medium">Status</th>
               <th className="px-2 py-2 font-medium"></th>
             </tr>
           </thead>
           <tbody>
             {rows.map((row) => {
-              const { employee, punches, dayStatus, slots, breakSlot, timedIn, isLate, isUndertime, returnedLateFromBreak, presence } = row;
+              const { employee, punches, dayStatus, timeline, timedIn, isLate, isUndertime, returnedLateFromBreak, presence } = row;
               const showTimes = dayStatus === "NORMAL";
               return (
                 <tr key={employee.id} className="border-t border-slate-100 align-top">
@@ -490,22 +464,16 @@ function TodayDashboard({ rows, refDate }: { rows: TodayRow[]; refDate: string }
                     </span>
                   </td>
                   <td className="px-2 py-2 text-right whitespace-nowrap text-slate-700">
-                    {showTimes ? slots.morningIn ?? <span className="text-slate-300">—</span> : <span className="text-slate-300">—</span>}
+                    {showTimes ? timeline.timeIn ?? <span className="text-slate-300">—</span> : <span className="text-slate-300">—</span>}
                   </td>
                   <td className="px-2 py-2 text-right whitespace-nowrap text-slate-700">
-                    {showTimes ? slots.morningOut ?? <span className="text-slate-300">—</span> : <span className="text-slate-300">—</span>}
-                  </td>
-                  <td className="px-2 py-2 text-right whitespace-nowrap text-slate-700">
-                    {showTimes ? slots.afternoonIn ?? <span className="text-slate-300">—</span> : <span className="text-slate-300">—</span>}
-                  </td>
-                  <td className="px-2 py-2 text-right whitespace-nowrap text-slate-700">
-                    {showTimes ? slots.afternoonOut ?? <span className="text-slate-300">—</span> : <span className="text-slate-300">—</span>}
-                  </td>
-                  <td className="px-2 py-2 text-right whitespace-nowrap text-slate-700">
-                    {showTimes ? breakSlot.breakIn ?? <span className="text-slate-300">—</span> : <span className="text-slate-300">—</span>}
+                    {showTimes ? timeline.breakIn ?? <span className="text-slate-300">—</span> : <span className="text-slate-300">—</span>}
                   </td>
                   <td className={`px-2 py-2 text-right whitespace-nowrap ${returnedLateFromBreak ? "text-amber-600 font-medium" : "text-slate-700"}`}>
-                    {showTimes ? breakSlot.breakOut ?? <span className="text-slate-300">—</span> : <span className="text-slate-300">—</span>}
+                    {showTimes ? timeline.breakOut ?? <span className="text-slate-300">—</span> : <span className="text-slate-300">—</span>}
+                  </td>
+                  <td className="px-2 py-2 text-right whitespace-nowrap text-slate-700">
+                    {showTimes ? timeline.timeOut ?? <span className="text-slate-300">—</span> : <span className="text-slate-300">—</span>}
                   </td>
                   <td className="px-2 py-2">
                     <div className="flex flex-wrap gap-1.5">

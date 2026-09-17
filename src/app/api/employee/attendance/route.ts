@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { resolveEmployeeByPin } from "@/lib/kioskAuth";
 import { getSettings } from "@/lib/settings";
 import { computeDailyResults, localDateKey, TIMEZONE } from "@/lib/payroll";
-import { computeDaySlots, computeBreakSlot } from "@/lib/attendanceSlots";
+import { computeDayTimeline } from "@/lib/attendanceSlots";
 import { formatInTimeZone } from "date-fns-tz";
 import { subDays } from "date-fns";
 
@@ -77,17 +77,7 @@ export async function POST(request: Request) {
       .reverse()
       .map((d) => ({
         date: d.date,
-        ...computeDaySlots(
-          (punchesByDay.get(d.date) ?? []).filter(
-            (p): p is typeof p & { type: "IN" | "OUT" } => p.type === "IN" || p.type === "OUT"
-          )
-        ),
-        ...computeBreakSlot(
-          (punchesByDay.get(d.date) ?? []).filter(
-            (p): p is typeof p & { type: "BREAK_START" | "BREAK_END" } =>
-              p.type === "BREAK_START" || p.type === "BREAK_END"
-          )
-        ),
+        ...computeDayTimeline(punchesByDay.get(d.date) ?? []),
         regularHours: Math.round((d.regularMinutes / 60) * 100) / 100,
         overtimeHours: Math.round((d.overtimeMinutes / 60) * 100) / 100,
         isLate: d.isLate,
