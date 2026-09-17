@@ -36,9 +36,9 @@ export async function POST(request: Request) {
     }),
     prisma.sanitationAssignment.findMany({
       where: {
-        employeeId: matched.id,
         date: new Date(`${today}T00:00:00.000Z`),
         status: "PENDING",
+        OR: [{ employeeId: null }, { employeeId: matched.id }],
       },
       include: { procedure: true },
     }),

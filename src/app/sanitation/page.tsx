@@ -45,7 +45,7 @@ export default async function SanitationBoardPage() {
                 <tr>
                   <th className="px-4 py-2 font-medium">Area / Equipment</th>
                   <th className="px-4 py-2 font-medium">SOP</th>
-                  <th className="px-4 py-2 font-medium">Responsible</th>
+                  <th className="px-4 py-2 font-medium">Signed off by</th>
                   <th className="px-4 py-2 font-medium">Status</th>
                 </tr>
               </thead>
@@ -54,7 +54,9 @@ export default async function SanitationBoardPage() {
                   <tr key={a.id} className="border-t border-slate-100">
                     <td className="px-4 py-2 text-slate-700">{a.procedure.areaEquipment}</td>
                     <td className="px-4 py-2 text-slate-900 font-medium">{a.procedure.name}</td>
-                    <td className="px-4 py-2 text-slate-700">{a.employee.name}</td>
+                    <td className="px-4 py-2 text-slate-700">
+                      {a.employee ? a.employee.name : <span className="text-slate-400 italic">Team</span>}
+                    </td>
                     <td className="px-4 py-2">
                       {a.inspectionResult ? (
                         <span

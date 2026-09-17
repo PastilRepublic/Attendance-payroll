@@ -48,7 +48,6 @@ export async function createProcedure(formData: FormData) {
 
 const assignSanitationSchema = z.object({
   procedureId: z.string().min(1),
-  employeeId: z.string().min(1),
   date: z.string().min(1),
 });
 
@@ -56,14 +55,12 @@ export async function assignSanitation(formData: FormData) {
   const admin = await requireAdmin();
   const parsed = assignSanitationSchema.parse({
     procedureId: formData.get("procedureId"),
-    employeeId: formData.get("employeeId"),
     date: formData.get("date"),
   });
 
   const assignment = await prisma.sanitationAssignment.create({
     data: {
       procedureId: parsed.procedureId,
-      employeeId: parsed.employeeId,
       date: new Date(`${parsed.date}T00:00:00.000Z`),
       assignedByAdminId: admin.id,
     },
@@ -74,7 +71,7 @@ export async function assignSanitation(formData: FormData) {
     action: "ASSIGN_SANITATION",
     targetTable: "SanitationAssignment",
     targetId: assignment.id,
-    after: { procedureId: parsed.procedureId, employeeId: parsed.employeeId, date: parsed.date },
+    after: { procedureId: parsed.procedureId, date: parsed.date },
   });
 
   revalidatePath("/admin/sanitation");

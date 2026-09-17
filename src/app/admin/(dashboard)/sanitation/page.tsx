@@ -20,13 +20,18 @@ export default async function SanitationPage({
   const params = await searchParams;
   const date = params.date ?? todayManila();
 
-  const [procedures, employees, assignments] = await Promise.all([
+  const [procedures, assignments, recentSignoffs] = await Promise.all([
     prisma.sanitationProcedure.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
-    prisma.employee.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
     prisma.sanitationAssignment.findMany({
       where: { date: new Date(`${date}T00:00:00.000Z`) },
       include: { procedure: true, employee: true },
       orderBy: { createdAt: "asc" },
+    }),
+    prisma.sanitationAssignment.findMany({
+      where: { status: "DONE", employeeId: { not: null } },
+      include: { procedure: true, employee: true },
+      orderBy: { completedAt: "desc" },
+      take: 15,
     }),
   ]);
 
@@ -153,7 +158,13 @@ export default async function SanitationPage({
             <tbody>
               {assignments.map((a) => (
                 <tr key={a.id} className="border-t border-slate-100 align-top">
-                  <td className="py-1.5 pr-2">{a.employee.name}</td>
+                  <td className="py-1.5 pr-2">
+                    {a.employee ? (
+                      a.employee.name
+                    ) : (
+                      <span className="text-slate-400 italic">Unassigned — team</span>
+                    )}
+                  </td>
                   <td className="py-1.5 pr-2">{a.procedure.name}</td>
                   <td className="py-1.5 pr-2">
                     <span
@@ -215,21 +226,6 @@ export default async function SanitationPage({
         >
           <input type="hidden" name="date" value={date} />
           <div>
-            <label className="block text-xs text-slate-500 mb-1">Employee</label>
-            <select
-              name="employeeId"
-              required
-              className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
-            >
-              <option value="">Select...</option>
-              {employees.map((e) => (
-                <option key={e.id} value={e.id}>
-                  {e.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
             <label className="block text-xs text-slate-500 mb-1">SOP</label>
             <select
               name="procedureId"
@@ -247,7 +243,43 @@ export default async function SanitationPage({
           <button className="rounded-md bg-slate-900 text-white text-sm px-4 py-2 hover:bg-slate-800">
             Assign
           </button>
+          <p className="text-xs text-slate-400 w-full">
+            No need to pick who — any active employee can claim and complete this at the kiosk.
+          </p>
         </form>
+      </div>
+
+      <div className="mt-6 bg-white rounded-lg shadow p-4">
+        <h2 className="text-sm font-semibold text-slate-700 mb-3">Recent Sign-offs</h2>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="text-slate-500 text-left">
+              <tr>
+                <th className="py-1 pr-2 font-normal">Date</th>
+                <th className="py-1 pr-2 font-normal">SOP</th>
+                <th className="py-1 font-normal">Signed off by</th>
+              </tr>
+            </thead>
+            <tbody>
+              {recentSignoffs.map((a) => (
+                <tr key={a.id} className="border-t border-slate-100">
+                  <td className="py-1.5 pr-2 text-slate-500">
+                    {formatInTimeZone(a.date, TIMEZONE, "yyyy-MM-dd")}
+                  </td>
+                  <td className="py-1.5 pr-2">{a.procedure.name}</td>
+                  <td className="py-1.5 text-slate-700">{a.employee?.name}</td>
+                </tr>
+              ))}
+              {recentSignoffs.length === 0 && (
+                <tr>
+                  <td colSpan={3} className="py-4 text-center text-slate-400">
+                    No completed sanitation duties yet.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

@@ -309,16 +309,19 @@ model SanitationProcedure {
   assignments SanitationAssignment[]
 }
 
-/** One scheduled occurrence of a SanitationProcedure for one employee on one
- * date. The employee self-reports completion (status); a supervisor then
- * independently inspects it (inspectionResult) -- self-reporting alone isn't
- * proof, so these are deliberately separate fields. */
+/** One scheduled occurrence of a SanitationProcedure for one date, done as a
+ * team rather than pre-assigned to one person. employeeId is left unset at
+ * creation and filled in by whichever active employee taps it complete at
+ * the kiosk (self-claim) -- that's who is accountable if the inspection
+ * below fails. The employee's tap alone isn't proof, so a supervisor then
+ * independently inspects it (inspectionResult) -- these are deliberately
+ * separate fields. */
 model SanitationAssignment {
   id          String                     @id @default(cuid())
   procedureId String
   procedure   SanitationProcedure        @relation(fields: [procedureId], references: [id])
-  employeeId  String
-  employee    Employee                   @relation(fields: [employeeId], references: [id])
+  employeeId  String?
+  employee    Employee?                  @relation(fields: [employeeId], references: [id])
   date        DateTime                   @db.Date
   status      SanitationAssignmentStatus @default(PENDING)
   completedAt DateTime?

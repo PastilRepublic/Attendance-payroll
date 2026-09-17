@@ -135,7 +135,12 @@ export default function KioskClient() {
         const res = await fetch("/api/kiosk/tasks/complete", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ pin, taskAssignmentId: taskId, kind }),
+          body: JSON.stringify({
+            pin,
+            employeeId: selectedEmployee?.id,
+            taskAssignmentId: taskId,
+            kind,
+          }),
         });
         if (res.ok) {
           setDoneTaskIds((prev) => new Set(prev).add(taskId));
@@ -144,7 +149,7 @@ export default function KioskClient() {
         // Best-effort: task stays pending, admin can still see/manage it directly.
       }
     },
-    [pin]
+    [pin, selectedEmployee]
   );
 
   useEffect(() => {
