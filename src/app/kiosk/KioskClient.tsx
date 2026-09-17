@@ -152,6 +152,33 @@ export default function KioskClient() {
     [pin, selectedEmployee]
   );
 
+  const undoTask = useCallback(
+    async (taskId: string, kind: "TASK" | "SANITATION") => {
+      try {
+        const res = await fetch("/api/kiosk/tasks/uncomplete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            pin,
+            employeeId: selectedEmployee?.id,
+            taskAssignmentId: taskId,
+            kind,
+          }),
+        });
+        if (res.ok) {
+          setDoneTaskIds((prev) => {
+            const next = new Set(prev);
+            next.delete(taskId);
+            return next;
+          });
+        }
+      } catch {
+        // Best-effort: stays marked done on screen, admin can fix it directly.
+      }
+    },
+    [pin, selectedEmployee]
+  );
+
   useEffect(() => {
     if (screen !== "tasks") return;
     // Restarts on every doneTaskIds change, so actively checking off tasks
@@ -349,6 +376,7 @@ export default function KioskClient() {
             tasks={pendingTasks}
             doneIds={doneTaskIds}
             onComplete={completeTask}
+            onUndo={undoTask}
             onFinish={resetToIdle}
           />
         )}
@@ -583,11 +611,13 @@ function TaskChecklist({
   tasks,
   doneIds,
   onComplete,
+  onUndo,
   onFinish,
 }: {
   tasks: PendingTask[];
   doneIds: Set<string>;
   onComplete: (taskId: string, kind: "TASK" | "SANITATION") => void;
+  onUndo: (taskId: string, kind: "TASK" | "SANITATION") => void;
   onFinish: () => void;
 }) {
   return (
@@ -599,11 +629,10 @@ function TaskChecklist({
           return (
             <button
               key={t.id}
-              onClick={() => !done && onComplete(t.id, t.kind)}
-              disabled={done}
+              onClick={() => (done ? onUndo(t.id, t.kind) : onComplete(t.id, t.kind))}
               className={`w-full flex items-center justify-between rounded-xl px-5 py-4 text-lg ${
                 done
-                  ? "bg-green-900/40 text-green-300"
+                  ? "bg-green-900/40 text-green-300 hover:bg-green-900/60"
                   : "bg-slate-800 hover:bg-slate-700"
               }`}
             >
@@ -614,7 +643,11 @@ function TaskChecklist({
                     +₱{t.bonusAmount.toFixed(2)}
                   </span>
                 ) : null}
-                {done && <span>✓</span>}
+                {done && (
+                  <span className="flex items-center gap-1.5 text-sm">
+                    ✓ <span className="text-green-400/70">tap to undo</span>
+                  </span>
+                )}
               </span>
             </button>
           );

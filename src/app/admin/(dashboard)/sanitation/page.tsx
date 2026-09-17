@@ -277,7 +277,7 @@ export default async function SanitationPage({
                     )}
                   </td>
                   <td className="py-1.5 text-right">
-                    {a.status === "PENDING" && (
+                    {!a.inspectionResult && (
                       <form action={deleteSanitationAssignment}>
                         <input type="hidden" name="assignmentId" value={a.id} />
                         <button className="text-red-600 hover:underline text-xs">Remove</button>
