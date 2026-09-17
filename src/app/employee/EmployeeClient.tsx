@@ -48,6 +48,23 @@ function peso(n: number) {
   return `₱${n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+// Same palette as the admin Attendance page, so the same weekday reads the
+// same color everywhere -- warmer toward the weekend, easy to pattern-match.
+const DAY_ABBREV_STYLES = [
+  { label: "Sun", className: "bg-red-100 text-red-700" },
+  { label: "Mon", className: "bg-indigo-100 text-indigo-700" },
+  { label: "Tue", className: "bg-fuchsia-100 text-fuchsia-700" },
+  { label: "Wed", className: "bg-emerald-100 text-emerald-700" },
+  { label: "Thu", className: "bg-cyan-100 text-cyan-700" },
+  { label: "Fri", className: "bg-yellow-100 text-yellow-800" },
+  { label: "Sat", className: "bg-orange-100 text-orange-700" },
+] as const;
+
+function dayAbbrev(dateStr: string): { label: string; className: string } {
+  const dow = new Date(`${dateStr}T00:00:00.000Z`).getUTCDay();
+  return DAY_ABBREV_STYLES[dow];
+}
+
 export default function EmployeeClient() {
   const [screen, setScreen] = useState<Screen>("selectName");
   const [tab, setTab] = useState<Tab>("attendance");
@@ -318,7 +335,16 @@ export default function EmployeeClient() {
                         const showTimes = d.dayStatus === null;
                         return (
                         <tr key={d.date} className="border-t border-slate-100">
-                          <td className="px-4 py-2 text-slate-800 whitespace-nowrap">{d.date}</td>
+                          <td className="px-4 py-2 text-slate-800 whitespace-nowrap">
+                            <span className="flex items-center gap-1.5">
+                              <span
+                                className={`w-9 shrink-0 py-0.5 rounded text-xs font-medium text-center ${dayAbbrev(d.date).className}`}
+                              >
+                                {dayAbbrev(d.date).label}
+                              </span>
+                              {d.date}
+                            </span>
+                          </td>
                           <td className="px-4 py-2 text-right text-slate-800 whitespace-nowrap">
                             {showTimes ? d.morningIn ?? <span className="text-slate-300">—</span> : <span className="text-slate-300">—</span>}
                           </td>
