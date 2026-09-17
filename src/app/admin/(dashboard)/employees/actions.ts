@@ -85,15 +85,15 @@ export async function createEmployee(formData: FormData) {
     after: { name: employee.name, payBasis: employee.payBasis, payRate: parsed.payRate },
   });
 
-  const photo = formData.get("photo");
-  if (photo instanceof File && photo.size > 0) {
-    try {
+  try {
+    const photo = formData.get("photo");
+    if (photo instanceof File && photo.size > 0) {
       const photoPath = await saveEmployeePhoto(employee.id, photo);
       await prisma.employee.update({ where: { id: employee.id }, data: { photoPath } });
-    } catch (err) {
-      // Photo upload failing should never block creating the employee.
-      console.error("[createEmployee] photo save failed:", err);
     }
+  } catch (err) {
+    // Photo upload failing should never block creating the employee.
+    console.error("[createEmployee] photo save failed:", err);
   }
 
   if (accessParsed) {
@@ -160,20 +160,6 @@ export async function updateEmployee(employeeId: string, formData: FormData) {
     }
   } catch (err) {
     console.error("[updateEmployee] photo save failed:", err);
-    // TEMPORARY diagnostic: surface the real error via the audit log so it's
-    // visible without Vercel dashboard access -- remove once the root cause
-    // of the photo-upload 500 is found and fixed.
-    await logAudit({
-      actorAdminId: admin.id,
-      action: "DEBUG_PHOTO_SAVE_ERROR",
-      targetTable: "Employee",
-      targetId: employeeId,
-      after: {
-        message: err instanceof Error ? err.message : String(err),
-        stack: err instanceof Error ? err.stack : undefined,
-        name: err instanceof Error ? err.name : undefined,
-      },
-    }).catch(() => {});
   }
 
   revalidatePath("/admin/employees");
