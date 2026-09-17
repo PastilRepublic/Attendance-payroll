@@ -3,7 +3,7 @@ import { addDays, eachDayOfInterval, parseISO } from "date-fns";
 
 export const TIMEZONE = "Asia/Manila";
 
-export type PunchType = "IN" | "OUT";
+export type PunchType = "IN" | "OUT" | "BREAK_START" | "BREAK_END";
 export type PayBasis = "HOURLY" | "DAILY";
 export type DayStatusType = "PAID_LEAVE" | "UNPAID_ABSENCE";
 
@@ -36,6 +36,7 @@ export interface DailyResult {
   overtimeMinutes: number;
   isLate: boolean;
   isUndertime: boolean;
+  returnedLateFromBreak: boolean;
   dayStatus: DayStatusType | null;
 }
 
@@ -95,6 +96,11 @@ function clipEarlyArrival(
   return sorted;
 }
 
+export interface BreakPair {
+  start: Date;
+  end: Date;
+}
+
 /**
  * Pairs sequential IN/OUT punches (sorted ascending) into worked minutes for
  * one day, and counts how many IN->OUT segments were closed. A normal day
@@ -102,14 +108,24 @@ function clipEarlyArrival(
  * An actual lunch-break punch-out/punch-in produces a second segment, whose
  * gap already excludes the break -- so the flat unpaid-lunch deduction
  * should not also apply on top of it (see computeDailyResults below).
+ *
+ * BREAK_START/BREAK_END punches are a second way of marking the same kind of
+ * gap: BREAK_START closes the open work interval (like an implicit OUT,
+ * without counting as a segment) and BREAK_END reopens one. Each completed
+ * BREAK_START->BREAK_END pair is also collected into breakPairs so callers
+ * can check how long the break actually ran.
  */
-function pairPunches(punches: PunchInput[]): { workedMinutes: number; segments: number } {
+export function pairPunches(
+  punches: PunchInput[]
+): { workedMinutes: number; segments: number; breakPairs: BreakPair[] } {
   const sorted = [...punches].sort(
     (a, b) => a.timestamp.getTime() - b.timestamp.getTime()
   );
   let workedMs = 0;
   let segments = 0;
   let openIn: Date | null = null;
+  let openBreakStart: Date | null = null;
+  const breakPairs: BreakPair[] = [];
   for (const p of sorted) {
     if (p.type === "IN") {
       openIn = p.timestamp;
@@ -117,9 +133,19 @@ function pairPunches(punches: PunchInput[]): { workedMinutes: number; segments: 
       workedMs += p.timestamp.getTime() - openIn.getTime();
       segments += 1;
       openIn = null;
+    } else if (p.type === "BREAK_START" && openIn) {
+      workedMs += p.timestamp.getTime() - openIn.getTime();
+      openIn = null;
+      openBreakStart = p.timestamp;
+    } else if (p.type === "BREAK_END" && openBreakStart) {
+      breakPairs.push({ start: openBreakStart, end: p.timestamp });
+      openBreakStart = null;
+      openIn = p.timestamp;
     }
+    // Out-of-sequence punches (e.g. a stray BREAK_END with no open break)
+    // are ignored -- there's no well-defined interval to attribute them to.
   }
-  return { workedMinutes: workedMs / 60000, segments };
+  return { workedMinutes: workedMs / 60000, segments, breakPairs };
 }
 
 /**
@@ -173,7 +199,7 @@ export function computeDailyResults(
     const lateThreshold = shiftStartMinutes + settings.gracePeriodMinutes;
 
     const dayPunches = clipEarlyArrival(rawDayPunches, date, shiftStartMinutes);
-    const { workedMinutes, segments } = pairPunches(dayPunches);
+    const { workedMinutes, segments, breakPairs } = pairPunches(dayPunches);
 
     if (dayStatus === "PAID_LEAVE") {
       return {
@@ -183,6 +209,7 @@ export function computeDailyResults(
         overtimeMinutes: 0,
         isLate: false,
         isUndertime: false,
+        returnedLateFromBreak: false,
         dayStatus,
       };
     }
@@ -194,19 +221,28 @@ export function computeDailyResults(
         overtimeMinutes: 0,
         isLate: false,
         isUndertime: false,
+        returnedLateFromBreak: false,
         dayStatus,
       };
     }
 
     // A second (or later) segment means the employee actually punched out and
-    // back in for lunch -- that gap is already excluded from workedMinutes,
-    // so don't also subtract the flat unpaid-lunch minutes on top of it.
-    const netMinutes =
-      segments >= 2
-        ? workedMinutes
-        : Math.max(workedMinutes - settings.unpaidLunchMinutes, 0);
+    // back in for lunch (old-style, before Break punches existed) -- and an
+    // actual BREAK_START/BREAK_END pair means the same thing. Either way that
+    // gap is already excluded from workedMinutes, so don't also subtract the
+    // flat unpaid-lunch minutes on top of it.
+    const hadBreak = segments >= 2 || breakPairs.length > 0;
+    const netMinutes = hadBreak
+      ? workedMinutes
+      : Math.max(workedMinutes - settings.unpaidLunchMinutes, 0);
     const regularMinutes = Math.min(netMinutes, capMinutes);
     const overtimeMinutes = Math.max(netMinutes - capMinutes, 0);
+
+    // Strict cutoff (no grace period, unlike morning lateness) -- any break
+    // that ran longer than the allowance flags the day.
+    const returnedLateFromBreak = breakPairs.some(
+      (b) => (b.end.getTime() - b.start.getTime()) / 60000 > settings.unpaidLunchMinutes
+    );
 
     // dayPunches is already sorted ascending by clipEarlyArrival.
     const firstIn = dayPunches.find((p) => p.type === "IN");
@@ -229,6 +265,7 @@ export function computeDailyResults(
       overtimeMinutes,
       isLate,
       isUndertime,
+      returnedLateFromBreak,
       dayStatus,
     };
   });

@@ -277,6 +277,45 @@ describe("computeDailyResults - multiple punch pairs in one day", () => {
   });
 });
 
+describe("computeDailyResults - break punches", () => {
+  it("excludes break time from worked minutes and does not also deduct the flat unpaid lunch", () => {
+    const punches = [
+      { timestamp: atManila("2026-01-05", 8, 0), type: "IN" as const },
+      { timestamp: atManila("2026-01-05", 12, 0), type: "BREAK_START" as const },
+      { timestamp: atManila("2026-01-05", 13, 0), type: "BREAK_END" as const },
+      { timestamp: atManila("2026-01-05", 17, 0), type: "OUT" as const },
+    ];
+    const [day] = computeDailyResults(punches, [], settings, "2026-01-05", "2026-01-05");
+    // 4h + 4h = 8h worked, the 1h break already excluded -- no extra deduction on top.
+    expect(day.workedMinutes).toBe(8 * 60);
+    expect(day.regularMinutes).toBe(8 * 60);
+    expect(day.overtimeMinutes).toBe(0);
+    expect(day.returnedLateFromBreak).toBe(false);
+  });
+
+  it("flags returnedLateFromBreak when a break runs past the 60-minute allowance (strict, no grace)", () => {
+    const punches = [
+      { timestamp: atManila("2026-01-05", 8, 0), type: "IN" as const },
+      { timestamp: atManila("2026-01-05", 12, 0), type: "BREAK_START" as const },
+      { timestamp: atManila("2026-01-05", 13, 5), type: "BREAK_END" as const },
+      { timestamp: atManila("2026-01-05", 17, 0), type: "OUT" as const },
+    ];
+    const [day] = computeDailyResults(punches, [], settings, "2026-01-05", "2026-01-05");
+    expect(day.returnedLateFromBreak).toBe(true);
+  });
+
+  it("does not flag returnedLateFromBreak when the break is under the 60-minute allowance", () => {
+    const punches = [
+      { timestamp: atManila("2026-01-05", 8, 0), type: "IN" as const },
+      { timestamp: atManila("2026-01-05", 12, 0), type: "BREAK_START" as const },
+      { timestamp: atManila("2026-01-05", 12, 45), type: "BREAK_END" as const },
+      { timestamp: atManila("2026-01-05", 17, 0), type: "OUT" as const },
+    ];
+    const [day] = computeDailyResults(punches, [], settings, "2026-01-05", "2026-01-05");
+    expect(day.returnedLateFromBreak).toBe(false);
+  });
+});
+
 describe("computePay", () => {
   it("HOURLY basis: pays regular hours only, OT hours are not auto-paid", () => {
     const result = computePay(40, "HOURLY", 100, {

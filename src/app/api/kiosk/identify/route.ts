@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getRequirePhotoOnPunch } from "@/lib/settings";
 import { TIMEZONE } from "@/lib/payroll";
 import { resolveEmployeeByPin } from "@/lib/kioskAuth";
+import { getKioskSnapshot } from "@/lib/kioskAttendance";
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
@@ -18,11 +19,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "PIN not recognized" }, { status: 401 });
   }
 
-  const lastPunch = await prisma.punch.findFirst({
-    where: { employeeId: matched.id },
-    orderBy: { timestamp: "desc" },
-  });
-  const nextType: "IN" | "OUT" = lastPunch?.type === "IN" ? "OUT" : "IN";
+  const snapshot = await getKioskSnapshot(matched.id);
+  // Kept for backward compatibility with any already-queued offline items
+  // built against the old two-state toggle.
+  const nextType: "IN" | "OUT" = snapshot.status === "OUT" ? "IN" : "OUT";
 
   // A supervisor's job is to assign/inspect these, not do them alongside the
   // team -- skip the checklist entirely for them (Time In/Out still works
@@ -59,6 +59,10 @@ export async function POST(request: Request) {
     employeeId: matched.id,
     employeeName: matched.name,
     nextType,
+    status: snapshot.status,
+    allowedActions: snapshot.allowedActions,
+    activityLog: snapshot.activityLog,
+    totals: snapshot.totals,
     requirePhoto: await getRequirePhotoOnPunch(),
     pendingTasks: [
       ...pendingTasks.map((t) => ({

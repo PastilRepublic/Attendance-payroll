@@ -5,7 +5,7 @@ export interface QueuedPunch {
   id: string;
   pin: string;
   employeeId?: string;
-  type?: "IN" | "OUT";
+  type?: "IN" | "OUT" | "BREAK_START" | "BREAK_END";
   deviceId: string;
   photoDataUrl?: string;
   queuedAt: string;

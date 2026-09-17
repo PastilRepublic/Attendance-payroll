@@ -1,10 +1,30 @@
 import { NextResponse } from "next/server";
-import { fromZonedTime } from "date-fns-tz";
-import { addDays } from "date-fns";
 import { prisma } from "@/lib/prisma";
 import { savePunchPhoto } from "@/lib/storage";
 import { resolveEmployeeByPin } from "@/lib/kioskAuth";
-import { localDateKey, TIMEZONE } from "@/lib/payroll";
+import type { PunchType } from "@/lib/payroll";
+import { getAllowedActions, getKioskSnapshot } from "@/lib/kioskAttendance";
+
+const PUNCH_TYPES: PunchType[] = ["IN", "OUT", "BREAK_START", "BREAK_END"];
+
+const GUARD_MESSAGES: Record<string, { error: string; message: string }> = {
+  OUT: {
+    error: "NOT_TIMED_IN",
+    message: "You haven't timed in yet today. Please see your admin for assistance.",
+  },
+  BREAK_START: {
+    error: "CANNOT_START_BREAK",
+    message: "You need to time in before starting a break.",
+  },
+  BREAK_END: {
+    error: "CANNOT_END_BREAK",
+    message: "You're not currently on a break.",
+  },
+  IN: {
+    error: "ALREADY_TIMED_IN",
+    message: "You're already timed in.",
+  },
+};
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
@@ -12,8 +32,7 @@ export async function POST(request: Request) {
   const employeeId = typeof body?.employeeId === "string" ? body.employeeId : null;
   const deviceId = typeof body?.deviceId === "string" ? body.deviceId : null;
   const photoDataUrl = typeof body?.photoDataUrl === "string" ? body.photoDataUrl : null;
-  const requestedType: "IN" | "OUT" | null =
-    body?.type === "IN" || body?.type === "OUT" ? body.type : null;
+  const requestedType: PunchType | null = PUNCH_TYPES.includes(body?.type) ? body.type : null;
 
   if (!pin) {
     return NextResponse.json({ error: "PIN is required" }, { status: 400 });
@@ -32,42 +51,26 @@ export async function POST(request: Request) {
     });
   }
 
-  // The employee explicitly picks Time In/Out on the kiosk now (rather than
-  // a silent auto-toggle), so an explicit choice is honored here. Only when
-  // none is given (e.g. an older queued offline punch) do we fall back to
-  // auto-deriving it from the last punch.
-  let type: "IN" | "OUT";
+  const snapshotBefore = await getKioskSnapshot(matched.id);
+
+  // The employee explicitly picks an action on the kiosk now (rather than a
+  // silent auto-toggle), so an explicit choice is honored here. Only when
+  // none is given (e.g. an older queued offline punch built against the
+  // pre-break two-state toggle) do we fall back to auto-deriving it, and
+  // that fallback never infers a break type.
+  let type: PunchType;
   if (requestedType) {
     type = requestedType;
   } else {
-    const lastPunch = await prisma.punch.findFirst({
-      where: { employeeId: matched.id },
-      orderBy: { timestamp: "desc" },
-    });
-    type = lastPunch?.type === "IN" ? "OUT" : "IN";
+    type = snapshotBefore.status === "OUT" ? "IN" : "OUT";
   }
 
-  if (type === "OUT") {
-    const todayKey = localDateKey(new Date());
-    const dayStart = fromZonedTime(`${todayKey}T00:00:00`, TIMEZONE);
-    const dayEnd = addDays(dayStart, 1);
-    const lastToday = await prisma.punch.findFirst({
-      where: {
-        employeeId: matched.id,
-        voided: false,
-        timestamp: { gte: dayStart, lt: dayEnd },
-      },
-      orderBy: { timestamp: "desc" },
-    });
-    if (!lastToday || lastToday.type !== "IN") {
-      return NextResponse.json(
-        {
-          error: "NOT_TIMED_IN",
-          message: "You haven't timed in yet today. Please see your admin for assistance.",
-        },
-        { status: 409 }
-      );
-    }
+  if (!getAllowedActions(snapshotBefore.status).includes(type)) {
+    const guard = GUARD_MESSAGES[type];
+    return NextResponse.json(
+      { error: guard.error, message: guard.message },
+      { status: 409 }
+    );
   }
 
   const punch = await prisma.punch.create({
@@ -89,9 +92,15 @@ export async function POST(request: Request) {
     }
   }
 
+  const snapshotAfter = await getKioskSnapshot(matched.id);
+
   return NextResponse.json({
     employeeName: matched.name,
     type,
     timestamp: punch.timestamp,
+    status: snapshotAfter.status,
+    allowedActions: snapshotAfter.allowedActions,
+    activityLog: snapshotAfter.activityLog,
+    totals: snapshotAfter.totals,
   });
 }

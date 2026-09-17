@@ -69,6 +69,17 @@ export default function NewEmployeePage() {
             className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
           />
         </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">
+            Photo (optional)
+          </label>
+          <input
+            name="photo"
+            type="file"
+            accept="image/*"
+            className="w-full text-sm text-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-slate-700 hover:file:bg-slate-200"
+          />
+        </div>
         <details className="border border-slate-200 rounded-md p-3">
           <summary className="cursor-pointer text-sm font-medium text-slate-700">
             + Also grant supervisor access (optional)

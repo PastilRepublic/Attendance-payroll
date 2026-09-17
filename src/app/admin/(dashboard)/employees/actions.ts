@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { hashPin, verifyPin, hashPassword } from "@/lib/pin";
 import { requireOwner } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
+import { saveEmployeePhoto } from "@/lib/storage";
 
 /** PINs identify who is punching, so no two active employees may share one. */
 async function assertPinIsUnique(pin: string, excludeEmployeeId?: string) {
@@ -84,6 +85,17 @@ export async function createEmployee(formData: FormData) {
     after: { name: employee.name, payBasis: employee.payBasis, payRate: parsed.payRate },
   });
 
+  const photo = formData.get("photo");
+  if (photo instanceof File && photo.size > 0) {
+    try {
+      const photoPath = await saveEmployeePhoto(employee.id, photo);
+      await prisma.employee.update({ where: { id: employee.id }, data: { photoPath } });
+    } catch (err) {
+      // Photo upload failing should never block creating the employee.
+      console.error("[createEmployee] photo save failed:", err);
+    }
+  }
+
   if (accessParsed) {
     const createdAdmin = await prisma.adminUser.create({
       data: {
@@ -138,6 +150,17 @@ export async function updateEmployee(employeeId: string, formData: FormData) {
     before: { name: before.name, payBasis: before.payBasis, payRate: before.payRate },
     after: { name: updated.name, payBasis: updated.payBasis, payRate: parsed.payRate },
   });
+
+  // No file chosen leaves the existing photo alone.
+  const photo = formData.get("photo");
+  if (photo instanceof File && photo.size > 0) {
+    try {
+      const photoPath = await saveEmployeePhoto(employeeId, photo);
+      await prisma.employee.update({ where: { id: employeeId }, data: { photoPath } });
+    } catch (err) {
+      console.error("[updateEmployee] photo save failed:", err);
+    }
+  }
 
   revalidatePath("/admin/employees");
   redirect("/admin/employees");

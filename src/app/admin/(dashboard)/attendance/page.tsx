@@ -80,10 +80,16 @@ function parseRange(value: string | undefined): AttendanceRange {
 interface PunchRow {
   id: string;
   employeeId: string;
-  type: "IN" | "OUT";
+  type: "IN" | "OUT" | "BREAK_START" | "BREAK_END";
   timestamp: Date;
   isCorrection: boolean;
   photoPath: string | null;
+}
+
+function inOrOutOnly(punches: PunchRow[]): (PunchRow & { type: "IN" | "OUT" })[] {
+  return punches.filter(
+    (p): p is PunchRow & { type: "IN" | "OUT" } => p.type === "IN" || p.type === "OUT"
+  );
 }
 
 interface TodayRow {
@@ -94,6 +100,7 @@ interface TodayRow {
   timedIn: boolean;
   isLate: boolean;
   isUndertime: boolean;
+  returnedLateFromBreak: boolean;
 }
 
 export default async function AttendancePage({
@@ -206,10 +213,11 @@ export default async function AttendancePage({
         employee: emp,
         punches: empPunches,
         dayStatus,
-        slots: computeDaySlots(empPunches),
+        slots: computeDaySlots(inOrOutOnly(empPunches)),
         timedIn: empPunches.some((p) => p.type === "IN"),
         isLate: computed.isLate,
         isUndertime: computed.isUndertime,
+        returnedLateFromBreak: computed.returnedLateFromBreak,
       };
     });
   } else if (employeeId) {
@@ -347,7 +355,7 @@ export default async function AttendancePage({
               </thead>
               <tbody>
                 {days.map((d) => {
-                  const slots = computeDaySlots(punchesByDay.get(d.date) ?? []);
+                  const slots = computeDaySlots(inOrOutOnly(punchesByDay.get(d.date) ?? []));
                   const dayStatus = statusByDay.get(d.date) ?? "NORMAL";
                   // Paid Leave / Unpaid Absence pay is fixed regardless of punches,
                   // so showing the raw times next to that status reads as a
@@ -406,6 +414,11 @@ export default async function AttendancePage({
                               Undertime
                             </span>
                           )}
+                          {d.returnedLateFromBreak && (
+                            <span className="px-2 py-0.5 rounded-full text-xs bg-rose-100 text-rose-700">
+                              Late from break
+                            </span>
+                          )}
                         </div>
                       </td>
                       <td className="px-2 py-2 relative">
@@ -446,7 +459,7 @@ function TodayDashboard({ rows, refDate }: { rows: TodayRow[]; refDate: string }
           </thead>
           <tbody>
             {rows.map((row) => {
-              const { employee, punches, dayStatus, slots, timedIn, isLate, isUndertime } = row;
+              const { employee, punches, dayStatus, slots, timedIn, isLate, isUndertime, returnedLateFromBreak } = row;
               const showTimes = dayStatus === "NORMAL";
               return (
                 <tr key={employee.id} className="border-t border-slate-100 align-top">
@@ -495,6 +508,11 @@ function TodayDashboard({ rows, refDate }: { rows: TodayRow[]; refDate: string }
                       {dayStatus === "NORMAL" && timedIn && !isLate && !isUndertime && (
                         <span className="px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-700">
                           On time
+                        </span>
+                      )}
+                      {dayStatus === "NORMAL" && returnedLateFromBreak && (
+                        <span className="px-2 py-0.5 rounded-full text-xs bg-rose-100 text-rose-700">
+                          Late from break
                         </span>
                       )}
                     </div>

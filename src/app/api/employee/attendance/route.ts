@@ -77,11 +77,16 @@ export async function POST(request: Request) {
       .reverse()
       .map((d) => ({
         date: d.date,
-        ...computeDaySlots(punchesByDay.get(d.date) ?? []),
+        ...computeDaySlots(
+          (punchesByDay.get(d.date) ?? []).filter(
+            (p): p is typeof p & { type: "IN" | "OUT" } => p.type === "IN" || p.type === "OUT"
+          )
+        ),
         regularHours: Math.round((d.regularMinutes / 60) * 100) / 100,
         overtimeHours: Math.round((d.overtimeMinutes / 60) * 100) / 100,
         isLate: d.isLate,
         isUndertime: d.isUndertime,
+        returnedLateFromBreak: d.returnedLateFromBreak,
         dayStatus: d.dayStatus,
       })),
   });

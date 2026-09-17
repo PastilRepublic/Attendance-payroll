@@ -36,6 +36,32 @@ export default async function EditEmployeePage({
       <h1 className="text-xl font-semibold text-slate-900">Edit {employee.name}</h1>
 
       <form action={updateEmployeeWithId} className="bg-white rounded-lg shadow p-6 space-y-4">
+        <div className="flex items-center gap-4">
+          {employee.photoPath ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={`/api/kiosk/employee-photo/${employee.photoPath}`}
+              alt={employee.name}
+              className="w-16 h-16 rounded-full object-cover border border-slate-200"
+            />
+          ) : (
+            <div className="w-16 h-16 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 text-xs">
+              No photo
+            </div>
+          )}
+          <div className="flex-1">
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Photo (optional)
+            </label>
+            <input
+              name="photo"
+              type="file"
+              accept="image/*"
+              className="w-full text-sm text-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-slate-700 hover:file:bg-slate-200"
+            />
+            <p className="text-xs text-slate-500 mt-1">Leave blank to keep the current photo.</p>
+          </div>
+        </div>
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1">Name</label>
           <input

@@ -50,7 +50,7 @@ export default async function SettingsPage() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Unpaid lunch (minutes)
+                  Unpaid break (minutes)
                 </label>
                 <input
                   name="unpaidLunchMinutes"
@@ -59,6 +59,10 @@ export default async function SettingsPage() {
                   defaultValue={settings.unpaidLunchMinutes}
                   className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
                 />
+                <p className="text-xs text-slate-500 mt-1">
+                  Also the kiosk&apos;s Break allowance -- an employee who Starts Break and takes
+                  longer than this to End Break is flagged &quot;Late from break&quot;.
+                </p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">

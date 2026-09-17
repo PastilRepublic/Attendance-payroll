@@ -18,6 +18,7 @@ interface AttendanceDay {
   overtimeHours: number;
   isLate: boolean;
   isUndertime: boolean;
+  returnedLateFromBreak: boolean;
   dayStatus: "PAID_LEAVE" | "UNPAID_ABSENCE" | null;
 }
 
@@ -380,6 +381,11 @@ export default function EmployeeClient() {
                               {d.isUndertime && (
                                 <span className="rounded-full bg-rose-100 text-rose-700 text-xs px-2 py-0.5">
                                   Undertime
+                                </span>
+                              )}
+                              {d.returnedLateFromBreak && (
+                                <span className="rounded-full bg-rose-100 text-rose-700 text-xs px-2 py-0.5">
+                                  Late from break
                                 </span>
                               )}
                             </div>

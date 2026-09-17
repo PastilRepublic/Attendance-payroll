@@ -36,18 +36,30 @@ export default async function EmployeesPage() {
             {employees.map((emp) => (
               <tr key={emp.id} className="border-t border-slate-100">
                 <td className="px-4 py-3 font-medium text-slate-900">
-                  {emp.name}
-                  {emp.adminAccount && (
-                    <span
-                      className={`ml-2 px-1.5 py-0.5 rounded-full text-xs font-normal ${
-                        emp.adminAccount.active
-                          ? "bg-indigo-100 text-indigo-700"
-                          : "bg-slate-200 text-slate-500"
-                      }`}
-                    >
-                      {emp.adminAccount.active ? "Supervisor" : "Access revoked"}
-                    </span>
-                  )}
+                  <span className="flex items-center gap-2">
+                    {emp.photoPath ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={`/api/kiosk/employee-photo/${emp.photoPath}`}
+                        alt={emp.name}
+                        className="w-7 h-7 rounded-full object-cover border border-slate-200"
+                      />
+                    ) : (
+                      <span className="w-7 h-7 rounded-full bg-slate-100 border border-slate-200" />
+                    )}
+                    {emp.name}
+                    {emp.adminAccount && (
+                      <span
+                        className={`px-1.5 py-0.5 rounded-full text-xs font-normal ${
+                          emp.adminAccount.active
+                            ? "bg-indigo-100 text-indigo-700"
+                            : "bg-slate-200 text-slate-500"
+                        }`}
+                      >
+                        {emp.adminAccount.active ? "Supervisor" : "Access revoked"}
+                      </span>
+                    )}
+                  </span>
                 </td>
                 <td className="px-4 py-3 text-slate-600">{emp.payBasis}</td>
                 <td className="px-4 py-3 text-slate-600">
