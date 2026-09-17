@@ -62,3 +62,38 @@ export function computeDaySlots(dayPunches: PunchLike[]): DaySlots {
     afternoonOut: formatTime(segments[1]?.out),
   };
 }
+
+export interface BreakSlot {
+  breakIn: string | null;
+  breakOut: string | null;
+}
+
+interface BreakPunchLike {
+  type: "BREAK_START" | "BREAK_END";
+  timestamp: Date;
+}
+
+/**
+ * The first complete Start Break -> End Break pair for a day (typical case:
+ * one lunch break/day). Kept as a small standalone function, separate from
+ * computeDaySlots, since Morning/Afternoon In/Out deliberately never
+ * includes break punches -- this is purely for showing an actual break
+ * record next to the derived "Late from break" badge.
+ */
+export function computeBreakSlot(dayPunches: BreakPunchLike[]): BreakSlot {
+  const sorted = [...dayPunches].sort(
+    (a, b) => a.timestamp.getTime() - b.timestamp.getTime()
+  );
+  const formatTime = (t?: Date) => (t ? formatInTimeZone(t, TIMEZONE, "h:mm a") : null);
+
+  let start: Date | undefined;
+  let end: Date | undefined;
+  for (const p of sorted) {
+    if (p.type === "BREAK_START" && !start) {
+      start = p.timestamp;
+    } else if (p.type === "BREAK_END" && start && !end) {
+      end = p.timestamp;
+    }
+  }
+  return { breakIn: formatTime(start), breakOut: formatTime(end) };
+}

@@ -16,6 +16,8 @@ interface AttendanceDay {
   morningOut: string | null;
   afternoonIn: string | null;
   afternoonOut: string | null;
+  breakIn: string | null;
+  breakOut: string | null;
   regularHours: number;
   overtimeHours: number;
   isLate: boolean;
@@ -326,6 +328,8 @@ export default function EmployeeClient() {
                         <th className="text-right px-4 py-2 font-medium">Morning Out</th>
                         <th className="text-right px-4 py-2 font-medium">Afternoon In</th>
                         <th className="text-right px-4 py-2 font-medium">Afternoon Out</th>
+                        <th className="text-right px-4 py-2 font-medium">Break In</th>
+                        <th className="text-right px-4 py-2 font-medium">Break Out</th>
                         <th className="text-right px-4 py-2 font-medium">Regular</th>
                         <th className="text-left px-4 py-2 font-medium">Notes</th>
                       </tr>
@@ -361,6 +365,12 @@ export default function EmployeeClient() {
                             {showTimes ? d.afternoonOut ?? <span className="text-slate-300">—</span> : <span className="text-slate-300">—</span>}
                           </td>
                           <td className="px-4 py-2 text-right text-slate-800 whitespace-nowrap">
+                            {showTimes ? d.breakIn ?? <span className="text-slate-300">—</span> : <span className="text-slate-300">—</span>}
+                          </td>
+                          <td className={`px-4 py-2 text-right whitespace-nowrap ${d.returnedLateFromBreak ? "text-amber-600 font-medium" : "text-slate-800"}`}>
+                            {showTimes ? d.breakOut ?? <span className="text-slate-300">—</span> : <span className="text-slate-300">—</span>}
+                          </td>
+                          <td className="px-4 py-2 text-right text-slate-800 whitespace-nowrap">
                             {d.regularHours.toFixed(2)} hr
                           </td>
                           <td className="px-4 py-2">
@@ -377,7 +387,7 @@ export default function EmployeeClient() {
                       })}
                       {(days ?? []).length === 0 && (
                         <tr>
-                          <td colSpan={7} className="px-4 py-6 text-center text-slate-400">
+                          <td colSpan={9} className="px-4 py-6 text-center text-slate-400">
                             No attendance records yet.
                           </td>
                         </tr>
