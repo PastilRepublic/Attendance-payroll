@@ -2,13 +2,13 @@ import Link from "next/link";
 import { auth, signOut } from "@/lib/auth";
 
 const navItems = [
-  { href: "/admin/attendance", label: "Attendance" },
-  { href: "/admin/employees", label: "Employees" },
-  { href: "/admin/payroll", label: "Payroll" },
-  { href: "/admin/inventory", label: "Inventory" },
-  { href: "/admin/tasks", label: "Tasks" },
-  { href: "/admin/sanitation", label: "Sanitation" },
-  { href: "/admin/settings", label: "Settings" },
+  { href: "/admin/attendance", label: "Attendance", ownerOnly: false },
+  { href: "/admin/employees", label: "Employees", ownerOnly: true },
+  { href: "/admin/payroll", label: "Payroll", ownerOnly: true },
+  { href: "/admin/inventory", label: "Inventory", ownerOnly: false },
+  { href: "/admin/tasks", label: "Tasks", ownerOnly: true },
+  { href: "/admin/sanitation", label: "Sanitation", ownerOnly: false },
+  { href: "/admin/settings", label: "Settings", ownerOnly: false },
 ];
 
 async function signOutAction() {
@@ -22,6 +22,8 @@ export default async function AdminLayout({
   children: React.ReactNode;
 }) {
   const session = await auth();
+  const isOwner = session?.user?.role === "OWNER";
+  const visibleNavItems = navItems.filter((item) => !item.ownerOnly || isOwner);
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -42,7 +44,7 @@ export default async function AdminLayout({
             </form>
           </div>
           <nav className="flex flex-wrap gap-1 w-full sm:w-auto sm:order-2">
-            {navItems.map((item) => (
+            {visibleNavItems.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}

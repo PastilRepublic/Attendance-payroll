@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { hashPin, verifyPin } from "@/lib/pin";
-import { auth } from "@/lib/auth";
+import { requireOwner } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
 
 /** PINs identify who is punching, so no two active employees may share one. */
@@ -33,8 +33,7 @@ const pinSchema = z
   .regex(/^\d{4,6}$/, "PIN must be 4-6 digits");
 
 export async function createEmployee(formData: FormData) {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const admin = await requireOwner();
 
   const parsed = employeeSchema.parse({
     name: formData.get("name"),
@@ -56,7 +55,7 @@ export async function createEmployee(formData: FormData) {
   });
 
   await logAudit({
-    actorAdminId: session.user.id,
+    actorAdminId: admin.id,
     action: "CREATE_EMPLOYEE",
     targetTable: "Employee",
     targetId: employee.id,
@@ -68,8 +67,7 @@ export async function createEmployee(formData: FormData) {
 }
 
 export async function updateEmployee(employeeId: string, formData: FormData) {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const admin = await requireOwner();
 
   const parsed = employeeSchema.parse({
     name: formData.get("name"),
@@ -91,7 +89,7 @@ export async function updateEmployee(employeeId: string, formData: FormData) {
   });
 
   await logAudit({
-    actorAdminId: session.user.id,
+    actorAdminId: admin.id,
     action: "UPDATE_EMPLOYEE",
     targetTable: "Employee",
     targetId: employeeId,
@@ -104,8 +102,7 @@ export async function updateEmployee(employeeId: string, formData: FormData) {
 }
 
 export async function resetEmployeePin(employeeId: string, formData: FormData) {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const admin = await requireOwner();
 
   const pin = pinSchema.parse(formData.get("pin"));
   await assertPinIsUnique(pin, employeeId);
@@ -116,7 +113,7 @@ export async function resetEmployeePin(employeeId: string, formData: FormData) {
   });
 
   await logAudit({
-    actorAdminId: session.user.id,
+    actorAdminId: admin.id,
     action: "RESET_EMPLOYEE_PIN",
     targetTable: "Employee",
     targetId: employeeId,
@@ -127,8 +124,7 @@ export async function resetEmployeePin(employeeId: string, formData: FormData) {
 }
 
 export async function setEmployeeActive(employeeId: string, active: boolean) {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const admin = await requireOwner();
 
   await prisma.employee.update({
     where: { id: employeeId },
@@ -136,7 +132,7 @@ export async function setEmployeeActive(employeeId: string, active: boolean) {
   });
 
   await logAudit({
-    actorAdminId: session.user.id,
+    actorAdminId: admin.id,
     action: active ? "ACTIVATE_EMPLOYEE" : "DEACTIVATE_EMPLOYEE",
     targetTable: "Employee",
     targetId: employeeId,

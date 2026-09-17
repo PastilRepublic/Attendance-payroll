@@ -67,12 +67,18 @@ enum RiskLevel {
   HIGH
 }
 
+enum AdminRole {
+  OWNER
+  SUPERVISOR
+}
+
 model AdminUser {
-  id           String   @id @default(cuid())
+  id           String    @id @default(cuid())
   name         String
-  email        String   @unique
+  email        String    @unique
   passwordHash String
-  createdAt    DateTime @default(now())
+  role         AdminRole @default(OWNER)
+  createdAt    DateTime  @default(now())
 
   createdPunches   Punch[]     @relation("PunchCreatedByAdmin")
   finalizedPeriods PayPeriod[] @relation("PayPeriodFinalizedByAdmin")

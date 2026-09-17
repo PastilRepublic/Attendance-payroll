@@ -3,16 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
+import { requireAdmin } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
 import { TIMEZONE } from "@/lib/payroll";
 import { fromZonedTime } from "date-fns-tz";
-
-async function requireAdmin() {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
-  return session.user;
-}
 
 function localToUtc(date: string, time: string): Date {
   return fromZonedTime(`${date}T${time}:00`, TIMEZONE);

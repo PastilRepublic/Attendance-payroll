@@ -1,10 +1,14 @@
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/lib/auth";
 import { updateSettings, changePassword } from "./actions";
 import PasswordInput from "@/components/PasswordInput";
 
 const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 export default async function SettingsPage() {
+  const session = await auth();
+  const isOwner = session?.user?.role === "OWNER";
+
   const settings = await prisma.settings.upsert({
     where: { id: 1 },
     update: {},
@@ -41,71 +45,75 @@ export default async function SettingsPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              Unpaid lunch (minutes)
-            </label>
-            <input
-              name="unpaidLunchMinutes"
-              type="number"
-              min="0"
-              defaultValue={settings.unpaidLunchMinutes}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              Regular hours cap / day
-            </label>
-            <input
-              name="regularHoursCapPerDay"
-              type="number"
-              step="0.25"
-              min="0"
-              defaultValue={Number(settings.regularHoursCapPerDay)}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-            />
-            <p className="text-xs text-slate-500 mt-1">
-              Hours worked beyond this are tracked as OT hours for reference, but are not
-              automatically paid -- add a manual Bonus adjustment on the payslip if you want to
-              compensate them.
-            </p>
-          </div>
-        </div>
+        {isOwner && (
+          <>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Unpaid lunch (minutes)
+                </label>
+                <input
+                  name="unpaidLunchMinutes"
+                  type="number"
+                  min="0"
+                  defaultValue={settings.unpaidLunchMinutes}
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Regular hours cap / day
+                </label>
+                <input
+                  name="regularHoursCapPerDay"
+                  type="number"
+                  step="0.25"
+                  min="0"
+                  defaultValue={Number(settings.regularHoursCapPerDay)}
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                />
+                <p className="text-xs text-slate-500 mt-1">
+                  Hours worked beyond this are tracked as OT hours for reference, but are not
+                  automatically paid -- add a manual Bonus adjustment on the payslip if you want to
+                  compensate them.
+                </p>
+              </div>
+            </div>
 
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">
-            Late grace period (minutes)
-          </label>
-          <input
-            name="gracePeriodMinutes"
-            type="number"
-            min="0"
-            defaultValue={settings.gracePeriodMinutes}
-            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-          />
-        </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Late grace period (minutes)
+              </label>
+              <input
+                name="gracePeriodMinutes"
+                type="number"
+                min="0"
+                defaultValue={settings.gracePeriodMinutes}
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              />
+            </div>
 
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">
-            Pay period starts on
-          </label>
-          <select
-            name="payPeriodStartDay"
-            defaultValue={settings.payPeriodStartDay}
-            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-          >
-            {dayNames.map((d, i) => (
-              <option key={d} value={i + 1}>
-                {d}
-              </option>
-            ))}
-          </select>
-          <p className="text-xs text-slate-500 mt-1">
-            Pay periods are weekly, starting on this day.
-          </p>
-        </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Pay period starts on
+              </label>
+              <select
+                name="payPeriodStartDay"
+                defaultValue={settings.payPeriodStartDay}
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              >
+                {dayNames.map((d, i) => (
+                  <option key={d} value={i + 1}>
+                    {d}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-slate-500 mt-1">
+                Pay periods are weekly, starting on this day.
+              </p>
+            </div>
+          </>
+        )}
 
         <label className="flex items-center gap-2 text-sm text-slate-700">
           <input

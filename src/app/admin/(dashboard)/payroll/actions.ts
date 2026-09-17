@@ -4,19 +4,13 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
+import { requireOwner } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
 import { nextWeeklyPeriod } from "@/lib/payroll";
 import { getOrRefreshDraftPayslip } from "@/lib/payrollService";
 
-async function requireAdmin() {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
-  return session.user;
-}
-
 export async function createNextPayPeriod() {
-  const admin = await requireAdmin();
+  const admin = await requireOwner();
 
   const latest = await prisma.payPeriod.findFirst({ orderBy: { endDate: "desc" } });
   const after = latest ? new Date(latest.endDate.getTime() + 86400000) : new Date();
@@ -51,7 +45,7 @@ const adjustmentSchema = z.object({
 });
 
 export async function addAdjustment(formData: FormData) {
-  const admin = await requireAdmin();
+  const admin = await requireOwner();
   const parsed = adjustmentSchema.parse({
     payslipId: formData.get("payslipId"),
     label: formData.get("label"),
@@ -90,7 +84,7 @@ export async function addAdjustment(formData: FormData) {
 }
 
 export async function removeAdjustment(formData: FormData) {
-  const admin = await requireAdmin();
+  const admin = await requireOwner();
   const adjustmentId = String(formData.get("adjustmentId"));
 
   const adjustment = await prisma.payslipAdjustment.findUniqueOrThrow({
@@ -120,7 +114,7 @@ const addTaskBonusSchema = z.object({
 });
 
 export async function addTaskBonusToPayslip(formData: FormData) {
-  const admin = await requireAdmin();
+  const admin = await requireOwner();
   const parsed = addTaskBonusSchema.parse({
     payslipId: formData.get("payslipId"),
     taskAssignmentId: formData.get("taskAssignmentId"),
@@ -168,7 +162,7 @@ export async function addTaskBonusToPayslip(formData: FormData) {
 }
 
 export async function finalizePeriod(formData: FormData) {
-  const admin = await requireAdmin();
+  const admin = await requireOwner();
   const payPeriodId = String(formData.get("payPeriodId"));
 
   const period = await prisma.payPeriod.findUniqueOrThrow({ where: { id: payPeriodId } });
@@ -205,7 +199,7 @@ const unlockSchema = z.object({
 });
 
 export async function unlockPayslip(formData: FormData) {
-  const admin = await requireAdmin();
+  const admin = await requireOwner();
   const parsed = unlockSchema.parse({
     payslipId: formData.get("payslipId"),
     reason: formData.get("reason"),

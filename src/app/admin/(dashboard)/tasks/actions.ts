@@ -3,14 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
+import { requireOwner } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
-
-async function requireAdmin() {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
-  return session.user;
-}
 
 const createTemplateSchema = z.object({
   name: z.string().trim().min(1, "Name is required"),
@@ -18,7 +12,7 @@ const createTemplateSchema = z.object({
 });
 
 export async function createTemplate(formData: FormData) {
-  const admin = await requireAdmin();
+  const admin = await requireOwner();
   const parsed = createTemplateSchema.parse({
     name: formData.get("name"),
     description: formData.get("description") || undefined,
@@ -47,7 +41,7 @@ const assignTaskSchema = z.object({
 });
 
 export async function assignTask(formData: FormData) {
-  const admin = await requireAdmin();
+  const admin = await requireOwner();
   const parsed = assignTaskSchema.parse({
     templateId: formData.get("templateId"),
     employeeId: formData.get("employeeId"),
@@ -82,7 +76,7 @@ export async function assignTask(formData: FormData) {
 }
 
 export async function deleteAssignment(formData: FormData) {
-  const admin = await requireAdmin();
+  const admin = await requireOwner();
   const assignmentId = String(formData.get("assignmentId"));
 
   const assignment = await prisma.taskAssignment.findUniqueOrThrow({
