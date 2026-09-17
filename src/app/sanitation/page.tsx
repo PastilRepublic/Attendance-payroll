@@ -2,17 +2,14 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatInTimeZone } from "date-fns-tz";
 import { TIMEZONE } from "@/lib/payroll";
+import Card from "@/components/Card";
+import Badge from "@/components/Badge";
+import RiskDot from "@/components/RiskDot";
 
 export const dynamic = "force-dynamic";
 
 function todayManila(): string {
   return formatInTimeZone(new Date(), TIMEZONE, "yyyy-MM-dd");
-}
-
-function RiskDot({ level }: { level: "LOW" | "MEDIUM" | "HIGH" }) {
-  const color =
-    level === "HIGH" ? "bg-red-500" : level === "MEDIUM" ? "bg-amber-500" : "bg-green-500";
-  return <span className={`inline-block w-2 h-2 rounded-full ${color}`} title={`${level} risk`} />;
 }
 
 export default async function SanitationBoardPage() {
@@ -25,14 +22,14 @@ export default async function SanitationBoardPage() {
   });
 
   return (
-    <div className="flex-1 flex flex-col bg-slate-100">
-      <div className="bg-slate-900 text-white flex items-center justify-between gap-3 py-4 px-4 sm:px-6">
-        <h1 className="text-lg sm:text-2xl md:text-3xl font-bold tracking-tight">
+    <div className="flex-1 flex flex-col bg-slate-50">
+      <div className="bg-white border-b border-slate-200 flex items-center justify-between gap-3 py-4 px-4 sm:px-6">
+        <h1 className="text-lg sm:text-2xl md:text-3xl font-bold tracking-tight text-slate-900">
           The Famous Pastil Republic
         </h1>
         <Link
           href="/"
-          className="shrink-0 rounded-md bg-white border border-slate-300 text-slate-900 px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-medium hover:bg-slate-50"
+          className="shrink-0 rounded-md bg-slate-900 text-white px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-medium hover:bg-slate-800"
         >
           Home
         </Link>
@@ -45,7 +42,7 @@ export default async function SanitationBoardPage() {
           </h2>
           <p className="text-sm text-slate-500 mb-6">{date} — who&apos;s in charge of what today</p>
 
-          <div className="bg-white rounded-lg shadow overflow-x-auto">
+          <Card className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-slate-50 text-slate-600 text-left">
                 <tr>
@@ -81,23 +78,13 @@ export default async function SanitationBoardPage() {
                     </td>
                     <td className="px-4 py-2">
                       {a.inspectionResult ? (
-                        <span
-                          className={`px-2 py-0.5 rounded-full text-xs ${
-                            a.inspectionResult === "PASS"
-                              ? "bg-green-100 text-green-700"
-                              : "bg-rose-100 text-rose-700"
-                          }`}
-                        >
+                        <Badge status={a.inspectionResult === "PASS" ? "pass" : "fail"}>
                           {a.inspectionResult === "PASS" ? "Passed" : "Failed"}
-                        </span>
+                        </Badge>
                       ) : a.status === "DONE" ? (
-                        <span className="px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-700">
-                          Done — awaiting inspection
-                        </span>
+                        <Badge status="awaiting">Done — awaiting inspection</Badge>
                       ) : (
-                        <span className="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-500">
-                          Pending
-                        </span>
+                        <Badge status="pending" />
                       )}
                     </td>
                   </tr>
@@ -111,7 +98,7 @@ export default async function SanitationBoardPage() {
                 )}
               </tbody>
             </table>
-          </div>
+          </Card>
         </div>
       </div>
     </div>

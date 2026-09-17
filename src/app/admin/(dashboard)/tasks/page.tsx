@@ -2,6 +2,10 @@ import { prisma } from "@/lib/prisma";
 import { formatInTimeZone } from "date-fns-tz";
 import { TIMEZONE } from "@/lib/payroll";
 import { createTemplate, assignTask, deleteAssignment } from "./actions";
+import PageHeader from "@/components/PageHeader";
+import Card from "@/components/Card";
+import Badge from "@/components/Badge";
+import Button from "@/components/Button";
 
 function todayManila(): string {
   return formatInTimeZone(new Date(), TIMEZONE, "yyyy-MM-dd");
@@ -27,9 +31,9 @@ export default async function TasksPage({
 
   return (
     <div>
-      <h1 className="text-xl font-semibold text-slate-900 mb-6">Tasks</h1>
+      <PageHeader title="Tasks" description="Rotation duties and bonus-eligible assignments." />
 
-      <details className="mb-6 bg-white rounded-lg shadow">
+      <details className="mb-6 bg-white rounded-xl shadow-sm border border-slate-200">
         <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-slate-700">
           Task Templates ({templates.length})
         </summary>
@@ -62,9 +66,7 @@ export default async function TasksPage({
                 className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
               />
             </div>
-            <button className="rounded-md bg-slate-900 text-white text-sm px-4 py-2 hover:bg-slate-800">
-              + Add Template
-            </button>
+            <Button>+ Add Template</Button>
           </form>
         </div>
       </details>
@@ -76,15 +78,13 @@ export default async function TasksPage({
             type="date"
             name="date"
             defaultValue={date}
-            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm"
+            className="rounded-full border border-slate-300 px-3 py-1.5 text-sm"
           />
-          <button className="rounded-md bg-slate-900 text-white text-sm px-3 py-1.5 hover:bg-slate-800">
-            Go
-          </button>
+          <Button size="sm">Go</Button>
         </form>
       </div>
 
-      <div className="bg-white rounded-lg shadow p-4">
+      <Card padded>
         <div className="overflow-x-auto">
         <table className="w-full text-sm mb-4">
           <thead className="text-slate-500 text-left">
@@ -105,15 +105,7 @@ export default async function TasksPage({
                   {a.bonusAmount ? `₱${Number(a.bonusAmount).toFixed(2)}` : <span className="text-slate-300">—</span>}
                 </td>
                 <td className="py-1.5 pr-2">
-                  <span
-                    className={`px-2 py-0.5 rounded-full text-xs ${
-                      a.status === "DONE"
-                        ? "bg-green-100 text-green-700"
-                        : "bg-amber-100 text-amber-700"
-                    }`}
-                  >
-                    {a.status === "DONE" ? "Done" : "Pending"}
-                  </span>
+                  <Badge status={a.status === "DONE" ? "done" : "pendingTask"} />
                   {a.payslipAdjustmentId && (
                     <span className="ml-1 text-xs text-slate-400">(in payslip)</span>
                   )}
@@ -182,11 +174,9 @@ export default async function TasksPage({
               className="w-28 rounded-md border border-slate-300 px-2 py-1.5 text-sm"
             />
           </div>
-          <button className="rounded-md bg-slate-900 text-white text-sm px-4 py-2 hover:bg-slate-800">
-            Assign
-          </button>
+          <Button>Assign</Button>
         </form>
-      </div>
+      </Card>
     </div>
   );
 }

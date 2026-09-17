@@ -7,6 +7,12 @@ import { TIMEZONE } from "@/lib/payroll";
 import { addPunch, editPunch, voidPunch, setDayStatus, setShiftOverride, removeShiftOverride } from "./actions";
 import AutoRefresh from "./AutoRefresh";
 import EmployeeSelect from "./EmployeeSelect";
+import { derivePresenceStatus, type PresenceStatus } from "@/lib/kioskAttendance";
+import PageHeader from "@/components/PageHeader";
+import Card from "@/components/Card";
+import Badge from "@/components/Badge";
+import Avatar from "@/components/Avatar";
+import Button from "@/components/Button";
 
 function todayManila(): string {
   return formatInTimeZone(new Date(), TIMEZONE, "yyyy-MM-dd");
@@ -93,7 +99,7 @@ function inOrOutOnly(punches: PunchRow[]): (PunchRow & { type: "IN" | "OUT" })[]
 }
 
 interface TodayRow {
-  employee: { id: string; name: string };
+  employee: { id: string; name: string; photoPath: string | null };
   punches: PunchRow[];
   dayStatus: string;
   slots: ReturnType<typeof computeDaySlots>;
@@ -101,6 +107,9 @@ interface TodayRow {
   isLate: boolean;
   isUndertime: boolean;
   returnedLateFromBreak: boolean;
+  /** Live presence, only set when refDate is actually today -- a past day's
+   * last punch isn't a "current" status. */
+  presence: PresenceStatus | undefined;
 }
 
 export default async function AttendancePage({
@@ -197,6 +206,7 @@ export default async function AttendancePage({
       punchesByEmployee.get(p.employeeId)!.push(p);
     }
     const statusByEmployee = new Map(allDayStatuses.map((d) => [d.employeeId, d.status]));
+    const isToday = refDate === todayManila();
 
     todayRows = employees.map((emp) => {
       const empPunches = punchesByEmployee.get(emp.id) ?? [];
@@ -209,6 +219,7 @@ export default async function AttendancePage({
         refDate,
         shiftOverrideInputs
       );
+      const lastPunchType = empPunches.length > 0 ? empPunches[empPunches.length - 1].type : null;
       return {
         employee: emp,
         punches: empPunches,
@@ -218,6 +229,7 @@ export default async function AttendancePage({
         isLate: computed.isLate,
         isUndertime: computed.isUndertime,
         returnedLateFromBreak: computed.returnedLateFromBreak,
+        presence: isToday ? derivePresenceStatus(lastPunchType) : undefined,
       };
     });
   } else if (employeeId) {
@@ -272,51 +284,52 @@ export default async function AttendancePage({
   return (
     <div>
       <AutoRefresh />
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-semibold text-slate-900">Attendance</h1>
-        <form method="get" className="flex items-center gap-2">
-          {range !== "day" && (
-            <EmployeeSelect
-              employees={employees.map((e) => ({ id: e.id, name: e.name }))}
-              defaultValue={employeeId}
-            />
-          )}
-          <select
-            name="range"
-            defaultValue={range}
-            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm"
-          >
-            <option value="day">Today</option>
-            <option value="week">Week</option>
-            <option value="month">Month</option>
-          </select>
-          {range === "month" ? (
-            <input
-              type="month"
-              name="month"
-              defaultValue={month}
-              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm"
-            />
-          ) : range === "week" ? (
-            <input
-              type="week"
-              name="week"
-              defaultValue={week}
-              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm"
-            />
-          ) : (
-            <input
-              type="date"
-              name="date"
-              defaultValue={refDate}
-              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm"
-            />
-          )}
-          <button className="rounded-md bg-slate-900 text-white text-sm px-3 py-1.5 hover:bg-slate-800">
-            Go
-          </button>
-        </form>
-      </div>
+      <PageHeader
+        title="Attendance"
+        description="Today's status at a glance, or drill into a week or month for one employee."
+        actions={
+          <form method="get" className="flex items-center gap-2">
+            {range !== "day" && (
+              <EmployeeSelect
+                employees={employees.map((e) => ({ id: e.id, name: e.name }))}
+                defaultValue={employeeId}
+              />
+            )}
+            <select
+              name="range"
+              defaultValue={range}
+              className="rounded-full border border-slate-300 px-3 py-1.5 text-sm bg-white"
+            >
+              <option value="day">Today</option>
+              <option value="week">Week</option>
+              <option value="month">Month</option>
+            </select>
+            {range === "month" ? (
+              <input
+                type="month"
+                name="month"
+                defaultValue={month}
+                className="rounded-full border border-slate-300 px-3 py-1.5 text-sm"
+              />
+            ) : range === "week" ? (
+              <input
+                type="week"
+                name="week"
+                defaultValue={week}
+                className="rounded-full border border-slate-300 px-3 py-1.5 text-sm"
+              />
+            ) : (
+              <input
+                type="date"
+                name="date"
+                defaultValue={refDate}
+                className="rounded-full border border-slate-300 px-3 py-1.5 text-sm"
+              />
+            )}
+            <Button size="sm">Go</Button>
+          </form>
+        }
+      />
 
       <ShiftOverridesPanel overrides={shiftOverrides} periodPhrase={periodPhrase} />
 
@@ -329,7 +342,7 @@ export default async function AttendancePage({
           Select an employee above to view their attendance for {periodPhrase}.
         </p>
       ) : (
-        <div className="bg-white rounded-lg shadow p-4" data-attendance-refresh>
+        <Card padded>
           <div className="flex items-center justify-between mb-3">
             <span className="text-lg font-bold text-slate-900">{selectedEmployee?.name}</span>
             <span className="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-600">
@@ -394,31 +407,11 @@ export default async function AttendancePage({
                       </td>
                       <td className="px-2 py-2">
                         <div className="flex flex-wrap gap-1">
-                          {d.dayStatus === "PAID_LEAVE" && (
-                            <span className="px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-700">
-                              Paid leave
-                            </span>
-                          )}
-                          {d.dayStatus === "UNPAID_ABSENCE" && (
-                            <span className="px-2 py-0.5 rounded-full text-xs bg-red-100 text-red-700">
-                              Absent
-                            </span>
-                          )}
-                          {d.isLate && (
-                            <span className="px-2 py-0.5 rounded-full text-xs bg-rose-100 text-rose-700">
-                              Late
-                            </span>
-                          )}
-                          {d.isUndertime && (
-                            <span className="px-2 py-0.5 rounded-full text-xs bg-orange-100 text-orange-700">
-                              Undertime
-                            </span>
-                          )}
-                          {d.returnedLateFromBreak && (
-                            <span className="px-2 py-0.5 rounded-full text-xs bg-rose-100 text-rose-700">
-                              Late from break
-                            </span>
-                          )}
+                          {d.dayStatus === "PAID_LEAVE" && <Badge status="paidLeave" />}
+                          {d.dayStatus === "UNPAID_ABSENCE" && <Badge status="unpaidAbsence">Absent</Badge>}
+                          {d.isLate && <Badge status="late" />}
+                          {d.isUndertime && <Badge status="undertime" />}
+                          {d.returnedLateFromBreak && <Badge status="lateFromBreak" />}
                         </div>
                       </td>
                       <td className="px-2 py-2 relative">
@@ -435,7 +428,7 @@ export default async function AttendancePage({
               </tbody>
             </table>
           </div>
-        </div>
+        </Card>
       )}
     </div>
   );
@@ -443,7 +436,7 @@ export default async function AttendancePage({
 
 function TodayDashboard({ rows, refDate }: { rows: TodayRow[]; refDate: string }) {
   return (
-    <div className="bg-white rounded-lg shadow p-4">
+    <Card padded>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-slate-600 text-left">
@@ -459,12 +452,21 @@ function TodayDashboard({ rows, refDate }: { rows: TodayRow[]; refDate: string }
           </thead>
           <tbody>
             {rows.map((row) => {
-              const { employee, punches, dayStatus, slots, timedIn, isLate, isUndertime, returnedLateFromBreak } = row;
+              const { employee, punches, dayStatus, slots, timedIn, isLate, isUndertime, returnedLateFromBreak, presence } = row;
               const showTimes = dayStatus === "NORMAL";
               return (
                 <tr key={employee.id} className="border-t border-slate-100 align-top">
                   <td className="px-2 py-2 whitespace-nowrap">
-                    <span className="text-base font-bold text-slate-900">{employee.name}</span>
+                    <span className="flex items-center gap-2">
+                      <Avatar
+                        name={employee.name}
+                        photoUrl={employee.photoPath ? `/api/kiosk/employee-photo/${employee.photoPath}` : null}
+                        size="sm"
+                        ringColor="white"
+                        presence={presence}
+                      />
+                      <span className="text-base font-bold text-slate-900">{employee.name}</span>
+                    </span>
                   </td>
                   <td className="px-2 py-2 text-right whitespace-nowrap text-slate-700">
                     {showTimes ? slots.morningIn ?? <span className="text-slate-300">—</span> : <span className="text-slate-300">—</span>}
@@ -480,41 +482,13 @@ function TodayDashboard({ rows, refDate }: { rows: TodayRow[]; refDate: string }
                   </td>
                   <td className="px-2 py-2">
                     <div className="flex flex-wrap gap-1.5">
-                      {dayStatus === "PAID_LEAVE" && (
-                        <span className="px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-700">
-                          Paid leave
-                        </span>
-                      )}
-                      {dayStatus === "UNPAID_ABSENCE" && (
-                        <span className="px-2 py-0.5 rounded-full text-xs bg-red-100 text-red-700">
-                          Absent
-                        </span>
-                      )}
-                      {dayStatus === "NORMAL" && !timedIn && (
-                        <span className="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-500">
-                          Not yet timed in
-                        </span>
-                      )}
-                      {dayStatus === "NORMAL" && timedIn && isLate && (
-                        <span className="px-2 py-0.5 rounded-full text-xs bg-rose-100 text-rose-700">
-                          Late
-                        </span>
-                      )}
-                      {dayStatus === "NORMAL" && timedIn && isUndertime && (
-                        <span className="px-2 py-0.5 rounded-full text-xs bg-rose-100 text-rose-700">
-                          Undertime
-                        </span>
-                      )}
-                      {dayStatus === "NORMAL" && timedIn && !isLate && !isUndertime && (
-                        <span className="px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-700">
-                          On time
-                        </span>
-                      )}
-                      {dayStatus === "NORMAL" && returnedLateFromBreak && (
-                        <span className="px-2 py-0.5 rounded-full text-xs bg-rose-100 text-rose-700">
-                          Late from break
-                        </span>
-                      )}
+                      {dayStatus === "PAID_LEAVE" && <Badge status="paidLeave" />}
+                      {dayStatus === "UNPAID_ABSENCE" && <Badge status="unpaidAbsence">Absent</Badge>}
+                      {dayStatus === "NORMAL" && !timedIn && <Badge status="notYetTimedIn" />}
+                      {dayStatus === "NORMAL" && timedIn && isLate && <Badge status="late" />}
+                      {dayStatus === "NORMAL" && timedIn && isUndertime && <Badge status="undertime" />}
+                      {dayStatus === "NORMAL" && timedIn && !isLate && !isUndertime && <Badge status="onTime" />}
+                      {dayStatus === "NORMAL" && returnedLateFromBreak && <Badge status="lateFromBreak" />}
                     </div>
                   </td>
                   <td className="px-2 py-2 relative">
@@ -531,7 +505,7 @@ function TodayDashboard({ rows, refDate }: { rows: TodayRow[]; refDate: string }
           </tbody>
         </table>
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -543,7 +517,7 @@ function ShiftOverridesPanel({
   periodPhrase: string;
 }) {
   return (
-    <details className="bg-white rounded-lg shadow p-4 mb-4">
+    <details className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 mb-4">
       <summary className="text-sm font-medium text-slate-700 cursor-pointer">
         Shift start/end adjustment for {periodPhrase}
         {overrides.length > 0 && ` (${overrides.length})`}
@@ -610,9 +584,7 @@ function ShiftOverridesPanel({
             className="rounded-md border border-slate-300 px-2 py-1 text-xs"
           />
         </div>
-        <button className="rounded-md bg-slate-900 text-white text-xs px-3 py-1.5 hover:bg-slate-800">
-          Set
-        </button>
+        <Button size="sm">Set</Button>
       </form>
     </details>
   );
@@ -701,9 +673,7 @@ function ManageDayForm({
             <option value="PAID_LEAVE">Paid Leave</option>
             <option value="UNPAID_ABSENCE">Unpaid Absence</option>
           </select>
-          <button className="rounded-md bg-slate-100 text-slate-700 text-xs px-2 py-1 hover:bg-slate-200">
-            Set
-          </button>
+          <Button variant="secondary" size="sm">Set</Button>
         </form>
       </div>
     </details>
@@ -745,9 +715,7 @@ function AddPunchForm({ employeeId, date }: { employeeId: string; date: string }
             className="w-full rounded-md border border-slate-300 px-2 py-1 text-xs"
           />
         </div>
-        <button className="rounded-md bg-slate-900 text-white text-xs px-3 py-1.5 hover:bg-slate-800">
-          Add
-        </button>
+        <Button size="sm">Add</Button>
       </form>
     </details>
   );
@@ -803,9 +771,7 @@ function EditPunchForm({
             className="w-full rounded-md border border-slate-300 px-2 py-1 text-xs"
           />
         </div>
-        <button className="rounded-md bg-slate-900 text-white text-xs px-3 py-1.5 hover:bg-slate-800">
-          Save Correction
-        </button>
+        <Button size="sm">Save Correction</Button>
       </form>
     </details>
   );

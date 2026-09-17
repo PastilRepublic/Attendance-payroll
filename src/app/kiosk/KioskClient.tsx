@@ -9,6 +9,7 @@ import {
   getQueue,
 } from "./offlineQueue";
 import { getDeviceId, setCachedRequirePhoto } from "./kioskCache";
+import Avatar from "@/components/Avatar";
 
 type Screen =
   | "home"
@@ -97,12 +98,6 @@ const STATUS_PILL_STYLES: Record<PresenceStatus, string> = {
   OUT: "bg-slate-700 text-slate-300",
   WORKING: "bg-green-900/60 text-green-300",
   ON_BREAK: "bg-amber-900/60 text-amber-300",
-};
-
-const PRESENCE_DOT_STYLES: Record<PresenceStatus, string> = {
-  OUT: "",
-  WORKING: "bg-green-500",
-  ON_BREAK: "bg-amber-500",
 };
 
 function formatMinutes(totalMinutes: number): string {
@@ -620,25 +615,13 @@ function EmployeeList({
                 : "bg-slate-800/60 hover:bg-slate-800"
             }`}
           >
-            <span className="relative shrink-0">
-              {emp.photoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={emp.photoUrl}
-                  alt={emp.name}
-                  className="w-10 h-10 rounded-full object-cover"
-                />
-              ) : (
-                <span className="w-10 h-10 rounded-full bg-slate-600 flex items-center justify-center text-sm font-semibold">
-                  {emp.name.charAt(0).toUpperCase()}
-                </span>
-              )}
-              {PRESENCE_DOT_STYLES[emp.status] && (
-                <span
-                  className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-slate-900 ${PRESENCE_DOT_STYLES[emp.status]}`}
-                />
-              )}
-            </span>
+            <Avatar
+              name={emp.name}
+              photoUrl={emp.photoUrl}
+              size="md"
+              ringColor="slate-900"
+              presence={emp.status}
+            />
             <span className="text-base font-medium">{emp.name}</span>
           </button>
         ))}

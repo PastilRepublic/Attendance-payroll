@@ -1,5 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { createItem, recordStockMovement } from "./actions";
+import PageHeader from "@/components/PageHeader";
+import Card from "@/components/Card";
+import Badge from "@/components/Badge";
+import Button from "@/components/Button";
 
 const categoryLabels: Record<string, string> = {
   INGREDIENT: "Ingredient",
@@ -22,11 +26,9 @@ export default async function InventoryPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-semibold text-slate-900">Inventory</h1>
-      </div>
+      <PageHeader title="Inventory" description="Ingredients, products, and packaging on hand." />
 
-      <details className="mb-6 bg-white rounded-lg shadow">
+      <details className="mb-6 bg-white rounded-xl shadow-sm border border-slate-200">
         <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-slate-700">
           + New Item
         </summary>
@@ -81,9 +83,7 @@ export default async function InventoryPage() {
               className="w-28 rounded-md border border-slate-300 px-2 py-1.5 text-sm"
             />
           </div>
-          <button className="rounded-md bg-slate-900 text-white text-sm px-4 py-2 hover:bg-slate-800">
-            Add Item
-          </button>
+          <Button>Add Item</Button>
         </form>
       </details>
 
@@ -91,7 +91,7 @@ export default async function InventoryPage() {
         {sorted.map((item) => {
           const isLow = Number(item.quantity) <= Number(item.lowStockThreshold);
           return (
-            <div key={item.id} className="bg-white rounded-lg shadow p-4">
+            <Card key={item.id} padded accent={isLow ? "red" : "none"}>
               <div className="flex items-center justify-between">
                 <div>
                   <span className="font-medium text-slate-900">{item.name}</span>
@@ -99,8 +99,8 @@ export default async function InventoryPage() {
                     {categoryLabels[item.category]}
                   </span>
                   {isLow && (
-                    <span className="ml-2 px-2 py-0.5 rounded-full text-xs bg-red-100 text-red-700">
-                      Low stock
+                    <span className="ml-2 inline-block">
+                      <Badge status="lowStock" />
                     </span>
                   )}
                 </div>
@@ -154,12 +154,10 @@ export default async function InventoryPage() {
                       className="w-full rounded-md border border-slate-300 px-2 py-1 text-xs"
                     />
                   </div>
-                  <button className="rounded-md bg-slate-900 text-white text-xs px-3 py-1.5 hover:bg-slate-800">
-                    Record
-                  </button>
+                  <Button size="sm">Record</Button>
                 </form>
               </details>
-            </div>
+            </Card>
           );
         })}
         {sorted.length === 0 && (

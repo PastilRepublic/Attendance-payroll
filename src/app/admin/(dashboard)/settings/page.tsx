@@ -2,6 +2,9 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { updateSettings, changePassword } from "./actions";
 import PasswordInput from "@/components/PasswordInput";
+import PageHeader from "@/components/PageHeader";
+import Card from "@/components/Card";
+import Button from "@/components/Button";
 
 const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -17,9 +20,10 @@ export default async function SettingsPage() {
 
   return (
     <div className="max-w-xl">
-      <h1 className="text-xl font-semibold text-slate-900 mb-6">Settings</h1>
+      <PageHeader title="Settings" />
 
-      <form action={updateSettings} className="bg-white rounded-lg shadow p-6 space-y-5">
+      <Card className="p-6">
+      <form action={updateSettings} className="space-y-5">
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -29,7 +33,7 @@ export default async function SettingsPage() {
               name="shiftStartTime"
               type="time"
               defaultValue={settings.shiftStartTime}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-slate-400"
             />
           </div>
           <div>
@@ -40,7 +44,7 @@ export default async function SettingsPage() {
               name="shiftEndTime"
               type="time"
               defaultValue={settings.shiftEndTime}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-slate-400"
             />
           </div>
         </div>
@@ -57,7 +61,7 @@ export default async function SettingsPage() {
                   type="number"
                   min="0"
                   defaultValue={settings.unpaidLunchMinutes}
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-slate-400"
                 />
                 <p className="text-xs text-slate-500 mt-1">
                   Also the kiosk&apos;s Break allowance -- an employee who Starts Break and takes
@@ -74,7 +78,7 @@ export default async function SettingsPage() {
                   step="0.25"
                   min="0"
                   defaultValue={Number(settings.regularHoursCapPerDay)}
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-slate-400"
                 />
                 <p className="text-xs text-slate-500 mt-1">
                   Hours worked beyond this are tracked as OT hours for reference, but are not
@@ -93,7 +97,7 @@ export default async function SettingsPage() {
                 type="number"
                 min="0"
                 defaultValue={settings.gracePeriodMinutes}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-slate-400"
               />
             </div>
 
@@ -104,7 +108,7 @@ export default async function SettingsPage() {
               <select
                 name="payPeriodStartDay"
                 defaultValue={settings.payPeriodStartDay}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-slate-400"
               >
                 {dayNames.map((d, i) => (
                   <option key={d} value={i + 1}>
@@ -129,15 +133,12 @@ export default async function SettingsPage() {
           Require a photo at each kiosk punch
         </label>
 
-        <button
-          type="submit"
-          className="w-full rounded-md bg-slate-900 text-white text-sm font-medium py-2 hover:bg-slate-800"
-        >
-          Save Settings
-        </button>
+        <Button type="submit" className="w-full">Save Settings</Button>
       </form>
+      </Card>
 
-      <form action={changePassword} className="bg-white rounded-lg shadow p-6 space-y-4 mt-6">
+      <Card className="p-6 mt-6">
+      <form action={changePassword} className="space-y-4">
         <h2 className="text-sm font-semibold text-slate-900">Change Admin Password</h2>
         <PasswordInput
           name="currentPassword"
@@ -153,13 +154,9 @@ export default async function SettingsPage() {
         <p className="text-xs text-slate-500">
           You&apos;ll be signed out after changing your password and need to log in again.
         </p>
-        <button
-          type="submit"
-          className="w-full rounded-md bg-slate-100 text-slate-900 text-sm font-medium py-2 hover:bg-slate-200"
-        >
-          Change Password
-        </button>
+        <Button type="submit" variant="secondary" className="w-full">Change Password</Button>
       </form>
+      </Card>
     </div>
   );
 }

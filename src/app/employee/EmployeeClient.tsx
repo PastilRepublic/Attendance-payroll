@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import Card from "@/components/Card";
+import Badge from "@/components/Badge";
 
 interface EmployeeOption {
   id: string;
@@ -148,13 +150,13 @@ export default function EmployeeClient() {
 
   return (
     <div className="flex-1 flex flex-col bg-slate-100">
-      <div className="bg-slate-900 text-white flex items-center justify-between gap-3 py-4 px-4 sm:px-6">
-        <h1 className="text-lg sm:text-2xl md:text-3xl font-bold tracking-tight">
+      <div className="bg-white border-b border-slate-200 flex items-center justify-between gap-3 py-4 px-4 sm:px-6">
+        <h1 className="text-lg sm:text-2xl md:text-3xl font-bold tracking-tight text-slate-900">
           The Famous Pastil Republic
         </h1>
         <Link
           href="/"
-          className="shrink-0 rounded-md bg-white border border-slate-300 text-slate-900 px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-medium hover:bg-slate-50"
+          className="shrink-0 rounded-md bg-slate-900 text-white px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-medium hover:bg-slate-800"
         >
           Home
         </Link>
@@ -287,23 +289,23 @@ export default function EmployeeClient() {
               </button>
             </div>
 
-            <div className="flex gap-2 mb-4">
+            <div className="inline-flex gap-1 mb-4 bg-slate-100 rounded-full p-1">
               <button
                 onClick={() => setTab("attendance")}
-                className={`rounded-lg px-4 py-2 text-sm font-medium ${
+                className={`rounded-full px-4 py-2 text-sm font-medium transition ${
                   tab === "attendance"
-                    ? "bg-slate-900 text-white"
-                    : "bg-white border border-slate-300 text-slate-700 hover:bg-slate-50"
+                    ? "bg-white text-slate-900 shadow-sm"
+                    : "text-slate-600 hover:text-slate-900"
                 }`}
               >
                 Attendance History
               </button>
               <button
                 onClick={() => setTab("payslips")}
-                className={`rounded-lg px-4 py-2 text-sm font-medium ${
+                className={`rounded-full px-4 py-2 text-sm font-medium transition ${
                   tab === "payslips"
-                    ? "bg-slate-900 text-white"
-                    : "bg-white border border-slate-300 text-slate-700 hover:bg-slate-50"
+                    ? "bg-white text-slate-900 shadow-sm"
+                    : "text-slate-600 hover:text-slate-900"
                 }`}
               >
                 Payslips
@@ -311,7 +313,7 @@ export default function EmployeeClient() {
             </div>
 
             {tab === "attendance" && (
-              <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+              <Card className="overflow-hidden">
                 <p className="px-4 py-3 text-sm text-slate-500 border-b border-slate-200">
                   Last 30 days
                 </p>
@@ -363,31 +365,11 @@ export default function EmployeeClient() {
                           </td>
                           <td className="px-4 py-2">
                             <div className="flex flex-wrap gap-1">
-                              {d.dayStatus === "PAID_LEAVE" && (
-                                <span className="rounded-full bg-blue-100 text-blue-700 text-xs px-2 py-0.5">
-                                  Paid leave
-                                </span>
-                              )}
-                              {d.dayStatus === "UNPAID_ABSENCE" && (
-                                <span className="rounded-full bg-red-100 text-red-700 text-xs px-2 py-0.5">
-                                  Unpaid absence
-                                </span>
-                              )}
-                              {d.isLate && (
-                                <span className="rounded-full bg-rose-100 text-rose-700 text-xs px-2 py-0.5">
-                                  Late
-                                </span>
-                              )}
-                              {d.isUndertime && (
-                                <span className="rounded-full bg-rose-100 text-rose-700 text-xs px-2 py-0.5">
-                                  Undertime
-                                </span>
-                              )}
-                              {d.returnedLateFromBreak && (
-                                <span className="rounded-full bg-rose-100 text-rose-700 text-xs px-2 py-0.5">
-                                  Late from break
-                                </span>
-                              )}
+                              {d.dayStatus === "PAID_LEAVE" && <Badge status="paidLeave" />}
+                              {d.dayStatus === "UNPAID_ABSENCE" && <Badge status="unpaidAbsence" />}
+                              {d.isLate && <Badge status="late" />}
+                              {d.isUndertime && <Badge status="undertime" />}
+                              {d.returnedLateFromBreak && <Badge status="lateFromBreak" />}
                             </div>
                           </td>
                         </tr>
@@ -403,13 +385,13 @@ export default function EmployeeClient() {
                     </tbody>
                   </table>
                 </div>
-              </div>
+              </Card>
             )}
 
             {tab === "payslips" && (
               <div className="flex flex-col gap-3">
                 {(payslips ?? []).map((p) => (
-                  <div key={p.id} className="bg-white rounded-xl border border-slate-200 p-4">
+                  <Card key={p.id} padded>
                     <div className="flex items-center justify-between mb-2">
                       <p className="font-semibold text-slate-800">
                         {p.periodStart} to {p.periodEnd}
@@ -491,12 +473,12 @@ export default function EmployeeClient() {
                       <p className="text-sm font-medium text-slate-600">Total pay</p>
                       <p className="text-lg font-bold text-slate-900">{peso(p.totalPay)}</p>
                     </div>
-                  </div>
+                  </Card>
                 ))}
                 {(payslips ?? []).length === 0 && (
-                  <div className="bg-white rounded-xl border border-slate-200 p-6 text-center text-slate-400">
+                  <Card padded className="text-center text-slate-400">
                     No payslips yet.
-                  </div>
+                  </Card>
                 )}
               </div>
             )}

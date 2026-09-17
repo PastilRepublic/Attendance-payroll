@@ -3,14 +3,18 @@ import { TIMEZONE } from "@/lib/payroll";
 import { createEmployee } from "../actions";
 import PasswordInput from "@/components/PasswordInput";
 import PhotoInput from "@/components/PhotoInput";
+import PageHeader from "@/components/PageHeader";
+import Card from "@/components/Card";
+import Button from "@/components/Button";
 
 export default function NewEmployeePage() {
   const today = formatInTimeZone(new Date(), TIMEZONE, "yyyy-MM-dd");
 
   return (
     <div className="max-w-lg">
-      <h1 className="text-xl font-semibold text-slate-900 mb-6">New Employee</h1>
-      <form action={createEmployee} className="bg-white rounded-lg shadow p-6 space-y-4">
+      <PageHeader title="New Employee" />
+      <Card className="p-6">
+      <form action={createEmployee} className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1">Name</label>
           <input
@@ -101,13 +105,9 @@ export default function NewEmployeePage() {
           </div>
         </details>
 
-        <button
-          type="submit"
-          className="w-full rounded-md bg-slate-900 text-white text-sm font-medium py-2 hover:bg-slate-800"
-        >
-          Create Employee
-        </button>
+        <Button type="submit" className="w-full">Create Employee</Button>
       </form>
+      </Card>
     </div>
   );
 }

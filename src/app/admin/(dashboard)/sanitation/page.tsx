@@ -7,23 +7,18 @@ import {
   deleteSanitationAssignment,
   inspectSanitationAssignment,
 } from "./actions";
+import PageHeader from "@/components/PageHeader";
+import Card from "@/components/Card";
+import Badge from "@/components/Badge";
+import Button from "@/components/Button";
+import RiskDot from "@/components/RiskDot";
 
 function todayManila(): string {
   return formatInTimeZone(new Date(), TIMEZONE, "yyyy-MM-dd");
 }
 
-function RiskDot({ level }: { level: "LOW" | "MEDIUM" | "HIGH" }) {
-  const color =
-    level === "HIGH" ? "bg-red-500" : level === "MEDIUM" ? "bg-amber-500" : "bg-green-500";
-  return <span className={`inline-block w-2 h-2 rounded-full ${color}`} title={`${level} risk`} />;
-}
-
-function riskBorderClass(level: "LOW" | "MEDIUM" | "HIGH") {
-  return level === "HIGH"
-    ? "border-l-4 border-l-red-400"
-    : level === "MEDIUM"
-      ? "border-l-4 border-l-amber-400"
-      : "border-l-4 border-l-green-400";
+function riskAccent(level: "LOW" | "MEDIUM" | "HIGH") {
+  return level === "HIGH" ? "red" : level === "MEDIUM" ? "amber" : "green";
 }
 
 export default async function SanitationPage({
@@ -58,10 +53,10 @@ export default async function SanitationPage({
 
   return (
     <div>
-      <h1 className="text-xl font-semibold text-slate-900 mb-4">Sanitation</h1>
+      <PageHeader title="Sanitation" description="SOP library, today's schedule, and inspection sign-offs." />
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
-        <div className="bg-white rounded-lg shadow p-4">
+        <Card padded>
           <p className="text-xs text-slate-400 mb-1">Compliance rate</p>
           <p className="text-lg font-semibold text-slate-900">
             {complianceRate === null ? (
@@ -77,32 +72,29 @@ export default async function SanitationPage({
               </>
             )}
           </p>
-        </div>
-        <div className="bg-white rounded-lg shadow p-4">
+        </Card>
+        <Card padded>
           <p className="text-xs text-slate-400 mb-1">Duties logged today</p>
           <p className="text-lg font-semibold text-slate-900">
             {doneCount} / {assignments.length} Done
           </p>
-        </div>
-        <div className="bg-white rounded-lg shadow p-4">
+        </Card>
+        <Card padded>
           <p className="text-xs text-slate-400 mb-1">Pending checks</p>
           <p className={`text-lg font-semibold ${pendingChecks > 0 ? "text-amber-600" : "text-slate-900"}`}>
             {pendingChecks} {pendingChecks === 1 ? "duty" : "duties"} awaiting inspection
           </p>
-        </div>
+        </Card>
       </div>
 
-      <details className="mb-6 bg-white rounded-lg shadow">
+      <details className="mb-6 bg-white rounded-xl shadow-sm border border-slate-200">
         <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-slate-700">
           Cleaning Procedures ({procedures.length})
         </summary>
         <div className="p-4 pt-0">
           <div className="space-y-3 mb-4">
             {procedures.map((p) => (
-              <div
-                key={p.id}
-                className={`border border-slate-200 ${riskBorderClass(p.riskLevel)} rounded-md p-3 text-sm`}
-              >
+              <Card key={p.id} accent={riskAccent(p.riskLevel)} className="p-3 text-sm">
                 <p className="font-semibold text-slate-900 flex items-center gap-2">
                   {p.name}
                   <span className="text-xs font-normal text-slate-400">({p.riskLevel.toLowerCase()} risk)</span>
@@ -116,7 +108,7 @@ export default async function SanitationPage({
                 <p className="mt-2 text-slate-600 whitespace-pre-wrap">
                   <span className="text-slate-400">Steps:</span> {p.steps}
                 </p>
-              </div>
+              </Card>
             ))}
             {procedures.length === 0 && (
               <p className="text-slate-400 text-sm">No procedures yet — add one below.</p>
@@ -192,9 +184,7 @@ export default async function SanitationPage({
               />
             </div>
             <div className="sm:col-span-2">
-              <button className="rounded-md bg-slate-900 text-white text-sm px-4 py-2 hover:bg-slate-800">
-                + Add Procedure
-              </button>
+              <Button>+ Add Procedure</Button>
             </div>
           </form>
         </div>
@@ -207,15 +197,13 @@ export default async function SanitationPage({
             type="date"
             name="date"
             defaultValue={date}
-            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm"
+            className="rounded-full border border-slate-300 px-3 py-1.5 text-sm"
           />
-          <button className="rounded-md bg-slate-900 text-white text-sm px-3 py-1.5 hover:bg-slate-800">
-            Go
-          </button>
+          <Button size="sm">Go</Button>
         </form>
       </div>
 
-      <div className="bg-white rounded-lg shadow p-4">
+      <Card padded>
         <div className="overflow-x-auto">
           <table className="w-full text-sm mb-4">
             <thead className="text-slate-500 text-left">
@@ -251,28 +239,14 @@ export default async function SanitationPage({
                     </span>
                   </td>
                   <td className="py-1.5 pr-2">
-                    <span
-                      className={`px-2 py-0.5 rounded-full text-xs ${
-                        a.status === "DONE"
-                          ? "bg-green-100 text-green-700"
-                          : "bg-amber-100 text-amber-700"
-                      }`}
-                    >
-                      {a.status === "DONE" ? "Done" : "Pending"}
-                    </span>
+                    <Badge status={a.status === "DONE" ? "done" : "pendingTask"} />
                   </td>
                   <td className="py-1.5 pr-2 relative">
                     {a.inspectionResult ? (
                       <div>
-                        <span
-                          className={`px-2 py-0.5 rounded-full text-xs ${
-                            a.inspectionResult === "PASS"
-                              ? "bg-green-100 text-green-700"
-                              : "bg-rose-100 text-rose-700"
-                          }`}
-                        >
+                        <Badge status={a.inspectionResult === "PASS" ? "pass" : "fail"}>
                           {a.inspectionResult === "PASS" ? "Passed" : "Failed"}
-                        </span>
+                        </Badge>
                         {a.inspectionNote && (
                           <p className="text-xs text-slate-400 mt-1">{a.inspectionNote}</p>
                         )}
@@ -324,16 +298,14 @@ export default async function SanitationPage({
               ))}
             </select>
           </div>
-          <button className="rounded-md bg-slate-900 text-white text-sm px-4 py-2 hover:bg-slate-800">
-            Assign
-          </button>
+          <Button>Assign</Button>
           <p className="text-xs text-slate-400 w-full">
             No need to pick who — any active employee can claim and complete this at the kiosk.
           </p>
         </form>
-      </div>
+      </Card>
 
-      <div className="mt-6 bg-white rounded-lg shadow p-4">
+      <Card padded className="mt-6">
         <h2 className="text-sm font-semibold text-slate-700 mb-3">Recent Sign-offs</h2>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -376,7 +348,7 @@ export default async function SanitationPage({
             </tbody>
           </table>
         </div>
-      </div>
+      </Card>
     </div>
   );
 }
@@ -410,9 +382,7 @@ function InspectForm({ assignmentId }: { assignmentId: string }) {
             className="w-full rounded-md border border-slate-300 px-2 py-1 text-xs"
           />
         </div>
-        <button className="rounded-md bg-slate-900 text-white text-xs px-3 py-1.5 hover:bg-slate-800">
-          Save Inspection
-        </button>
+        <Button size="sm">Save Inspection</Button>
       </form>
     </details>
   );

@@ -1,6 +1,11 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { setEmployeeActive } from "./actions";
+import PageHeader from "@/components/PageHeader";
+import Card from "@/components/Card";
+import Badge from "@/components/Badge";
+import Avatar from "@/components/Avatar";
+import Button from "@/components/Button";
 
 export default async function EmployeesPage() {
   const employees = await prisma.employee.findMany({
@@ -10,19 +15,19 @@ export default async function EmployeesPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-semibold text-slate-900">Employees</h1>
-        <Link
-          href="/admin/employees/new"
-          className="rounded-md bg-slate-900 text-white text-sm font-medium px-4 py-2 hover:bg-slate-800"
-        >
-          + New Employee
-        </Link>
-      </div>
+      <PageHeader
+        title="Employees"
+        description="Everyone who has ever been on payroll, active or not."
+        actions={
+          <Link href="/admin/employees/new">
+            <Button>+ New Employee</Button>
+          </Link>
+        }
+      />
 
-      <div className="bg-white rounded-lg shadow overflow-x-auto">
+      <Card className="overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="bg-slate-100 text-slate-600 text-left">
+          <thead className="bg-slate-50 text-slate-600 text-left">
             <tr>
               <th className="px-4 py-3">Name</th>
               <th className="px-4 py-3">Pay basis</th>
@@ -37,27 +42,15 @@ export default async function EmployeesPage() {
               <tr key={emp.id} className="border-t border-slate-100">
                 <td className="px-4 py-3 font-medium text-slate-900">
                   <span className="flex items-center gap-2">
-                    {emp.photoPath ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={`/api/kiosk/employee-photo/${emp.photoPath}`}
-                        alt={emp.name}
-                        className="w-7 h-7 rounded-full object-cover border border-slate-200"
-                      />
-                    ) : (
-                      <span className="w-7 h-7 rounded-full bg-slate-100 border border-slate-200" />
-                    )}
+                    <Avatar
+                      name={emp.name}
+                      photoUrl={emp.photoPath ? `/api/kiosk/employee-photo/${emp.photoPath}` : null}
+                      size="sm"
+                      ringColor="white"
+                    />
                     {emp.name}
                     {emp.adminAccount && (
-                      <span
-                        className={`px-1.5 py-0.5 rounded-full text-xs font-normal ${
-                          emp.adminAccount.active
-                            ? "bg-indigo-100 text-indigo-700"
-                            : "bg-slate-200 text-slate-500"
-                        }`}
-                      >
-                        {emp.adminAccount.active ? "Supervisor" : "Access revoked"}
-                      </span>
+                      <Badge status={emp.adminAccount.active ? "supervisor" : "accessRevoked"} />
                     )}
                   </span>
                 </td>
@@ -69,15 +62,7 @@ export default async function EmployeesPage() {
                   {emp.dateHired.toISOString().slice(0, 10)}
                 </td>
                 <td className="px-4 py-3">
-                  <span
-                    className={`px-2 py-0.5 rounded-full text-xs ${
-                      emp.active
-                        ? "bg-green-100 text-green-700"
-                        : "bg-slate-200 text-slate-600"
-                    }`}
-                  >
-                    {emp.active ? "Active" : "Inactive"}
-                  </span>
+                  <Badge status={emp.active ? "active" : "inactive"} />
                 </td>
                 <td className="px-4 py-3 text-right space-x-3">
                   <Link
@@ -106,7 +91,7 @@ export default async function EmployeesPage() {
             )}
           </tbody>
         </table>
-      </div>
+      </Card>
     </div>
   );
 }
