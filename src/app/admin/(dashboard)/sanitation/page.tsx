@@ -94,7 +94,7 @@ export default async function SanitationPage({
 
       <details className="mb-6 bg-white rounded-lg shadow">
         <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-slate-700">
-          SOP Library ({procedures.length})
+          Cleaning Procedures ({procedures.length})
         </summary>
         <div className="p-4 pt-0">
           <div className="space-y-3 mb-4">
@@ -109,7 +109,7 @@ export default async function SanitationPage({
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 mt-1 text-slate-600">
                   <p><span className="text-slate-400">Area/Equipment:</span> {p.areaEquipment}</p>
-                  <p><span className="text-slate-400">Chemicals:</span> {p.chemicals}</p>
+                  <p><span className="text-slate-400">Sanitizer Agent:</span> {p.chemicals}</p>
                   <p><span className="text-slate-400">Frequency:</span> {p.frequency}</p>
                   <p><span className="text-slate-400">Responsible role:</span> {p.responsibleRole}</p>
                 </div>
@@ -119,7 +119,7 @@ export default async function SanitationPage({
               </div>
             ))}
             {procedures.length === 0 && (
-              <p className="text-slate-400 text-sm">No SOPs yet — add one below.</p>
+              <p className="text-slate-400 text-sm">No procedures yet — add one below.</p>
             )}
           </div>
           <form action={createProcedure} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -142,7 +142,7 @@ export default async function SanitationPage({
               />
             </div>
             <div>
-              <label className="block text-xs text-slate-500 mb-1">Chemicals</label>
+              <label className="block text-xs text-slate-500 mb-1">Sanitizer Agent</label>
               <input
                 name="chemicals"
                 required
@@ -193,7 +193,7 @@ export default async function SanitationPage({
             </div>
             <div className="sm:col-span-2">
               <button className="rounded-md bg-slate-900 text-white text-sm px-4 py-2 hover:bg-slate-800">
-                + Add SOP
+                + Add Procedure
               </button>
             </div>
           </form>
@@ -221,7 +221,7 @@ export default async function SanitationPage({
             <thead className="text-slate-500 text-left">
               <tr>
                 <th className="py-1 pr-2 font-normal">Employee</th>
-                <th className="py-1 pr-2 font-normal">SOP</th>
+                <th className="py-1 pr-2 font-normal">Procedure</th>
                 <th className="py-1 pr-2 font-normal">Status</th>
                 <th className="py-1 pr-2 font-normal">Inspection</th>
                 <th className="py-1 font-normal"></th>
@@ -303,7 +303,7 @@ export default async function SanitationPage({
         >
           <input type="hidden" name="date" value={date} />
           <div>
-            <label className="block text-xs text-slate-500 mb-1">SOP</label>
+            <label className="block text-xs text-slate-500 mb-1">Procedure</label>
             <select
               name="procedureId"
               required
@@ -333,7 +333,7 @@ export default async function SanitationPage({
             <thead className="text-slate-500 text-left">
               <tr>
                 <th className="py-1 pr-2 font-normal">Date</th>
-                <th className="py-1 pr-2 font-normal">SOP</th>
+                <th className="py-1 pr-2 font-normal">Procedure</th>
                 <th className="py-1 font-normal">Signed off by</th>
               </tr>
             </thead>

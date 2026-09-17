@@ -50,7 +50,7 @@ export default async function SanitationBoardPage() {
               <thead className="bg-slate-50 text-slate-600 text-left">
                 <tr>
                   <th className="px-4 py-2 font-medium">Area / Equipment</th>
-                  <th className="px-4 py-2 font-medium">SOP</th>
+                  <th className="px-4 py-2 font-medium">Duty</th>
                   <th className="px-4 py-2 font-medium">Signed off by</th>
                   <th className="px-4 py-2 font-medium">Status</th>
                 </tr>
