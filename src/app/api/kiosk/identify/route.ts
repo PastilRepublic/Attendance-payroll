@@ -24,25 +24,36 @@ export async function POST(request: Request) {
   });
   const nextType: "IN" | "OUT" = lastPunch?.type === "IN" ? "OUT" : "IN";
 
+  // A supervisor's job is to assign/inspect these, not do them alongside the
+  // team -- skip the checklist entirely for them (Time In/Out still works
+  // as normal). A revoked supervisor goes back to seeing it like anyone else.
+  const supervisorAccount = await prisma.adminUser.findUnique({
+    where: { employeeId: matched.id },
+    select: { role: true, active: true },
+  });
+  const isActiveSupervisor = supervisorAccount?.role === "SUPERVISOR" && supervisorAccount.active;
+
   const today = formatInTimeZone(new Date(), TIMEZONE, "yyyy-MM-dd");
-  const [pendingTasks, pendingSanitation] = await Promise.all([
-    prisma.taskAssignment.findMany({
-      where: {
-        employeeId: matched.id,
-        date: new Date(`${today}T00:00:00.000Z`),
-        status: "PENDING",
-      },
-      include: { template: true },
-    }),
-    prisma.sanitationAssignment.findMany({
-      where: {
-        date: new Date(`${today}T00:00:00.000Z`),
-        status: "PENDING",
-        OR: [{ employeeId: null }, { employeeId: matched.id }],
-      },
-      include: { procedure: true },
-    }),
-  ]);
+  const [pendingTasks, pendingSanitation] = isActiveSupervisor
+    ? [[], []]
+    : await Promise.all([
+        prisma.taskAssignment.findMany({
+          where: {
+            employeeId: matched.id,
+            date: new Date(`${today}T00:00:00.000Z`),
+            status: "PENDING",
+          },
+          include: { template: true },
+        }),
+        prisma.sanitationAssignment.findMany({
+          where: {
+            date: new Date(`${today}T00:00:00.000Z`),
+            status: "PENDING",
+            OR: [{ employeeId: null }, { employeeId: matched.id }],
+          },
+          include: { procedure: true },
+        }),
+      ]);
 
   return NextResponse.json({
     employeeId: matched.id,
