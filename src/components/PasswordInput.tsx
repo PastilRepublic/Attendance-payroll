@@ -6,10 +6,18 @@ export default function PasswordInput({
   name,
   label,
   autoComplete,
+  required = true,
+  minLength,
+  placeholder,
+  helperText,
 }: {
   name: string;
   label: string;
   autoComplete?: string;
+  required?: boolean;
+  minLength?: number;
+  placeholder?: string;
+  helperText?: string;
 }) {
   const [visible, setVisible] = useState(false);
 
@@ -20,7 +28,9 @@ export default function PasswordInput({
         <input
           type={visible ? "text" : "password"}
           name={name}
-          required
+          required={required}
+          minLength={minLength}
+          placeholder={placeholder}
           autoComplete={autoComplete}
           className="w-full rounded-md border border-slate-300 px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-slate-500"
         />
@@ -42,6 +52,7 @@ export default function PasswordInput({
           )}
         </button>
       </div>
+      {helperText && <p className="text-xs text-slate-500 mt-1">{helperText}</p>}
     </div>
   );
 }

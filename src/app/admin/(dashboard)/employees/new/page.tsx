@@ -1,6 +1,7 @@
 import { formatInTimeZone } from "date-fns-tz";
 import { TIMEZONE } from "@/lib/payroll";
 import { createEmployee } from "../actions";
+import PasswordInput from "@/components/PasswordInput";
 
 export default function NewEmployeePage() {
   const today = formatInTimeZone(new Date(), TIMEZONE, "yyyy-MM-dd");
@@ -88,18 +89,13 @@ export default function NewEmployeePage() {
                 className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Temporary password
-              </label>
-              <input
-                name="supervisorPassword"
-                type="password"
-                minLength={8}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-              />
-              <p className="text-xs text-slate-500 mt-1">They can change this after logging in.</p>
-            </div>
+            <PasswordInput
+              name="supervisorPassword"
+              label="Temporary password"
+              required={false}
+              minLength={8}
+              helperText="They can change this after logging in."
+            />
           </div>
         </details>
 
