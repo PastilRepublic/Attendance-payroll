@@ -66,7 +66,18 @@ export default async function SanitationBoardPage() {
                       </span>
                     </td>
                     <td className="px-4 py-2 text-slate-700">
-                      {a.employee ? a.employee.name : <span className="text-slate-400 italic">Team</span>}
+                      {a.employee ? (
+                        <>
+                          {a.employee.name}
+                          {a.completedAt && (
+                            <span className="text-slate-400 text-xs ml-1.5">
+                              {formatInTimeZone(a.completedAt, TIMEZONE, "h:mm a")}
+                            </span>
+                          )}
+                        </>
+                      ) : (
+                        <span className="text-slate-400 italic">Team</span>
+                      )}
                     </td>
                     <td className="px-4 py-2">
                       {a.inspectionResult ? (

@@ -232,7 +232,14 @@ export default async function SanitationPage({
                 <tr key={a.id} className="border-t border-slate-100 align-top">
                   <td className="py-1.5 pr-2">
                     {a.employee ? (
-                      a.employee.name
+                      <>
+                        {a.employee.name}
+                        {a.completedAt && (
+                          <span className="text-slate-400 text-xs block">
+                            {formatInTimeZone(a.completedAt, TIMEZONE, "h:mm a")}
+                          </span>
+                        )}
+                      </>
                     ) : (
                       <span className="text-slate-400 italic">Unassigned — team</span>
                     )}
@@ -349,7 +356,14 @@ export default async function SanitationPage({
                       {a.procedure.name}
                     </span>
                   </td>
-                  <td className="py-1.5 text-slate-700">{a.employee?.name}</td>
+                  <td className="py-1.5 text-slate-700">
+                    {a.employee?.name}
+                    {a.completedAt && (
+                      <span className="text-slate-400 text-xs ml-1.5">
+                        {formatInTimeZone(a.completedAt, TIMEZONE, "h:mm a")}
+                      </span>
+                    )}
+                  </td>
                 </tr>
               ))}
               {recentSignoffs.length === 0 && (
