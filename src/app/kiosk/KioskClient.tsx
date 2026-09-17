@@ -40,7 +40,7 @@ interface EmployeeOption {
 }
 
 const AUTO_RESET_MS = 2200;
-const TASKS_AUTO_FINISH_MS = 15000;
+const TASKS_AUTO_FINISH_MS = 45000;
 
 export default function KioskClient() {
   const [screen, setScreen] = useState<Screen>("selectName");
@@ -154,9 +154,11 @@ export default function KioskClient() {
 
   useEffect(() => {
     if (screen !== "tasks") return;
+    // Restarts on every doneTaskIds change, so actively checking off tasks
+    // keeps extending the window -- only true inactivity triggers the reset.
     const t = setTimeout(resetToIdle, TASKS_AUTO_FINISH_MS);
     return () => clearTimeout(t);
-  }, [screen, resetToIdle]);
+  }, [screen, resetToIdle, doneTaskIds]);
 
   const queueOffline = useCallback(
     (pinToQueue: string, type: "IN" | "OUT" | null, photoDataUrl?: string) => {
