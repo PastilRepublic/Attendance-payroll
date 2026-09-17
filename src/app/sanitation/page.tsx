@@ -9,6 +9,12 @@ function todayManila(): string {
   return formatInTimeZone(new Date(), TIMEZONE, "yyyy-MM-dd");
 }
 
+function RiskDot({ level }: { level: "LOW" | "MEDIUM" | "HIGH" }) {
+  const color =
+    level === "HIGH" ? "bg-red-500" : level === "MEDIUM" ? "bg-amber-500" : "bg-green-500";
+  return <span className={`inline-block w-2 h-2 rounded-full ${color}`} title={`${level} risk`} />;
+}
+
 export default async function SanitationBoardPage() {
   const date = todayManila();
 
@@ -53,7 +59,12 @@ export default async function SanitationBoardPage() {
                 {assignments.map((a) => (
                   <tr key={a.id} className="border-t border-slate-100">
                     <td className="px-4 py-2 text-slate-700">{a.procedure.areaEquipment}</td>
-                    <td className="px-4 py-2 text-slate-900 font-medium">{a.procedure.name}</td>
+                    <td className="px-4 py-2 text-slate-900 font-medium">
+                      <span className="inline-flex items-center gap-1.5">
+                        <RiskDot level={a.procedure.riskLevel} />
+                        {a.procedure.name}
+                      </span>
+                    </td>
                     <td className="px-4 py-2 text-slate-700">
                       {a.employee ? a.employee.name : <span className="text-slate-400 italic">Team</span>}
                     </td>

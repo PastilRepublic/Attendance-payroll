@@ -19,6 +19,7 @@ const createProcedureSchema = z.object({
   steps: z.string().trim().min(1, "Steps is required"),
   frequency: z.string().trim().min(1, "Frequency is required"),
   responsibleRole: z.string().trim().min(1, "Responsible role is required"),
+  riskLevel: z.enum(["LOW", "MEDIUM", "HIGH"]),
 });
 
 export async function createProcedure(formData: FormData) {
@@ -30,6 +31,7 @@ export async function createProcedure(formData: FormData) {
     steps: formData.get("steps"),
     frequency: formData.get("frequency"),
     responsibleRole: formData.get("responsibleRole"),
+    riskLevel: formData.get("riskLevel"),
   });
 
   const procedure = await prisma.sanitationProcedure.create({ data: parsed });

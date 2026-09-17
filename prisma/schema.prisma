@@ -61,6 +61,12 @@ enum InspectionResult {
   FAIL
 }
 
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+}
+
 model AdminUser {
   id           String   @id @default(cuid())
   name         String
@@ -302,6 +308,7 @@ model SanitationProcedure {
   steps          String
   frequency      String
   responsibleRole String
+  riskLevel      RiskLevel @default(MEDIUM)
   active         Boolean  @default(true)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt

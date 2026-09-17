@@ -12,6 +12,20 @@ function todayManila(): string {
   return formatInTimeZone(new Date(), TIMEZONE, "yyyy-MM-dd");
 }
 
+function RiskDot({ level }: { level: "LOW" | "MEDIUM" | "HIGH" }) {
+  const color =
+    level === "HIGH" ? "bg-red-500" : level === "MEDIUM" ? "bg-amber-500" : "bg-green-500";
+  return <span className={`inline-block w-2 h-2 rounded-full ${color}`} title={`${level} risk`} />;
+}
+
+function riskBorderClass(level: "LOW" | "MEDIUM" | "HIGH") {
+  return level === "HIGH"
+    ? "border-l-4 border-l-red-400"
+    : level === "MEDIUM"
+      ? "border-l-4 border-l-amber-400"
+      : "border-l-4 border-l-green-400";
+}
+
 export default async function SanitationPage({
   searchParams,
 }: {
@@ -20,7 +34,7 @@ export default async function SanitationPage({
   const params = await searchParams;
   const date = params.date ?? todayManila();
 
-  const [procedures, assignments, recentSignoffs] = await Promise.all([
+  const [procedures, assignments, recentSignoffs, passCount, failCount] = await Promise.all([
     prisma.sanitationProcedure.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
     prisma.sanitationAssignment.findMany({
       where: { date: new Date(`${date}T00:00:00.000Z`) },
@@ -33,11 +47,50 @@ export default async function SanitationPage({
       orderBy: { completedAt: "desc" },
       take: 15,
     }),
+    prisma.sanitationAssignment.count({ where: { inspectionResult: "PASS" } }),
+    prisma.sanitationAssignment.count({ where: { inspectionResult: "FAIL" } }),
   ]);
+
+  const doneCount = assignments.filter((a) => a.status === "DONE").length;
+  const pendingChecks = assignments.filter((a) => a.status === "DONE" && !a.inspectionResult).length;
+  const totalInspected = passCount + failCount;
+  const complianceRate = totalInspected > 0 ? Math.round((passCount / totalInspected) * 100) : null;
 
   return (
     <div>
-      <h1 className="text-xl font-semibold text-slate-900 mb-6">Sanitation</h1>
+      <h1 className="text-xl font-semibold text-slate-900 mb-4">Sanitation</h1>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
+        <div className="bg-white rounded-lg shadow p-4">
+          <p className="text-xs text-slate-400 mb-1">Compliance rate</p>
+          <p className="text-lg font-semibold text-slate-900">
+            {complianceRate === null ? (
+              <span className="text-slate-400 text-sm font-normal">No inspections yet</span>
+            ) : (
+              <>
+                <span
+                  className={`inline-block w-2 h-2 rounded-full mr-2 ${
+                    complianceRate >= 90 ? "bg-green-500" : complianceRate >= 70 ? "bg-amber-500" : "bg-red-500"
+                  }`}
+                />
+                {complianceRate}%
+              </>
+            )}
+          </p>
+        </div>
+        <div className="bg-white rounded-lg shadow p-4">
+          <p className="text-xs text-slate-400 mb-1">Duties logged today</p>
+          <p className="text-lg font-semibold text-slate-900">
+            {doneCount} / {assignments.length} Done
+          </p>
+        </div>
+        <div className="bg-white rounded-lg shadow p-4">
+          <p className="text-xs text-slate-400 mb-1">Pending checks</p>
+          <p className={`text-lg font-semibold ${pendingChecks > 0 ? "text-amber-600" : "text-slate-900"}`}>
+            {pendingChecks} {pendingChecks === 1 ? "duty" : "duties"} awaiting inspection
+          </p>
+        </div>
+      </div>
 
       <details className="mb-6 bg-white rounded-lg shadow">
         <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-slate-700">
@@ -46,8 +99,14 @@ export default async function SanitationPage({
         <div className="p-4 pt-0">
           <div className="space-y-3 mb-4">
             {procedures.map((p) => (
-              <div key={p.id} className="border border-slate-200 rounded-md p-3 text-sm">
-                <p className="font-semibold text-slate-900">{p.name}</p>
+              <div
+                key={p.id}
+                className={`border border-slate-200 ${riskBorderClass(p.riskLevel)} rounded-md p-3 text-sm`}
+              >
+                <p className="font-semibold text-slate-900 flex items-center gap-2">
+                  {p.name}
+                  <span className="text-xs font-normal text-slate-400">({p.riskLevel.toLowerCase()} risk)</span>
+                </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 mt-1 text-slate-600">
                   <p><span className="text-slate-400">Area/Equipment:</span> {p.areaEquipment}</p>
                   <p><span className="text-slate-400">Chemicals:</span> {p.chemicals}</p>
@@ -109,6 +168,19 @@ export default async function SanitationPage({
                 className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
               />
             </div>
+            <div>
+              <label className="block text-xs text-slate-500 mb-1">Risk level</label>
+              <select
+                name="riskLevel"
+                required
+                defaultValue="MEDIUM"
+                className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+              >
+                <option value="LOW">Low</option>
+                <option value="MEDIUM">Medium</option>
+                <option value="HIGH">High</option>
+              </select>
+            </div>
             <div className="sm:col-span-2">
               <label className="block text-xs text-slate-500 mb-1">Step-by-step procedure</label>
               <textarea
@@ -165,7 +237,12 @@ export default async function SanitationPage({
                       <span className="text-slate-400 italic">Unassigned — team</span>
                     )}
                   </td>
-                  <td className="py-1.5 pr-2">{a.procedure.name}</td>
+                  <td className="py-1.5 pr-2">
+                    <span className="inline-flex items-center gap-1.5">
+                      <RiskDot level={a.procedure.riskLevel} />
+                      {a.procedure.name}
+                    </span>
+                  </td>
                   <td className="py-1.5 pr-2">
                     <span
                       className={`px-2 py-0.5 rounded-full text-xs ${
@@ -266,7 +343,12 @@ export default async function SanitationPage({
                   <td className="py-1.5 pr-2 text-slate-500">
                     {formatInTimeZone(a.date, TIMEZONE, "yyyy-MM-dd")}
                   </td>
-                  <td className="py-1.5 pr-2">{a.procedure.name}</td>
+                  <td className="py-1.5 pr-2">
+                    <span className="inline-flex items-center gap-1.5">
+                      <RiskDot level={a.procedure.riskLevel} />
+                      {a.procedure.name}
+                    </span>
+                  </td>
                   <td className="py-1.5 text-slate-700">{a.employee?.name}</td>
                 </tr>
               ))}
