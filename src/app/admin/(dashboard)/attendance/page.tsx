@@ -93,6 +93,7 @@ interface TodayRow {
   slots: ReturnType<typeof computeDaySlots>;
   timedIn: boolean;
   isLate: boolean;
+  isUndertime: boolean;
 }
 
 export default async function AttendancePage({
@@ -208,6 +209,7 @@ export default async function AttendancePage({
         slots: computeDaySlots(empPunches),
         timedIn: empPunches.some((p) => p.type === "IN"),
         isLate: computed.isLate,
+        isUndertime: computed.isUndertime,
       };
     });
   } else if (employeeId) {
@@ -434,25 +436,34 @@ function TodayDashboard({ rows, refDate }: { rows: TodayRow[]; refDate: string }
           <thead className="bg-slate-50 text-slate-600 text-left">
             <tr>
               <th className="px-2 py-2 font-medium">Name</th>
-              <th className="px-2 py-2 font-medium text-right">Timed In</th>
+              <th className="px-2 py-2 font-medium text-right">Morning In</th>
+              <th className="px-2 py-2 font-medium text-right">Morning Out</th>
+              <th className="px-2 py-2 font-medium text-right">Afternoon In</th>
+              <th className="px-2 py-2 font-medium text-right">Afternoon Out</th>
               <th className="px-2 py-2 font-medium">Status</th>
               <th className="px-2 py-2 font-medium"></th>
             </tr>
           </thead>
           <tbody>
             {rows.map((row) => {
-              const { employee, punches, dayStatus, slots, timedIn, isLate } = row;
+              const { employee, punches, dayStatus, slots, timedIn, isLate, isUndertime } = row;
+              const showTimes = dayStatus === "NORMAL";
               return (
                 <tr key={employee.id} className="border-t border-slate-100 align-top">
                   <td className="px-2 py-2 whitespace-nowrap">
                     <span className="text-base font-bold text-slate-900">{employee.name}</span>
                   </td>
                   <td className="px-2 py-2 text-right whitespace-nowrap text-slate-700">
-                    {dayStatus === "NORMAL" && slots.morningIn ? (
-                      slots.morningIn
-                    ) : (
-                      <span className="text-slate-300">—</span>
-                    )}
+                    {showTimes ? slots.morningIn ?? <span className="text-slate-300">—</span> : <span className="text-slate-300">—</span>}
+                  </td>
+                  <td className="px-2 py-2 text-right whitespace-nowrap text-slate-700">
+                    {showTimes ? slots.morningOut ?? <span className="text-slate-300">—</span> : <span className="text-slate-300">—</span>}
+                  </td>
+                  <td className="px-2 py-2 text-right whitespace-nowrap text-slate-700">
+                    {showTimes ? slots.afternoonIn ?? <span className="text-slate-300">—</span> : <span className="text-slate-300">—</span>}
+                  </td>
+                  <td className="px-2 py-2 text-right whitespace-nowrap text-slate-700">
+                    {showTimes ? slots.afternoonOut ?? <span className="text-slate-300">—</span> : <span className="text-slate-300">—</span>}
                   </td>
                   <td className="px-2 py-2">
                     <div className="flex flex-wrap gap-1.5">
@@ -471,13 +482,19 @@ function TodayDashboard({ rows, refDate }: { rows: TodayRow[]; refDate: string }
                           Not yet timed in
                         </span>
                       )}
-                      {dayStatus === "NORMAL" && timedIn && (
-                        <span
-                          className={`px-2 py-0.5 rounded-full text-xs ${
-                            isLate ? "bg-rose-100 text-rose-700" : "bg-green-100 text-green-700"
-                          }`}
-                        >
-                          {isLate ? "Late" : "On time"}
+                      {dayStatus === "NORMAL" && timedIn && isLate && (
+                        <span className="px-2 py-0.5 rounded-full text-xs bg-rose-100 text-rose-700">
+                          Late
+                        </span>
+                      )}
+                      {dayStatus === "NORMAL" && timedIn && isUndertime && (
+                        <span className="px-2 py-0.5 rounded-full text-xs bg-rose-100 text-rose-700">
+                          Undertime
+                        </span>
+                      )}
+                      {dayStatus === "NORMAL" && timedIn && !isLate && !isUndertime && (
+                        <span className="px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-700">
+                          On time
                         </span>
                       )}
                     </div>
