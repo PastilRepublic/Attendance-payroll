@@ -4,12 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import Card from "@/components/Card";
 import Badge from "@/components/Badge";
-import RangeCalendar, {
-  addDaysKey,
-  mondayOf,
-  monthEndKey,
-  shiftMonthKey,
-} from "./RangeCalendar";
+import Button from "@/components/Button";
 
 interface EmployeeOption {
   id: string;
@@ -82,40 +77,45 @@ function dayAbbrev(dateStr: string): { label: string; className: string } {
   return DAY_ABBREV_STYLES[dow];
 }
 
-function fmtDay(dateStr: string, withYear: boolean): string {
-  return new Date(`${dateStr}T00:00:00.000Z`).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: withYear ? "numeric" : undefined,
-    timeZone: "UTC",
-  });
+function addDaysStr(dateStr: string, days: number): string {
+  const d = new Date(`${dateStr}T00:00:00.000Z`);
+  return new Date(d.getTime() + days * 86400000).toISOString().slice(0, 10);
 }
 
-// "Sep 28 – Oct 3, 2026" (or a single day).
-function rangeLabel(start: string, end: string): string {
-  if (start === end) return fmtDay(start, true);
-  const sameYear = start.slice(0, 4) === end.slice(0, 4);
-  return `${fmtDay(start, !sameYear)} – ${fmtDay(end, true)}`;
+/** Monday of the week containing this date -- payroll weeks run Mon-Sun. */
+function mondayOf(dateStr: string): string {
+  const d = new Date(`${dateStr}T00:00:00.000Z`);
+  return addDaysStr(dateStr, -((d.getUTCDay() + 6) % 7));
 }
 
-// Arrows step a whole month when the range is one, otherwise by its own length
-// (so a Mon-Sun week moves a week).
-function shiftRange(start: string, end: string, dir: 1 | -1, today: string) {
-  const month = start.slice(0, 7);
-  const isMonth =
-    start.endsWith("-01") &&
-    (end === monthEndKey(month) || (end === today && end.slice(0, 7) === month));
-  if (isMonth) {
-    const m = shiftMonthKey(month, dir);
-    return { start: `${m}-01`, end: monthEndKey(m) };
-  }
-  const span =
-    Math.round(
-      (new Date(`${end}T00:00:00.000Z`).getTime() - new Date(`${start}T00:00:00.000Z`).getTime()) /
-        86400000
-    ) + 1;
-  return { start: addDaysKey(start, dir * span), end: addDaysKey(end, dir * span) };
+/** Last day (1-31) of a YYYY-MM month string, via plain calendar math. */
+function daysInMonth(month: string): number {
+  const [year, monthNum] = month.split("-").map(Number);
+  return new Date(Date.UTC(year, monthNum, 0)).getUTCDate();
 }
+
+/** ISO week string (YYYY-Www) for the week containing this date. */
+function isoWeekString(dateStr: string): string {
+  const d = new Date(`${dateStr}T00:00:00.000Z`);
+  // ISO weeks: Thursday of the week determines the week-year.
+  const thursday = new Date(d.getTime() + (3 - ((d.getUTCDay() + 6) % 7)) * 86400000);
+  const year = thursday.getUTCFullYear();
+  const jan1 = new Date(Date.UTC(year, 0, 1));
+  const week = Math.ceil(((thursday.getTime() - jan1.getTime()) / 86400000 + 1) / 7);
+  return `${year}-W${String(week).padStart(2, "0")}`;
+}
+
+/** Monday of a given ISO week string (YYYY-Www). */
+function mondayOfIsoWeek(weekStr: string): string {
+  const [yearStr, weekPart] = weekStr.split("-W");
+  const year = Number(yearStr);
+  const week = Number(weekPart);
+  const jan4 = new Date(Date.UTC(year, 0, 4)); // Jan 4 is always in ISO week 1
+  const week1Monday = new Date(jan4.getTime() - ((jan4.getUTCDay() + 6) % 7) * 86400000);
+  return new Date(week1Monday.getTime() + (week - 1) * 7 * 86400000).toISOString().slice(0, 10);
+}
+
+type RangeKind = "day" | "week" | "month";
 
 export default function EmployeeClient() {
   const [screen, setScreen] = useState<Screen>("selectName");
@@ -131,10 +131,12 @@ export default function EmployeeClient() {
   const [payslips, setPayslips] = useState<Payslip[] | null>(null);
   const [payBasis, setPayBasis] = useState<"HOURLY" | "DAILY">("HOURLY");
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [range, setRange] = useState<{ start: string; end: string } | null>(null);
   const [today, setToday] = useState<string | null>(null);
   const [earliestDate, setEarliestDate] = useState<string | null>(null);
-  const [calOpen, setCalOpen] = useState(false);
+  const [rangeKind, setRangeKind] = useState<RangeKind>("month");
+  const [dayValue, setDayValue] = useState("");
+  const [weekValue, setWeekValue] = useState("");
+  const [monthValue, setMonthValue] = useState("");
   const [monthLoading, setMonthLoading] = useState(false);
   const [monthError, setMonthError] = useState(false);
 
@@ -178,9 +180,14 @@ export default function EmployeeClient() {
       const payData = await paySlipRes.json();
       setEmployeeName(attData.employeeName ?? employee.name);
       setDays(attData.days ?? []);
-      setRange({ start: attData.start, end: attData.end });
-      setToday(attData.today ?? null);
+      if (typeof attData.today === "string") {
+        setToday(attData.today);
+        setDayValue(attData.today);
+        setWeekValue(isoWeekString(attData.today));
+        setMonthValue(attData.today.slice(0, 7));
+      }
       setEarliestDate(attData.earliestDate ?? null);
+      setRangeKind("month");
       setPayslips(payData.payslips ?? []);
       setPayBasis(payData.payBasis === "DAILY" ? "DAILY" : "HOURLY");
       setScreen("dashboard");
@@ -195,7 +202,6 @@ export default function EmployeeClient() {
     if (!selected || monthLoading) return;
     setMonthLoading(true);
     setMonthError(false);
-    setCalOpen(false);
     try {
       const res = await fetch("/api/employee/attendance", {
         method: "POST",
@@ -205,7 +211,6 @@ export default function EmployeeClient() {
       if (!res.ok) throw new Error();
       const data = await res.json();
       setDays(data.days ?? []);
-      setRange({ start: data.start ?? start, end: data.end ?? end });
     } catch {
       setMonthError(true);
     } finally {
@@ -227,9 +232,10 @@ export default function EmployeeClient() {
     setDays(null);
     setPayslips(null);
     setLoadError(null);
-    setRange(null);
+    setToday(null);
+    setEarliestDate(null);
+    setRangeKind("month");
     setMonthError(false);
-    setCalOpen(false);
     setTab("attendance");
   }
 
@@ -397,80 +403,68 @@ export default function EmployeeClient() {
                   Payslips
                 </button>
               </div>
-              {tab === "attendance" && (
-                <div className="flex flex-wrap items-center gap-2">
-                  <div className="flex items-center">
-                    <button
-                      onClick={() => {
-                        if (!range || !today || !earliestDate) return;
-                        const n = shiftRange(range.start, range.end, -1, today);
-                        loadRange(n.start < earliestDate ? earliestDate : n.start, n.end);
-                      }}
-                      disabled={monthLoading || !range || !earliestDate || range.start <= earliestDate}
-                      aria-label="Previous"
-                      className="rounded-md px-3 py-1 text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent"
-                    >
-                      ‹
-                    </button>
-                    <div className="relative">
-                      <button
-                        onClick={() => setCalOpen((o) => !o)}
-                        disabled={!range || !today || !earliestDate}
-                        aria-expanded={calOpen}
-                        className="rounded-md border border-slate-300 bg-white px-3 py-1 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-                      >
-                        📅 {range ? rangeLabel(range.start, range.end) : ""}
-                      </button>
-                      {calOpen && range && today && earliestDate && (
-                        <>
-                          <div className="fixed inset-0 z-10" onClick={() => setCalOpen(false)} />
-                          <div className="absolute left-0 top-full mt-1 z-20">
-                            <RangeCalendar
-                              start={range.start}
-                              end={range.end}
-                              today={today}
-                              earliestDate={earliestDate}
-                              onSelect={loadRange}
-                            />
-                          </div>
-                        </>
-                      )}
-                    </div>
-                    <button
-                      onClick={() => {
-                        if (!range || !today) return;
-                        const n = shiftRange(range.start, range.end, 1, today);
-                        loadRange(n.start, n.end);
-                      }}
-                      disabled={monthLoading || !range || !today || range.end >= today}
-                      aria-label="Next"
-                      className="rounded-md px-3 py-1 text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent"
-                    >
-                      ›
-                    </button>
-                  </div>
-                  <div className="flex gap-1.5">
-                    {today &&
-                      [
-                        { label: "This week", start: mondayOf(today), end: today },
-                        { label: "This month", start: `${today.slice(0, 7)}-01`, end: today },
-                      ].map((p) => (
-                        <button
-                          key={p.label}
-                          onClick={() => loadRange(p.start, p.end)}
-                          disabled={monthLoading}
-                          className={`rounded-full px-3 py-1 text-xs font-medium transition ${
-                            range && range.start === p.start && range.end === p.end
-                              ? "bg-slate-900 text-white"
-                              : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                          }`}
-                        >
-                          {p.label}
-                        </button>
-                      ))}
-                  </div>
+              {tab === "attendance" && today && (
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (rangeKind === "day" && dayValue) loadRange(dayValue, dayValue);
+                    else if (rangeKind === "week" && weekValue) {
+                      const monday = mondayOfIsoWeek(weekValue);
+                      loadRange(monday, addDaysStr(monday, 6));
+                    } else if (rangeKind === "month" && monthValue) {
+                      loadRange(
+                        `${monthValue}-01`,
+                        `${monthValue}-${String(daysInMonth(monthValue)).padStart(2, "0")}`
+                      );
+                    }
+                  }}
+                  className="flex flex-wrap items-center gap-2"
+                >
+                  <select
+                    value={rangeKind}
+                    onChange={(e) => setRangeKind(e.target.value as RangeKind)}
+                    className="rounded-full border border-slate-300 px-3 py-1.5 text-sm bg-white"
+                  >
+                    <option value="day">Day</option>
+                    <option value="week">Week</option>
+                    <option value="month">Month</option>
+                  </select>
+                  {rangeKind === "month" ? (
+                    <input
+                      type="month"
+                      value={monthValue}
+                      onChange={(e) => setMonthValue(e.target.value)}
+                      min={earliestDate?.slice(0, 7)}
+                      max={today.slice(0, 7)}
+                      required
+                      className="rounded-full border border-slate-300 px-3 py-1.5 text-sm bg-white"
+                    />
+                  ) : rangeKind === "week" ? (
+                    <input
+                      type="week"
+                      value={weekValue}
+                      onChange={(e) => setWeekValue(e.target.value)}
+                      min={earliestDate ? isoWeekString(earliestDate) : undefined}
+                      max={isoWeekString(today)}
+                      required
+                      className="rounded-full border border-slate-300 px-3 py-1.5 text-sm bg-white"
+                    />
+                  ) : (
+                    <input
+                      type="date"
+                      value={dayValue}
+                      onChange={(e) => setDayValue(e.target.value)}
+                      min={earliestDate ?? undefined}
+                      max={today}
+                      required
+                      className="rounded-full border border-slate-300 px-3 py-1.5 text-sm bg-white"
+                    />
+                  )}
+                  <Button size="sm" disabled={monthLoading}>
+                    Go
+                  </Button>
                   {monthError && <span className="text-xs text-red-600">Could not load</span>}
-                </div>
+                </form>
               )}
             </div>
 
