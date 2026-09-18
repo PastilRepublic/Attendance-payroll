@@ -198,7 +198,7 @@ export async function inspectSanitationAssignment(formData: FormData) {
 }
 
 const passAllSchema = z.object({
-  date: z.string().regex(/^d{4}-d{2}-d{2}$/),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 });
 
 /**

@@ -444,7 +444,7 @@ export async function dismissLateSuggestion(formData: FormData) {
 
 const halfDayDeductionSchema = z.object({
   payslipId: z.string().min(1),
-  date: z.string().regex(/^d{4}-d{2}-d{2}$/),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   // No default: the admin decides the amount to deduct for each half day.
   amount: z.coerce.number().positive("Amount must be more than 0").max(100000),
 });
@@ -515,7 +515,7 @@ export async function addHalfDayDeductionToPayslip(formData: FormData) {
 
 const dismissHalfDaySchema = z.object({
   employeeId: z.string().min(1),
-  date: z.string().regex(/^d{4}-d{2}-d{2}$/),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   payPeriodId: z.string().min(1),
 });
 
