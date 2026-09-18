@@ -10,7 +10,6 @@ import {
   getQueue,
 } from "./offlineQueue";
 import { getDeviceId, setCachedRequirePhoto } from "./kioskCache";
-import Avatar from "@/components/Avatar";
 
 type Screen =
   | "home"
@@ -66,7 +65,6 @@ interface EmployeeOption {
 
 const AUTO_RESET_MS = 2200;
 const TASKS_AUTO_FINISH_MS = 45000;
-const EMPLOYEE_POLL_MS = 15000;
 
 const ACTION_LABELS: Record<PunchType, string> = {
   IN: "Time In",
@@ -83,10 +81,10 @@ const ACTION_BUTTON_STYLES: Record<PunchType, string> = {
 };
 
 const CONFIRM_STYLES: Record<PunchType, { color: string; text: string }> = {
-  IN: { color: "text-green-400", text: "Time In" },
-  OUT: { color: "text-sky-400", text: "Time Out" },
-  BREAK_START: { color: "text-amber-400", text: "On Break" },
-  BREAK_END: { color: "text-green-400", text: "Back from Break" },
+  IN: { color: "text-green-600", text: "Time In" },
+  OUT: { color: "text-sky-600", text: "Time Out" },
+  BREAK_START: { color: "text-amber-600", text: "On Break" },
+  BREAK_END: { color: "text-green-600", text: "Back from Break" },
 };
 
 const STATUS_LABELS: Record<PresenceStatus, string> = {
@@ -97,10 +95,10 @@ const STATUS_LABELS: Record<PresenceStatus, string> = {
 };
 
 const STATUS_PILL_STYLES: Record<PresenceStatus, string> = {
-  OUT: "bg-slate-700 text-slate-300",
-  WORKING: "bg-green-900/60 text-green-300",
-  ON_BREAK: "bg-amber-900/60 text-amber-300",
-  DONE: "bg-sky-900/60 text-sky-300",
+  OUT: "bg-slate-100 text-slate-600",
+  WORKING: "bg-green-100 text-green-700",
+  ON_BREAK: "bg-amber-100 text-amber-700",
+  DONE: "bg-sky-100 text-sky-700",
 };
 
 function formatMinutes(totalMinutes: number): string {
@@ -134,7 +132,6 @@ export default function KioskClient({
 }) {
   const router = useRouter();
   const [screen, setScreen] = useState<Screen>("home");
-  const [pinMode, setPinMode] = useState(false);
   const [pin, setPin] = useState("");
   const [confirmInfo, setConfirmInfo] = useState<ConfirmInfo | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
@@ -143,8 +140,6 @@ export default function KioskClient({
   const [failedCount, setFailedCount] = useState(0);
   const [pendingTasks, setPendingTasks] = useState<PendingTask[]>([]);
   const [doneTaskIds, setDoneTaskIds] = useState<Set<string>>(new Set());
-  const [employees, setEmployees] = useState<EmployeeOption[]>([]);
-  const [employeesFailed, setEmployeesFailed] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<EmployeeOption | null>(null);
   const [identifyData, setIdentifyData] = useState<IdentifyData | null>(null);
   const [chosenAction, setChosenAction] = useState<PunchType | null>(null);
@@ -173,23 +168,6 @@ export default function KioskClient({
     };
   }, [refreshCounts]);
 
-  const refreshEmployees = useCallback(() => {
-    fetch("/api/kiosk/employees")
-      .then((res) => (res.ok ? res.json() : Promise.reject()))
-      .then((data) => setEmployees(Array.isArray(data.employees) ? data.employees : []))
-      .catch(() => setEmployeesFailed(true));
-  }, []);
-
-  useEffect(() => {
-    refreshEmployees();
-  }, [refreshEmployees]);
-
-  useEffect(() => {
-    if (screen !== "home") return;
-    const interval = setInterval(refreshEmployees, EMPLOYEE_POLL_MS);
-    return () => clearInterval(interval);
-  }, [screen, refreshEmployees]);
-
   useEffect(() => {
     if (screen !== "actionPanel") return;
     const t = setInterval(() => setNowTick(Date.now()), 1000);
@@ -198,7 +176,6 @@ export default function KioskClient({
 
   const resetToIdle = useCallback(() => {
     setScreen("home");
-    setPinMode(false);
     setPin("");
     setConfirmInfo(null);
     setErrorMessage("");
@@ -208,20 +185,17 @@ export default function KioskClient({
     setSelectedEmployee(null);
     setIdentifyData(null);
     setChosenAction(null);
-    refreshEmployees();
-  }, [refreshEmployees]);
+  }, []);
 
   const chooseEmployee = useCallback((employee: EmployeeOption | null) => {
     setSelectedEmployee(employee);
     setPin("");
-    setPinMode(true);
   }, []);
 
-  // Arriving from the home page's "tap your name" list (?employee=<id>) jumps
-  // straight to the PIN pad for that employee, via its own one-shot fetch
-  // (independent of the polling employee list) so it only ever runs once.
-  // The URL is cleared right after so a later reset back to "home" doesn't
-  // re-trigger it.
+  // Arriving from the home page's "tap your name" list (?employee=<id>)
+  // pre-fills the employee for the PIN pad below, via its own one-shot fetch
+  // so it only ever runs once. The URL is cleared right after so a later
+  // reset back to "home" doesn't re-trigger it.
   useEffect(() => {
     if (!initialEmployeeId) return;
     fetch("/api/kiosk/employees")
@@ -238,7 +212,6 @@ export default function KioskClient({
   const chooseAgain = useCallback(() => {
     setSelectedEmployee(null);
     setPin("");
-    setPinMode(false);
   }, []);
 
   const scheduleReset = useCallback(
@@ -438,13 +411,11 @@ export default function KioskClient({
   );
 
   const handleDigit = (d: string) => {
-    if (screen !== "home" || !pinMode) return;
+    if (screen !== "home") return;
     setPin((p) => (p.length >= 6 ? p : p + d));
   };
   const handleBackspace = () => setPin((p) => p.slice(0, -1));
   const handleClear = () => setPin("");
-
-  const showTwoPanel = screen === "home" || screen === "checking" || screen === "actionPanel";
 
   // Anchor timestamp for the running clock: the most recent activity log
   // entry's time is exactly when the current status began.
@@ -460,133 +431,102 @@ export default function KioskClient({
       : null;
 
   return (
-    <div className="fixed inset-0 bg-slate-900 text-white flex flex-col select-none">
-      <div className="flex justify-between items-center px-6 py-3 text-xs text-slate-400">
+    <div className="fixed inset-0 bg-white text-slate-900 flex flex-col select-none">
+      <div className="flex justify-between items-center px-6 py-3 text-xs text-slate-500 border-b border-slate-200">
         <div className="flex items-center gap-3">
-          {screen === "home" && !pinMode ? (
-            <Link href="/" className="hover:text-slate-200">
+          {screen === "home" ? (
+            <Link href="/" className="hover:text-slate-900">
               ← Back
             </Link>
           ) : (
-            <span className="text-slate-600">← Back</span>
+            <span className="text-slate-300">← Back</span>
           )}
           <span>Attendance Kiosk</span>
         </div>
         <div className="flex gap-3">
           {pendingCount > 0 && (
-            <span className="text-amber-400">{pendingCount} punch(es) syncing…</span>
+            <span className="text-amber-600">{pendingCount} punch(es) syncing…</span>
           )}
           {failedCount > 0 && (
-            <span className="text-red-400">{failedCount} sync issue(s) — see admin</span>
+            <span className="text-red-600">{failedCount} sync issue(s) — see admin</span>
           )}
         </div>
       </div>
 
-      {showTwoPanel ? (
-        <div className="flex-1 flex flex-col lg:flex-row overflow-y-auto lg:overflow-hidden">
-          <div className="w-full lg:w-2/5 lg:border-r lg:border-slate-800 lg:overflow-y-auto p-4 lg:p-6">
-            <EmployeeList
-              employees={employees}
-              failed={employeesFailed}
-              selectedId={selectedEmployee?.id ?? null}
-              onSelect={chooseEmployee}
-            />
-            {!pinMode && (
+      <div className="flex-1 flex items-center justify-center px-4 py-4 overflow-y-auto">
+        {screen === "home" && (
+          <PinPad
+            pin={pin}
+            employeeName={selectedEmployee?.name ?? null}
+            onDigit={handleDigit}
+            onBackspace={handleBackspace}
+            onClear={handleClear}
+            onSubmit={handleSubmitPin}
+          />
+        )}
+
+        {screen === "checking" && <StatusMessage text="Checking..." />}
+
+        {screen === "actionPanel" && identifyData && (
+          <ActionPanel
+            data={identifyData}
+            elapsedText={elapsedText}
+            onAction={handleAction}
+            onChooseAgain={chooseAgain}
+          />
+        )}
+
+        {screen === "photo" && (
+          <PhotoCapture
+            onCaptured={(photoDataUrl) => submitPunch(pin, chosenAction, photoDataUrl)}
+            onSkip={() => submitPunch(pin, chosenAction)}
+          />
+        )}
+
+        {screen === "submitting" && <StatusMessage text="Recording..." />}
+
+        {screen === "confirm" && confirmInfo && (
+          <StatusMessage
+            big
+            color={CONFIRM_STYLES[confirmInfo.type].color}
+            text={CONFIRM_STYLES[confirmInfo.type].text}
+            subtext={confirmInfo.employeeName}
+          />
+        )}
+
+        {screen === "tasks" && (
+          <TaskChecklist
+            tasks={pendingTasks}
+            doneIds={doneTaskIds}
+            onComplete={completeTask}
+            onUndo={undoTask}
+            onFinish={resetToIdle}
+          />
+        )}
+
+        {screen === "queued" && (
+          <StatusMessage
+            big
+            color="text-amber-600"
+            text="Got it!"
+            subtext="No connection right now — this will sync automatically."
+          />
+        )}
+
+        {screen === "error" && (
+          <div className="text-center">
+            <StatusMessage big color="text-red-600" text="Oops" subtext={errorMessage} />
+            {errorNeedsAck && (
               <button
-                onClick={() => chooseEmployee(null)}
-                className="mt-4 text-sm text-slate-400 hover:text-slate-200 underline"
+                onClick={resetToIdle}
+                className="mt-8 w-48 h-14 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white text-xl font-semibold"
               >
-                Enter PIN directly instead
+                OK
               </button>
             )}
           </div>
-
-          <div className="flex-1 flex items-center justify-center p-4 lg:p-8 lg:overflow-y-auto">
-            {screen === "home" && !pinMode && (
-              <div className="text-center text-slate-400">
-                <p className="text-2xl font-semibold text-white mb-2">Tap your name</p>
-                <p>or enter your PIN directly to time in or out</p>
-              </div>
-            )}
-
-            {screen === "home" && pinMode && (
-              <PinPad
-                pin={pin}
-                employeeName={selectedEmployee?.name ?? null}
-                onDigit={handleDigit}
-                onBackspace={handleBackspace}
-                onClear={handleClear}
-                onSubmit={handleSubmitPin}
-                onChooseAgain={chooseAgain}
-              />
-            )}
-
-            {screen === "checking" && <StatusMessage text="Checking..." />}
-
-            {screen === "actionPanel" && identifyData && (
-              <ActionPanel
-                data={identifyData}
-                elapsedText={elapsedText}
-                onAction={handleAction}
-                onChooseAgain={chooseAgain}
-              />
-            )}
-          </div>
-        </div>
-      ) : (
-        <div className="flex-1 flex items-center justify-center px-4 py-4 overflow-y-auto">
-          {screen === "photo" && (
-            <PhotoCapture
-              onCaptured={(photoDataUrl) => submitPunch(pin, chosenAction, photoDataUrl)}
-              onSkip={() => submitPunch(pin, chosenAction)}
-            />
-          )}
-
-          {screen === "submitting" && <StatusMessage text="Recording..." />}
-
-          {screen === "confirm" && confirmInfo && (
-            <StatusMessage
-              big
-              color={CONFIRM_STYLES[confirmInfo.type].color}
-              text={CONFIRM_STYLES[confirmInfo.type].text}
-              subtext={confirmInfo.employeeName}
-            />
-          )}
-
-          {screen === "tasks" && (
-            <TaskChecklist
-              tasks={pendingTasks}
-              doneIds={doneTaskIds}
-              onComplete={completeTask}
-              onUndo={undoTask}
-              onFinish={resetToIdle}
-            />
-          )}
-
-          {screen === "queued" && (
-            <StatusMessage
-              big
-              color="text-amber-400"
-              text="Got it!"
-              subtext="No connection right now — this will sync automatically."
-            />
-          )}
-
-          {screen === "error" && (
-            <div className="text-center">
-              <StatusMessage big color="text-red-400" text="Oops" subtext={errorMessage} />
-              {errorNeedsAck && (
-                <button
-                  onClick={resetToIdle}
-                  className="mt-8 w-48 h-14 rounded-2xl bg-slate-700 hover:bg-slate-600 text-xl font-semibold"
-                >
-                  OK
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
@@ -604,58 +544,8 @@ function StatusMessage({
 }) {
   return (
     <div className="text-center">
-      <p className={`${big ? "text-6xl" : "text-3xl"} font-bold ${color ?? ""}`}>{text}</p>
-      {subtext && <p className="text-2xl text-slate-300 mt-4">{subtext}</p>}
-    </div>
-  );
-}
-
-function EmployeeList({
-  employees,
-  failed,
-  selectedId,
-  onSelect,
-}: {
-  employees: EmployeeOption[];
-  failed: boolean;
-  selectedId: string | null;
-  onSelect: (employee: EmployeeOption) => void;
-}) {
-  const loading = !failed && employees.length === 0;
-
-  return (
-    <div>
-      <p className="text-lg font-semibold mb-4">Who&apos;s punching in?</p>
-
-      {loading && <p className="text-slate-400 text-sm">Loading employees…</p>}
-      {failed && (
-        <p className="text-red-400 text-sm mb-2">
-          Could not load the employee list — you can still enter your PIN directly.
-        </p>
-      )}
-
-      <div className="space-y-1.5">
-        {employees.map((emp) => (
-          <button
-            key={emp.id}
-            onClick={() => onSelect(emp)}
-            className={`w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-left ${
-              selectedId === emp.id
-                ? "bg-slate-700"
-                : "bg-slate-800/60 hover:bg-slate-800"
-            }`}
-          >
-            <Avatar
-              name={emp.name}
-              photoUrl={emp.photoUrl}
-              size="md"
-              ringColor="slate-900"
-              presence={emp.status}
-            />
-            <span className="text-base font-medium">{emp.name}</span>
-          </button>
-        ))}
-      </div>
+      <p className={`${big ? "text-6xl" : "text-3xl"} font-bold ${color ?? "text-slate-900"}`}>{text}</p>
+      {subtext && <p className="text-2xl text-slate-500 mt-4">{subtext}</p>}
     </div>
   );
 }
@@ -667,7 +557,6 @@ function PinPad({
   onBackspace,
   onClear,
   onSubmit,
-  onChooseAgain,
 }: {
   pin: string;
   employeeName: string | null;
@@ -675,7 +564,6 @@ function PinPad({
   onBackspace: () => void;
   onClear: () => void;
   onSubmit: () => void;
-  onChooseAgain: () => void;
 }) {
   const digits = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "clear", "0", "back"];
 
@@ -683,26 +571,18 @@ function PinPad({
     <div className="flex flex-col items-center">
       {employeeName ? (
         <>
-          <p className="text-2xl font-semibold mb-1">Hi, {employeeName}</p>
-          <div className="flex items-center gap-3 mb-3">
-            <p className="text-base text-slate-400">Enter your PIN</p>
-            <button
-              onClick={onChooseAgain}
-              className="text-xs text-slate-400 hover:text-slate-200 underline"
-            >
-              Not you? Choose again
-            </button>
-          </div>
+          <p className="text-2xl font-semibold mb-1 text-slate-900">Hi, {employeeName}</p>
+          <p className="text-base text-slate-500 mb-3">Enter your PIN</p>
         </>
       ) : (
-        <p className="text-3xl font-semibold mb-4">Enter your PIN</p>
+        <p className="text-3xl font-semibold mb-4 text-slate-900">Enter your PIN</p>
       )}
       <div className="flex gap-3 mb-5">
         {Array.from({ length: 6 }).map((_, i) => (
           <div
             key={i}
             className={`w-12 h-14 rounded-lg border-2 flex items-center justify-center text-2xl ${
-              i < pin.length ? "border-white bg-white/10" : "border-slate-600"
+              i < pin.length ? "border-orange-500 bg-orange-50 text-orange-600" : "border-slate-300"
             }`}
           >
             {i < pin.length ? "●" : ""}
@@ -716,7 +596,7 @@ function PinPad({
               <button
                 key={d}
                 onClick={onClear}
-                className="w-24 h-24 rounded-2xl bg-slate-700 hover:bg-slate-600 text-lg font-medium"
+                className="w-24 h-24 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-lg font-medium"
               >
                 Clear
               </button>
@@ -727,7 +607,7 @@ function PinPad({
               <button
                 key={d}
                 onClick={onBackspace}
-                className="w-24 h-24 rounded-2xl bg-slate-700 hover:bg-slate-600 text-lg font-medium"
+                className="w-24 h-24 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-lg font-medium"
               >
                 ⌫
               </button>
@@ -737,7 +617,7 @@ function PinPad({
             <button
               key={d}
               onClick={() => onDigit(d)}
-              className="w-24 h-24 rounded-2xl bg-slate-800 hover:bg-slate-700 text-3xl font-semibold"
+              className="w-24 h-24 rounded-2xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-900 text-3xl font-semibold shadow-sm"
             >
               {d}
             </button>
@@ -747,7 +627,7 @@ function PinPad({
       <button
         onClick={onSubmit}
         disabled={pin.length < 4}
-        className="mt-5 w-72 h-16 rounded-2xl bg-green-600 hover:bg-green-500 disabled:bg-slate-700 disabled:text-slate-500 text-2xl font-semibold"
+        className="mt-5 w-72 h-16 rounded-2xl bg-orange-500 hover:bg-orange-600 disabled:bg-slate-200 disabled:text-slate-400 text-white text-2xl font-semibold"
       >
         Enter
       </button>
@@ -769,25 +649,25 @@ function ActionPanel({
   return (
     <div className="w-full max-w-md text-center">
       <div className="flex items-center justify-center gap-3 mb-1">
-        <p className="text-2xl font-semibold">{data.employeeName}</p>
+        <p className="text-2xl font-semibold text-slate-900">{data.employeeName}</p>
         <span className={`px-2.5 py-0.5 rounded-full text-sm font-medium ${STATUS_PILL_STYLES[data.status]}`}>
           {STATUS_LABELS[data.status]}
         </span>
       </div>
       <button
         onClick={onChooseAgain}
-        className="text-xs text-slate-400 hover:text-slate-200 underline mb-6"
+        className="text-xs text-slate-400 hover:text-slate-600 underline mb-6"
       >
         Not you? Choose again
       </button>
 
       {elapsedText && (
-        <p className="text-5xl font-mono font-bold mb-6 tabular-nums">{elapsedText}</p>
+        <p className="text-5xl font-mono font-bold mb-6 tabular-nums text-slate-900">{elapsedText}</p>
       )}
 
       <div className="flex justify-center gap-3 mb-8">
         {data.allowedActions.length === 0 ? (
-          <p className="text-sm text-slate-400 max-w-xs">
+          <p className="text-sm text-slate-500 max-w-xs">
             You&apos;ve completed your shift for today. See your admin if this is a mistake.
           </p>
         ) : (
@@ -795,7 +675,7 @@ function ActionPanel({
             <button
               key={type}
               onClick={() => onAction(type)}
-              className={`w-36 h-28 rounded-2xl text-lg font-bold flex items-center justify-center ${ACTION_BUTTON_STYLES[type]}`}
+              className={`w-36 h-28 rounded-2xl text-lg font-bold text-white flex items-center justify-center ${ACTION_BUTTON_STYLES[type]}`}
             >
               {ACTION_LABELS[type]}
             </button>
@@ -805,23 +685,23 @@ function ActionPanel({
 
       <div className="flex justify-center gap-8 mb-6 text-sm">
         <div>
-          <p className="text-slate-400">Today</p>
-          <p className="text-lg font-semibold">{formatMinutes(data.totals.todayMinutes)}</p>
+          <p className="text-slate-500">Today</p>
+          <p className="text-lg font-semibold text-slate-900">{formatMinutes(data.totals.todayMinutes)}</p>
         </div>
         <div>
-          <p className="text-slate-400">This week</p>
-          <p className="text-lg font-semibold">{formatMinutes(data.totals.weekMinutes)}</p>
+          <p className="text-slate-500">This week</p>
+          <p className="text-lg font-semibold text-slate-900">{formatMinutes(data.totals.weekMinutes)}</p>
         </div>
       </div>
 
       {data.activityLog.length > 0 && (
-        <div className="bg-slate-800/60 rounded-xl p-3 text-left max-h-40 overflow-y-auto">
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-left max-h-40 overflow-y-auto">
           <p className="text-xs text-slate-400 mb-2 uppercase tracking-wide">Today&apos;s activity</p>
           <div className="space-y-1">
             {[...data.activityLog].reverse().map((entry, i) => (
               <div key={i} className="flex justify-between text-sm">
-                <span className="text-slate-300">{ACTION_LABELS[entry.type]}</span>
-                <span className="text-slate-500">{formatClockTime(entry.timestamp)}</span>
+                <span className="text-slate-700">{ACTION_LABELS[entry.type]}</span>
+                <span className="text-slate-400">{formatClockTime(entry.timestamp)}</span>
               </div>
             ))}
           </div>
@@ -846,7 +726,7 @@ function TaskChecklist({
 }) {
   return (
     <div className="text-center w-full max-w-md">
-      <p className="text-2xl font-semibold mb-6">Your tasks today</p>
+      <p className="text-2xl font-semibold mb-6 text-slate-900">Your tasks today</p>
       <div className="space-y-3 mb-8 text-left">
         {tasks.map((t) => {
           const done = doneIds.has(t.id);
@@ -854,22 +734,22 @@ function TaskChecklist({
             <button
               key={t.id}
               onClick={() => (done ? onUndo(t.id, t.kind) : onComplete(t.id, t.kind))}
-              className={`w-full flex items-center justify-between rounded-xl px-5 py-4 text-lg ${
+              className={`w-full flex items-center justify-between rounded-xl px-5 py-4 text-lg border ${
                 done
-                  ? "bg-green-900/40 text-green-300 hover:bg-green-900/60"
-                  : "bg-slate-800 hover:bg-slate-700"
+                  ? "bg-green-50 border-green-200 text-green-700 hover:bg-green-100"
+                  : "bg-white border-slate-200 text-slate-900 hover:bg-slate-50"
               }`}
             >
               <span>{t.name}</span>
               <span className="flex items-center gap-3">
                 {t.bonusAmount ? (
-                  <span className="text-sm text-amber-300">
+                  <span className="text-sm text-amber-600">
                     +₱{t.bonusAmount.toFixed(2)}
                   </span>
                 ) : null}
                 {done && (
                   <span className="flex items-center gap-1.5 text-sm">
-                    ✓ <span className="text-green-400/70">tap to undo</span>
+                    ✓ <span className="text-green-600/80">tap to undo</span>
                   </span>
                 )}
               </span>
@@ -879,7 +759,7 @@ function TaskChecklist({
       </div>
       <button
         onClick={onFinish}
-        className="rounded-2xl bg-slate-700 hover:bg-slate-600 px-8 py-3 text-lg font-medium"
+        className="rounded-2xl bg-slate-900 hover:bg-slate-800 text-white px-8 py-3 text-lg font-medium"
       >
         Finish
       </button>
@@ -943,10 +823,10 @@ function PhotoCapture({
   if (failed) {
     return (
       <div className="text-center">
-        <p className="text-2xl font-semibold mb-4">Camera unavailable</p>
+        <p className="text-2xl font-semibold mb-4 text-slate-900">Camera unavailable</p>
         <button
           onClick={onSkip}
-          className="rounded-xl bg-slate-700 hover:bg-slate-600 px-6 py-3 text-lg"
+          className="rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-900 px-6 py-3 text-lg"
         >
           Continue without photo
         </button>
@@ -956,7 +836,7 @@ function PhotoCapture({
 
   return (
     <div className="text-center">
-      <p className="text-2xl font-semibold mb-4">Hold still…</p>
+      <p className="text-2xl font-semibold mb-4 text-slate-900">Hold still…</p>
       <video
         ref={videoRef}
         autoPlay
@@ -967,7 +847,7 @@ function PhotoCapture({
       <button
         onClick={capture}
         disabled={!ready}
-        className="rounded-xl bg-green-600 hover:bg-green-500 disabled:bg-slate-700 disabled:text-slate-500 px-6 py-3 text-lg font-medium"
+        className="rounded-xl bg-orange-500 hover:bg-orange-600 disabled:bg-slate-200 disabled:text-slate-400 text-white px-6 py-3 text-lg font-medium"
       >
         {ready ? "Capture Now" : "Starting camera…"}
       </button>
