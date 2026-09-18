@@ -10,6 +10,7 @@ import {
   getQueue,
 } from "./offlineQueue";
 import { getDeviceId, setCachedRequirePhoto } from "./kioskCache";
+import SanitationProgress from "@/components/SanitationProgress";
 
 type Screen =
   | "home"
@@ -42,6 +43,12 @@ interface IdentifyData {
   activityLog: ActivityEntry[];
   totals: Totals;
   requirePhoto: boolean;
+}
+
+interface DayChecklistItem {
+  id: string;
+  status: "PENDING" | "DONE";
+  inspectionResult: "PASS" | "FAIL" | null;
 }
 
 interface ConfirmInfo {
@@ -169,6 +176,9 @@ export default function KioskClient({
   const [failedCount, setFailedCount] = useState(0);
   const [pendingTasks, setPendingTasks] = useState<PendingTask[]>([]);
   const [doneTaskIds, setDoneTaskIds] = useState<Set<string>>(new Set());
+  // Today's whole sanitation checklist (not just the pending items), for the
+  // progress bar on the checklist screen.
+  const [dayChecklist, setDayChecklist] = useState<DayChecklistItem[]>([]);
   const [selectedEmployee, setSelectedEmployee] = useState<EmployeeOption | null>(null);
   const [identifyData, setIdentifyData] = useState<IdentifyData | null>(null);
   const [chosenAction, setChosenAction] = useState<PunchType | null>(null);
@@ -280,6 +290,32 @@ export default function KioskClient({
       });
     }, CONFIRM_AUTO_RESET_MS);
   }, [goHome]);
+
+  useEffect(() => {
+    if (screen !== "tasks") return;
+    let cancelled = false;
+    fetch("/api/kiosk/sanitation")
+      .then((res) => (res.ok ? res.json() : Promise.reject()))
+      .then((data) => {
+        if (!cancelled && Array.isArray(data.tasks)) setDayChecklist(data.tasks);
+      })
+      .catch(() => {
+        // Progress bar is optional -- the checklist itself still works without it.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [screen]);
+
+  // The fetched list is a snapshot from when the screen opened; ticking or
+  // undoing an item here changes it, so overlay this session's changes.
+  const checklistProgress = dayChecklist.map((t) => {
+    if (doneTaskIds.has(t.id)) return { status: "DONE" as const, inspectionResult: null };
+    if (pendingTasks.some((p) => p.id === t.id)) {
+      return { status: "PENDING" as const, inspectionResult: null };
+    }
+    return { status: t.status, inspectionResult: t.inspectionResult };
+  });
 
   const completeTask = useCallback(
     async (taskId: string, kind: "TASK" | "SANITATION") => {
@@ -597,6 +633,7 @@ export default function KioskClient({
             }
             subtitle={`Finish every item below to continue to ${ACTION_LABELS[chosenAction]}.`}
             tasks={pendingTasks.filter((t) => t.timing === gate)}
+            progress={checklistProgress}
             doneIds={doneTaskIds}
             onComplete={completeTask}
             onUndo={undoTask}
@@ -619,6 +656,7 @@ export default function KioskClient({
           <TaskChecklist
             title="Your tasks today"
             tasks={pendingTasks.filter(isUngated)}
+            progress={checklistProgress}
             doneIds={doneTaskIds}
             onComplete={completeTask}
             onUndo={undoTask}
@@ -857,6 +895,7 @@ function TaskChecklist({
   title,
   subtitle,
   tasks,
+  progress,
   doneIds,
   onComplete,
   onUndo,
@@ -869,6 +908,7 @@ function TaskChecklist({
   title: string;
   subtitle?: string;
   tasks: PendingTask[];
+  progress: { status: "PENDING" | "DONE"; inspectionResult: "PASS" | "FAIL" | null }[];
   doneIds: Set<string>;
   onComplete: (taskId: string, kind: "TASK" | "SANITATION") => void;
   onUndo: (taskId: string, kind: "TASK" | "SANITATION") => void;
@@ -886,6 +926,11 @@ function TaskChecklist({
         {title}
       </p>
       {subtitle && <p className="text-sm text-slate-500 mb-6">{subtitle}</p>}
+      {progress.length > 0 && (
+        <div className="mb-5 rounded-xl border border-slate-200 bg-white px-5 py-4 text-left">
+          <SanitationProgress tasks={progress} />
+        </div>
+      )}
       <div className="space-y-3 mb-8 text-left">
         {tasks.map((t) => {
           const done = doneIds.has(t.id);
