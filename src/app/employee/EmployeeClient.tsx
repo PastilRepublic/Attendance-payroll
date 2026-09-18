@@ -36,6 +36,7 @@ interface Payslip {
   periodEnd: string;
   status: "DRAFT" | "FINALIZED";
   regularHours: number;
+  daysWorked: number;
   overtimeHours: number;
   basePay: number;
   grossPay: number;
@@ -80,6 +81,7 @@ export default function EmployeeClient() {
   const [employeeName, setEmployeeName] = useState<string | null>(null);
   const [days, setDays] = useState<AttendanceDay[] | null>(null);
   const [payslips, setPayslips] = useState<Payslip[] | null>(null);
+  const [payBasis, setPayBasis] = useState<"HOURLY" | "DAILY">("HOURLY");
   const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -123,6 +125,7 @@ export default function EmployeeClient() {
       setEmployeeName(attData.employeeName ?? employee.name);
       setDays(attData.days ?? []);
       setPayslips(payData.payslips ?? []);
+      setPayBasis(payData.payBasis === "DAILY" ? "DAILY" : "HOURLY");
       setScreen("dashboard");
     } catch {
       setLoadError("Could not reach the server. Check your connection and try again.");
@@ -408,8 +411,22 @@ export default function EmployeeClient() {
                     </div>
                     <div className="grid grid-cols-3 gap-2 text-sm text-slate-600 mb-2">
                       <div>
-                        <p className="text-slate-400">Regular hrs</p>
-                        <p className="text-slate-800">{p.regularHours.toFixed(2)}</p>
+                        {payBasis === "DAILY" ? (
+                          <>
+                            <p className="text-slate-400">Days worked</p>
+                            <p className="text-slate-800">
+                              {p.daysWorked.toFixed(2)}
+                              <span className="text-xs text-slate-400 ml-1">
+                                ({p.regularHours.toFixed(2)} hrs)
+                              </span>
+                            </p>
+                          </>
+                        ) : (
+                          <>
+                            <p className="text-slate-400">Regular hrs</p>
+                            <p className="text-slate-800">{p.regularHours.toFixed(2)}</p>
+                          </>
+                        )}
                       </div>
                       <div>
                         <p className="text-slate-400">Base pay</p>
