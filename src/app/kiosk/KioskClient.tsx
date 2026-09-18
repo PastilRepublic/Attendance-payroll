@@ -555,14 +555,9 @@ function PinPad({
 
   return (
     <div className="flex flex-col items-center text-center">
-      {employeeName ? (
-        <>
-          <p className="text-xl font-semibold mb-1 text-slate-900">Hi, {employeeName}</p>
-          <p className="text-sm text-slate-500 mb-3">Enter your PIN</p>
-        </>
-      ) : (
-        <p className="text-xl font-semibold mb-4 text-slate-900">Enter your PIN</p>
-      )}
+      <p className="text-xl font-semibold text-slate-900">Hi!</p>
+      {employeeName && <p className="text-lg font-semibold text-slate-900">{employeeName}</p>}
+      <p className="text-sm text-slate-500 mb-4">Enter your PIN</p>
       <div className="flex gap-2 mb-4">
         {Array.from({ length: 4 }).map((_, i) => (
           <div
