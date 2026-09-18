@@ -388,23 +388,6 @@ export default function HomeKiosk() {
                   </button>
                 ))}
               </div>
-
-              <Link
-                href="/sanitation"
-                className="mt-4 flex items-center gap-3 rounded-xl border-2 border-amber-200 hover:border-amber-400 bg-white shadow-sm hover:shadow-md transition px-4 py-4"
-              >
-                <span className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-amber-100 text-amber-700">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                  </svg>
-                </span>
-                <span>
-                  <span className="block text-sm font-semibold text-slate-900">
-                    Sanitation Inspection &amp; Schedule
-                  </span>
-                  <span className="block text-xs text-slate-500">Who&apos;s in charge of what today</span>
-                </span>
-              </Link>
             </div>
           </div>
         </main>
