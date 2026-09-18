@@ -347,6 +347,9 @@ export default function HomeKiosk() {
 
           <div className="flex-1 overflow-y-auto px-4 lg:px-6 py-6">
             <div className="max-w-xl mx-auto">
+              <p className="text-center text-sm text-slate-400 mb-3">
+                Tap your name to time in or out
+              </p>
               <div className="border border-slate-200 rounded-xl overflow-hidden divide-y divide-slate-100">
                 {employees.length === 0 && !employeesFailed && (
                   <p className="px-4 py-6 text-sm text-slate-400 text-center">Loading employees…</p>
