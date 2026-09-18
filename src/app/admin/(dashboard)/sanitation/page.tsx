@@ -125,7 +125,12 @@ export default async function SanitationPage({
                 className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
               />
             </div>
-            <Button type="submit" variant="destructive">Reopen today&apos;s checklist</Button>
+            <button
+              type="submit"
+              className="rounded-md bg-red-600 hover:bg-red-500 text-white text-sm font-medium px-4 py-2"
+            >
+              Reopen today&apos;s checklist
+            </button>
           </form>
         </details>
       )}
