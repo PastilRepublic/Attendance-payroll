@@ -374,32 +374,31 @@ export default function EmployeeClient() {
               </button>
             </div>
 
-            <div className="inline-flex gap-1 mb-4 bg-slate-100 rounded-full p-1">
-              <button
-                onClick={() => setTab("attendance")}
-                className={`rounded-full px-4 py-2 text-sm font-medium transition ${
-                  tab === "attendance"
-                    ? "bg-white text-slate-900 shadow-sm"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                Attendance History
-              </button>
-              <button
-                onClick={() => setTab("payslips")}
-                className={`rounded-full px-4 py-2 text-sm font-medium transition ${
-                  tab === "payslips"
-                    ? "bg-white text-slate-900 shadow-sm"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                Payslips
-              </button>
-            </div>
-
-            {tab === "attendance" && (
-              <Card className="overflow-hidden">
-                <div className="px-4 py-2 flex flex-wrap items-center gap-2 border-b border-slate-200">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-4">
+              <div className="inline-flex gap-1 bg-slate-100 rounded-full p-1">
+                <button
+                  onClick={() => setTab("attendance")}
+                  className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                    tab === "attendance"
+                      ? "bg-white text-slate-900 shadow-sm"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  Attendance History
+                </button>
+                <button
+                  onClick={() => setTab("payslips")}
+                  className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                    tab === "payslips"
+                      ? "bg-white text-slate-900 shadow-sm"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  Payslips
+                </button>
+              </div>
+              {tab === "attendance" && (
+                <div className="flex flex-wrap items-center gap-2">
                   <div className="flex items-center">
                     <button
                       onClick={() => {
@@ -472,6 +471,11 @@ export default function EmployeeClient() {
                   </div>
                   {monthError && <span className="text-xs text-red-600">Could not load</span>}
                 </div>
+              )}
+            </div>
+
+            {tab === "attendance" && (
+              <Card className="overflow-hidden">
                 <div className={`overflow-x-auto transition-opacity ${monthLoading ? "opacity-50" : ""}`}>
                   <table className="w-full text-sm">
                     <thead className="bg-slate-50 text-slate-600">
