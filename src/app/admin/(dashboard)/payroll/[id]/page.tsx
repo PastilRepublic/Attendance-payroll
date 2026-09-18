@@ -384,8 +384,8 @@ export default async function PayPeriodDetailPage({
               {payslip.status !== "FINALIZED" && earlyOutDays.length > 0 && (
                 <div className="mb-2 rounded-md bg-blue-50 border border-blue-200 p-2">
                   <p className="text-xs font-medium text-blue-800 mb-1">
-                    Left early or didn't come back — paid the full day rate. Add a &quot;Half day&quot; deduction below if
-                    it was a half day.
+                    Left early / Half day — paid the full day rate. Add a &quot;Half day&quot; deduction
+                    below if it was a half day.
                   </p>
                   {earlyOutDays.map((d) => (
                     <div key={d.date} className="text-xs text-slate-700 py-0.5">
