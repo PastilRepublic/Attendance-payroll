@@ -205,26 +205,12 @@ export default function HomeKiosk() {
             <p className="text-sm text-slate-500">{dateLabel}</p>
             <p className="text-2xl lg:text-3xl font-semibold text-slate-900 tabular-nums">{timeLabel}</p>
           </div>
-
-          <div className="hidden lg:flex lg:flex-col lg:items-center lg:w-full lg:mt-auto">
-            <p className="text-[11px] font-semibold tracking-widest text-slate-400 mb-2">
-              TODAY&apos;S OPERATION
-            </p>
-            {operationDay && (
-              <>
-                <p className={`text-base font-bold mb-2 ${OPERATION_TEXT_STYLES[operationDay]}`}>
-                  {OPERATION_LABELS[operationDay]}
-                </p>
-                <OperationDayToggle value={operationDay} onToggle={toggleOperationDay} />
-              </>
-            )}
-          </div>
         </aside>
 
         <main className="flex-1 flex flex-col min-h-0">
-          {/* Operation-day toggle on small screens, where the sidebar row hides it */}
+          {/* Above the employee list at every width, not just small screens. */}
           {operationDay && (
-            <div className="lg:hidden flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-200">
+            <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-200">
               <span className={`text-sm font-semibold ${OPERATION_TEXT_STYLES[operationDay]}`}>
                 {OPERATION_LABELS[operationDay]}
               </span>
