@@ -6,7 +6,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireOwner } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
-import { nextWeeklyPeriod } from "@/lib/payroll";
+import { nextWeeklyPeriod, isEarlyOutDay } from "@/lib/payroll";
 import { getOrRefreshDraftPayslip, getPeriodDailyResults } from "@/lib/payrollService";
 import { getSettings, setOperationDayForDate } from "@/lib/settings";
 
@@ -436,6 +436,117 @@ export async function dismissLateSuggestion(formData: FormData) {
     actorAdminId: admin.id,
     action: "DISMISS_LATE_SUGGESTION",
     targetTable: "LateDayAction",
+    targetId: `${parsed.employeeId}:${parsed.date}`,
+  });
+
+  revalidatePath(`/admin/payroll/${parsed.payPeriodId}`);
+}
+
+const halfDayDeductionSchema = z.object({
+  payslipId: z.string().min(1),
+  date: z.string().regex(/^d{4}-d{2}-d{2}$/),
+  // No default: the admin decides the amount to deduct for each half day.
+  amount: z.coerce.number().positive("Amount must be more than 0").max(100000),
+});
+
+export async function addHalfDayDeductionToPayslip(formData: FormData) {
+  const admin = await requireOwner();
+  const parsed = halfDayDeductionSchema.parse({
+    payslipId: formData.get("payslipId"),
+    date: formData.get("date"),
+    amount: formData.get("amount"),
+  });
+
+  const payslip = await prisma.payslip.findUniqueOrThrow({
+    where: { id: parsed.payslipId },
+    include: { payPeriod: true, employee: true },
+  });
+  if (payslip.status === "FINALIZED") {
+    throw new Error("This payslip is finalized. Unlock it first to make changes.");
+  }
+  if (payslip.employee.payBasis !== "OPERATION_DAY") {
+    throw new Error("Half-day deductions are only suggested for Production employees.");
+  }
+
+  const dateValue = new Date(`${parsed.date}T00:00:00.000Z`);
+  const existing = await prisma.halfDayAction.findUnique({
+    where: { employeeId_date: { employeeId: payslip.employeeId, date: dateValue } },
+  });
+  if (existing?.payslipAdjustmentId) {
+    throw new Error("This half-day deduction has already been added to a payslip.");
+  }
+
+  // Re-derive the early-out day server-side rather than trusting the submitted date.
+  const days = await getPeriodDailyResults(payslip.employeeId, payslip.payPeriod, await getSettings());
+  const day = days.find((d) => d.date === parsed.date);
+  if (!day || !isEarlyOutDay(day)) {
+    throw new Error("That day isn't flagged as left early in this pay period.");
+  }
+
+  const adjustment = await prisma.payslipAdjustment.create({
+    data: {
+      payslipId: parsed.payslipId,
+      label: "Half day",
+      amount: -parsed.amount,
+      note: `Half day — ${parsed.date}`,
+    },
+  });
+
+  await prisma.halfDayAction.upsert({
+    where: { employeeId_date: { employeeId: payslip.employeeId, date: dateValue } },
+    update: { dismissed: false, payslipAdjustmentId: adjustment.id },
+    create: {
+      employeeId: payslip.employeeId,
+      date: dateValue,
+      payslipAdjustmentId: adjustment.id,
+    },
+  });
+
+  await logAudit({
+    actorAdminId: admin.id,
+    action: "ADD_HALF_DAY_DEDUCTION_TO_PAYSLIP",
+    targetTable: "PayslipAdjustment",
+    targetId: adjustment.id,
+    after: { date: parsed.date, amount: -parsed.amount },
+  });
+
+  revalidatePath(`/admin/payroll/${payslip.payPeriodId}`);
+}
+
+const dismissHalfDaySchema = z.object({
+  employeeId: z.string().min(1),
+  date: z.string().regex(/^d{4}-d{2}-d{2}$/),
+  payPeriodId: z.string().min(1),
+});
+
+/** Declines a suggested half-day deduction for one day (it was a full day, or
+ * not worth deducting). Nothing is added to any payslip. */
+export async function dismissHalfDaySuggestion(formData: FormData) {
+  const admin = await requireOwner();
+  const parsed = dismissHalfDaySchema.parse({
+    employeeId: formData.get("employeeId"),
+    date: formData.get("date"),
+    payPeriodId: formData.get("payPeriodId"),
+  });
+
+  const dateValue = new Date(`${parsed.date}T00:00:00.000Z`);
+  const existing = await prisma.halfDayAction.findUnique({
+    where: { employeeId_date: { employeeId: parsed.employeeId, date: dateValue } },
+  });
+  if (existing?.payslipAdjustmentId) {
+    throw new Error("This half-day deduction has already been added to a payslip.");
+  }
+
+  await prisma.halfDayAction.upsert({
+    where: { employeeId_date: { employeeId: parsed.employeeId, date: dateValue } },
+    update: { dismissed: true },
+    create: { employeeId: parsed.employeeId, date: dateValue, dismissed: true },
+  });
+
+  await logAudit({
+    actorAdminId: admin.id,
+    action: "DISMISS_HALF_DAY_SUGGESTION",
+    targetTable: "HalfDayAction",
     targetId: `${parsed.employeeId}:${parsed.date}`,
   });
 

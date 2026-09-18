@@ -4,6 +4,7 @@ import {
   summarizePeriod,
   computePay,
   computeDayBasedPay,
+  isEarlyOutDay,
   localDateKey,
   type PayrollSettings,
   type OperationPayRates,
@@ -437,6 +438,28 @@ describe("computeDayBasedPay", () => {
       "2026-01-05"
     );
     expect(computeDayBasedPay(days, "FLAT_DAILY", 600, dayFor, rates).basePay).toBe(0);
+  });
+});
+
+describe("isEarlyOutDay", () => {
+  const day = (punches: { h: number; type: "IN" | "OUT" | "BREAK_START" }[], status: "UNPAID_ABSENCE" | null = null) =>
+    computeDailyResults(
+      punches.map((x) => ({ timestamp: atManila("2026-01-05", x.h, 0), type: x.type })),
+      status ? [{ date: "2026-01-05", status }] : [],
+      settings,
+      "2026-01-05",
+      "2026-01-05"
+    )[0];
+
+  it("flags a Time Out before shift end, and a Start Break with no return", () => {
+    expect(isEarlyOutDay(day([{ h: 8, type: "IN" }, { h: 12, type: "OUT" }]))).toBe(true);
+    expect(isEarlyOutDay(day([{ h: 8, type: "IN" }, { h: 12, type: "BREAK_START" }]))).toBe(true);
+  });
+
+  it("does not flag a full day, a day with no work, or an absence day", () => {
+    expect(isEarlyOutDay(day([{ h: 8, type: "IN" }, { h: 17, type: "OUT" }]))).toBe(false);
+    expect(isEarlyOutDay(day([]))).toBe(false);
+    expect(isEarlyOutDay(day([{ h: 8, type: "IN" }, { h: 12, type: "OUT" }], "UNPAID_ABSENCE"))).toBe(false);
   });
 });
 

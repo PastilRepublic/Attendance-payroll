@@ -6,7 +6,7 @@ import {
   adjustmentsTotal,
   getPeriodDailyResults,
 } from "@/lib/payrollService";
-import { suggestedLateDeduction, type PayBreakdownLine } from "@/lib/payroll";
+import { suggestedLateDeduction, isEarlyOutDay, type PayBreakdownLine } from "@/lib/payroll";
 import { getSettings, getOperationDayOverrides } from "@/lib/settings";
 import { rotationDayForDate, resolveOperationDayForDate } from "@/lib/operationDay";
 import {
@@ -19,6 +19,8 @@ import {
   dismissBonusSuggestion,
   addLateDeductionToPayslip,
   dismissLateSuggestion,
+  addHalfDayDeductionToPayslip,
+  dismissHalfDaySuggestion,
 } from "../actions";
 
 export default async function PayPeriodDetailPage({
@@ -73,15 +75,23 @@ export default async function PayPeriodDetailPage({
       );
       const dailyResults = await getPeriodDailyResults(emp.id, period, settings);
       // Production staff are paid the full day rate for any day worked, so
-      // point out the days they cut short -- the admin decides whether each
-      // one needs a "Half day" deduction.
+      // point out the days they cut short -- the admin can deduct for a half
+      // day or skip it. Days already deducted or skipped aren't shown again.
+      const halfDayActions =
+        emp.payBasis === "OPERATION_DAY"
+          ? await prisma.halfDayAction.findMany({
+              where: { employeeId: emp.id, date: { gte: period.startDate, lte: period.endDate } },
+            })
+          : [];
+      const handledHalfDays = new Set(
+        halfDayActions
+          .filter((a) => a.dismissed || a.payslipAdjustmentId)
+          .map((a) => a.date.toISOString().slice(0, 10))
+      );
       const earlyOutDays =
         emp.payBasis === "OPERATION_DAY"
           ? dailyResults
-              .filter(
-                (d) =>
-                  (d.isUndertime || d.missingTimeOut) && d.workedMinutes > 0 && d.dayStatus === null
-              )
+              .filter((d) => isEarlyOutDay(d) && !handledHalfDays.has(d.date))
               .map((d) => ({
                 date: d.date,
                 noTimeOut: d.missingTimeOut,
@@ -384,14 +394,43 @@ export default async function PayPeriodDetailPage({
               {payslip.status !== "FINALIZED" && earlyOutDays.length > 0 && (
                 <div className="mb-2 rounded-md bg-blue-50 border border-blue-200 p-2">
                   <p className="text-xs font-medium text-blue-800 mb-1">
-                    Left early / Half day — paid the full day rate. Add a &quot;Half day&quot; deduction
-                    below if it was a half day.
+                    Left early / Half day — paid the full day rate. Enter the amount to deduct if it
+                    was a half day, or Skip.
                   </p>
                   {earlyOutDays.map((d) => (
-                    <div key={d.date} className="text-xs text-slate-700 py-0.5">
-                      {d.date} — {d.dayType === "COOKING" ? "Cooking" : "Jar filling"} day,{" "}
-                      {d.hours.toFixed(2)}h worked
-                      {d.noTimeOut && " — no Time Out (didn't come back after break?)"}
+                    <div key={d.date} className="flex items-center justify-between text-xs py-1">
+                      <span className="text-slate-700">
+                        {d.date} — {d.dayType === "COOKING" ? "Cooking" : "Jar filling"} day,{" "}
+                        {d.hours.toFixed(2)}h worked
+                        {d.noTimeOut && " — no Time Out (didn't come back after break?)"}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <form action={addHalfDayDeductionToPayslip} className="flex items-center gap-2">
+                          <input type="hidden" name="payslipId" value={payslip.id} />
+                          <input type="hidden" name="date" value={d.date} />
+                          <span className="text-slate-500">₱</span>
+                          <input
+                            name="amount"
+                            type="number"
+                            step="0.01"
+                            min="0.01"
+                            required
+                            placeholder="Amount"
+                            className="w-20 rounded-md border border-slate-300 px-2 py-1 text-xs"
+                          />
+                          <button className="rounded-md bg-blue-600 text-white px-2 py-1 hover:bg-blue-500">
+                            Deduct from payslip
+                          </button>
+                        </form>
+                        <form action={dismissHalfDaySuggestion}>
+                          <input type="hidden" name="employeeId" value={employee.id} />
+                          <input type="hidden" name="date" value={d.date} />
+                          <input type="hidden" name="payPeriodId" value={period.id} />
+                          <button className="rounded-md border border-slate-300 bg-white text-slate-600 px-2 py-1 hover:bg-slate-50">
+                            Skip
+                          </button>
+                        </form>
+                      </div>
                     </div>
                   ))}
                 </div>
