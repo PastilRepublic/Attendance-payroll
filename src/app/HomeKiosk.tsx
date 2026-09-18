@@ -98,6 +98,10 @@ export default function HomeKiosk() {
   const router = useRouter();
   const [employees, setEmployees] = useState<EmployeeOption[]>([]);
   const [employeesFailed, setEmployeesFailed] = useState(false);
+  // Which of the two nav links is "on" -- the home page is employee-facing,
+  // so Employee starts highlighted. Clicking either swaps which one is lit
+  // up, right as the click happens (just before the link navigates away).
+  const [activeNav, setActiveNav] = useState<"employee" | "admin">("employee");
   // Seeded as null (not `new Date()`) so the server-rendered HTML and the
   // client's first render agree -- this page is statically prerendered, so
   // baking in a real timestamp during render would drift from the client's
@@ -180,7 +184,12 @@ export default function HomeKiosk() {
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           <Link
             href="/employee"
-            className="inline-flex items-center gap-1.5 rounded-md bg-slate-900 text-white px-2 sm:px-3 py-1.5 text-sm font-medium hover:bg-slate-800 active:bg-slate-100 active:text-slate-700"
+            onClick={() => setActiveNav("employee")}
+            className={`inline-flex items-center gap-1.5 rounded-md px-2 sm:px-3 py-1.5 text-sm font-medium transition-colors ${
+              activeNav === "employee"
+                ? "bg-slate-900 text-white hover:bg-slate-800"
+                : "text-slate-700 hover:bg-slate-100"
+            }`}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 shrink-0">
               <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.5 20.25a7.5 7.5 0 0 1 15 0" />
@@ -189,7 +198,12 @@ export default function HomeKiosk() {
           </Link>
           <Link
             href="/admin"
-            className="inline-flex items-center gap-1.5 rounded-md px-2 sm:px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 active:bg-slate-900 active:text-white"
+            onClick={() => setActiveNav("admin")}
+            className={`inline-flex items-center gap-1.5 rounded-md px-2 sm:px-3 py-1.5 text-sm font-medium transition-colors ${
+              activeNav === "admin"
+                ? "bg-slate-900 text-white hover:bg-slate-800"
+                : "text-slate-700 hover:bg-slate-100"
+            }`}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 shrink-0">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 3 4.5 6v5.25c0 4.83 3.24 8.94 7.5 9.75 4.26-.81 7.5-4.92 7.5-9.75V6L12 3Z" />
