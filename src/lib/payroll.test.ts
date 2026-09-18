@@ -441,6 +441,25 @@ describe("computeDayBasedPay", () => {
   });
 });
 
+describe("a whole session before the shift start (test punches at 7:23 AM)", () => {
+  const punches = [
+    { timestamp: atManila("2026-01-05", 7, 23), type: "IN" as const },
+    { timestamp: atManila("2026-01-05", 7, 23), type: "BREAK_START" as const },
+    { timestamp: atManila("2026-01-05", 7, 23), type: "BREAK_END" as const },
+    { timestamp: atManila("2026-01-05", 7, 24), type: "OUT" as const },
+  ].map((p, i) => ({ ...p, timestamp: new Date(p.timestamp.getTime() + i * 15000) }));
+  const rates: OperationPayRates = { cooking: 400, jarFilling: 350 };
+  const dayFor = (d: string) => resolveOperationDayForDate(d, new Map());
+
+  it("earns no hours (arriving early earns nothing) but still counts as a worked day for day-based pay", () => {
+    const days = computeDailyResults(punches, [], settings, "2026-01-05", "2026-01-05");
+    expect(days[0].regularMinutes).toBe(0);
+    expect(days[0].hasCompletedWork).toBe(true);
+    expect(computeDayBasedPay(days, "OPERATION_DAY", 0, dayFor, rates).basePay).toBe(400);
+    expect(computeDayBasedPay(days, "FLAT_DAILY", 600, dayFor, rates).basePay).toBe(600);
+  });
+});
+
 describe("isEarlyOutDay", () => {
   const day = (punches: { h: number; type: "IN" | "OUT" | "BREAK_START" }[], status: "UNPAID_ABSENCE" | null = null) =>
     computeDailyResults(

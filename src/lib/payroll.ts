@@ -45,6 +45,11 @@ export interface PayrollSettings {
 export interface DailyResult {
   date: string;
   workedMinutes: number;
+  /** Whether the day has any completed work time on the raw punches. Unlike
+   * workedMinutes it ignores the early-arrival clip, so time before the shift
+   * start (which earns no hours) still counts as a worked day for the
+   * per-day pay bases (Flat daily / Production). */
+  hasCompletedWork: boolean;
   regularMinutes: number;
   overtimeMinutes: number;
   isLate: boolean;
@@ -62,7 +67,7 @@ export interface DailyResult {
 /** A worked day that ended early or never got a Time Out -- a candidate for a
  * "Half day" deduction on a Production (OPERATION_DAY) employee's payslip. */
 export function isEarlyOutDay(d: DailyResult): boolean {
-  return (d.isUndertime || d.missingTimeOut) && d.workedMinutes > 0 && d.dayStatus === null;
+  return (d.isUndertime || d.missingTimeOut) && d.hasCompletedWork && d.dayStatus === null;
 }
 
 export interface PeriodResult {
@@ -225,11 +230,13 @@ export function computeDailyResults(
 
     const dayPunches = clipEarlyArrival(rawDayPunches, date, shiftStartMinutes);
     const { workedMinutes, segments, breakPairs } = pairPunches(dayPunches);
+    const hasCompletedWork = pairPunches(rawDayPunches).workedMinutes > 0;
 
     if (dayStatus === "PAID_LEAVE") {
       return {
         date,
         workedMinutes,
+        hasCompletedWork,
         regularMinutes: capMinutes,
         overtimeMinutes: 0,
         isLate: false,
@@ -244,6 +251,7 @@ export function computeDailyResults(
       return {
         date,
         workedMinutes,
+        hasCompletedWork,
         regularMinutes: 0,
         overtimeMinutes: 0,
         isLate: false,
@@ -292,6 +300,7 @@ export function computeDailyResults(
     return {
       date,
       workedMinutes,
+      hasCompletedWork,
       regularMinutes,
       overtimeMinutes,
       isLate,
@@ -391,7 +400,7 @@ export function computeDayBasedPay(
 
   for (const d of days) {
     if (d.dayStatus === "UNPAID_ABSENCE") continue;
-    if (d.dayStatus !== "PAID_LEAVE" && d.workedMinutes <= 0) continue;
+    if (d.dayStatus !== "PAID_LEAVE" && !d.hasCompletedWork) continue;
 
     if (payBasis === "FLAT_DAILY") add("flat", "Day worked", payRate);
     else if (operationDayFor(d.date) === "COOKING") add("cooking", "Cooking day", rates.cooking);
