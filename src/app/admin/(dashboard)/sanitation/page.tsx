@@ -7,9 +7,7 @@ import {
   assignSanitation,
   deleteSanitationAssignment,
   inspectSanitationAssignment,
-  reopenTodaysSanitation,
 } from "./actions";
-import { auth } from "@/lib/auth";
 import PageHeader from "@/components/PageHeader";
 import Card from "@/components/Card";
 import Badge from "@/components/Badge";
@@ -39,8 +37,6 @@ export default async function SanitationPage({
   searchParams: Promise<{ date?: string }>;
 }) {
   const params = await searchParams;
-  const session = await auth();
-  const isOwner = session?.user?.role === "OWNER";
   const date = params.date ?? todayManila();
   if (date === todayManila()) {
     await ensureTodaysSanitationSchedule();
@@ -103,37 +99,6 @@ export default async function SanitationPage({
           </p>
         </Card>
       </div>
-
-      {isOwner && date === todayManila() && assignments.some((a) => a.status === "DONE") && (
-        <details className="mb-6 bg-white rounded-xl shadow-sm border border-slate-200">
-          <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-slate-700">
-            Reopen today&apos;s checklist (for testing)
-          </summary>
-          <form action={reopenTodaysSanitation} className="p-4 pt-0 space-y-3">
-            <p className="text-xs text-slate-500">
-              Puts every duty scheduled for today back to pending and clears who signed it off and any
-              inspection result, so the kiosk checklist can be run again. Duties whose bonus is already
-              on a payslip are left alone. This can&apos;t be undone.
-            </p>
-            <div>
-              <label className="block text-xs text-slate-500 mb-1">Reason (required)</label>
-              <input
-                name="reason"
-                required
-                minLength={3}
-                placeholder="e.g. Testing the kiosk checklist"
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-              />
-            </div>
-            <button
-              type="submit"
-              className="rounded-md bg-red-600 hover:bg-red-500 text-white text-sm font-medium px-4 py-2"
-            >
-              Reopen today&apos;s checklist
-            </button>
-          </form>
-        </details>
-      )}
 
       <details className="mb-6 bg-white rounded-xl shadow-sm border border-slate-200">
         <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-slate-700">
