@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { formatInTimeZone } from "date-fns-tz";
 import { prisma } from "@/lib/prisma";
-import { getRequirePhotoOnPunch } from "@/lib/settings";
+import { getRequirePhotoOnPunch, getOperationDay } from "@/lib/settings";
 import { TIMEZONE } from "@/lib/payroll";
 import { resolveEmployeeByPin } from "@/lib/kioskAuth";
 import { getKioskSnapshot } from "@/lib/kioskAttendance";
-import { ensureTodaysSanitationSchedule } from "@/lib/sanitation";
+import { ensureTodaysSanitationSchedule, scopeFilterFor } from "@/lib/sanitation";
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
@@ -38,6 +38,7 @@ export async function POST(request: Request) {
   if (!isActiveSupervisor) {
     await ensureTodaysSanitationSchedule();
   }
+  const operationDay = await getOperationDay();
   const [pendingTasks, pendingSanitation] = isActiveSupervisor
     ? [[], []]
     : await Promise.all([
@@ -54,6 +55,7 @@ export async function POST(request: Request) {
             date: new Date(`${today}T00:00:00.000Z`),
             status: "PENDING",
             OR: [{ employeeId: null }, { employeeId: matched.id }],
+            procedure: { appliesTo: scopeFilterFor(operationDay) },
           },
           include: { procedure: true },
         }),

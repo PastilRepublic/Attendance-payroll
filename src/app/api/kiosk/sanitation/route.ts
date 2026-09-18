@@ -1,13 +1,18 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { ensureTodaysSanitationSchedule, todayManila } from "@/lib/sanitation";
+import { ensureTodaysSanitationSchedule, scopeFilterFor, todayManila } from "@/lib/sanitation";
+import { getOperationDay } from "@/lib/settings";
 
 export async function GET() {
   await ensureTodaysSanitationSchedule();
   const date = todayManila();
+  const operationDay = await getOperationDay();
 
   const assignments = await prisma.sanitationAssignment.findMany({
-    where: { date: new Date(`${date}T00:00:00.000Z`) },
+    where: {
+      date: new Date(`${date}T00:00:00.000Z`),
+      procedure: { appliesTo: scopeFilterFor(operationDay) },
+    },
     include: { procedure: true, employee: true },
     orderBy: { procedure: { name: "asc" } },
   });
