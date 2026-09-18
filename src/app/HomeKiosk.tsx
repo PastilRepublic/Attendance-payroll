@@ -209,15 +209,26 @@ export default function HomeKiosk() {
 
         <main className="flex-1 flex flex-col min-h-0">
           {operationDay && (
-            <div className="flex flex-col items-center text-center gap-2 px-4 py-4 border-b border-slate-200">
-              <p className="text-[11px] font-semibold tracking-widest text-slate-400">
-                TODAY&apos;S OPERATION
-              </p>
-              <p className={`text-base font-bold ${OPERATION_TEXT_STYLES[operationDay]}`}>
-                {OPERATION_LABELS[operationDay]}
-              </p>
-              <OperationDayToggle value={operationDay} onToggle={toggleOperationDay} />
-            </div>
+            <>
+              {/* Kiosk-size (lg+) view: original stacked eyebrow + headline + toggle */}
+              <div className="hidden lg:flex lg:flex-col lg:items-center lg:text-center gap-2 px-4 py-4 border-b border-slate-200">
+                <p className="text-[11px] font-semibold tracking-widest text-slate-400">
+                  TODAY&apos;S OPERATION
+                </p>
+                <p className={`text-base font-bold ${OPERATION_TEXT_STYLES[operationDay]}`}>
+                  {OPERATION_LABELS[operationDay]}
+                </p>
+                <OperationDayToggle value={operationDay} onToggle={toggleOperationDay} />
+              </div>
+
+              {/* Smaller screens: original compact single-row version */}
+              <div className="lg:hidden flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-200">
+                <span className={`text-sm font-semibold ${OPERATION_TEXT_STYLES[operationDay]}`}>
+                  {OPERATION_LABELS[operationDay]}
+                </span>
+                <OperationDayToggle value={operationDay} onToggle={toggleOperationDay} />
+              </div>
+            </>
           )}
 
           <div className="flex-1 overflow-y-auto px-4 lg:px-6 py-6">
