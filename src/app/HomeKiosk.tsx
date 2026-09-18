@@ -49,8 +49,6 @@ const PRESENCE_DOT_STYLES: Record<PresenceStatus, string> = {
   DONE: "bg-sky-500",
 };
 
-const SANITATION_VISIBLE_LIMIT = 4;
-
 const RISK_RANK: Record<RiskLevel, number> = { HIGH: 0, MEDIUM: 1, LOW: 2 };
 
 function sortSanitationTasks(tasks: SanitationTask[]): SanitationTask[] {
@@ -278,12 +276,10 @@ export default function HomeKiosk() {
             )}
             {sanitationLoaded && !sanitationFailed && sanitationTasks.length > 0 && (() => {
               const sorted = sortSanitationTasks(sanitationTasks);
-              const visible = sorted.slice(0, SANITATION_VISIBLE_LIMIT);
-              const hiddenCount = sorted.length - visible.length;
               return (
                 <>
                   <ul className="space-y-1.5">
-                    {visible.map((task) => {
+                    {sorted.map((task) => {
                       const needsAttention = task.status === "PENDING" && task.riskLevel === "HIGH";
                       return (
                         <li
@@ -313,14 +309,6 @@ export default function HomeKiosk() {
                       );
                     })}
                   </ul>
-                  {hiddenCount > 0 && (
-                    <Link
-                      href="/sanitation"
-                      className="text-xs text-slate-400 hover:text-amber-600 hover:underline mt-1.5 inline-block"
-                    >
-                      +{hiddenCount} more
-                    </Link>
-                  )}
                   <p className="text-xs text-slate-400 mt-2">
                     {sanitationTasks.filter((t) => t.status === "DONE").length}/{sanitationTasks.length} done
                   </p>
