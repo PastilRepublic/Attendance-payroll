@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { savePunchPhoto } from "@/lib/storage";
 import { resolveEmployeeByPin } from "@/lib/kioskAuth";
 import type { PunchType } from "@/lib/payroll";
-import { getAllowedActions, getKioskSnapshot } from "@/lib/kioskAttendance";
+import { getKioskSnapshot } from "@/lib/kioskAttendance";
 
 const PUNCH_TYPES: PunchType[] = ["IN", "OUT", "BREAK_START", "BREAK_END"];
 
@@ -65,12 +65,21 @@ export async function POST(request: Request) {
     type = snapshotBefore.status === "OUT" ? "IN" : "OUT";
   }
 
-  if (!getAllowedActions(snapshotBefore.status).includes(type)) {
+  if (!snapshotBefore.allowedActions.includes(type)) {
     if (snapshotBefore.status === "DONE") {
       return NextResponse.json(
         {
           error: "ALREADY_COMPLETED",
           message: "You've already completed your shift for today. See your admin if this is a mistake.",
+        },
+        { status: 409 }
+      );
+    }
+    if (type === "BREAK_START" && snapshotBefore.status === "WORKING") {
+      return NextResponse.json(
+        {
+          error: "BREAK_ALREADY_USED",
+          message: "You've already used your break for today.",
         },
         { status: 409 }
       );

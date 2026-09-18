@@ -34,10 +34,12 @@ export function derivePresenceStatus(lastPunchType: PunchType | null): PresenceS
  * always exists whenever a break happened, which the late-return-from-break
  * check in payroll.ts depends on). DONE allows nothing -- once an employee
  * has timed out for the day, only an admin correction can reopen it.
+ * One break per day: once `breakUsedToday` is true, WORKING no longer
+ * offers BREAK_START again.
  */
-export function getAllowedActions(status: PresenceStatus): PunchType[] {
+export function getAllowedActions(status: PresenceStatus, breakUsedToday = false): PunchType[] {
   if (status === "OUT") return ["IN"];
-  if (status === "WORKING") return ["BREAK_START", "OUT"];
+  if (status === "WORKING") return breakUsedToday ? ["OUT"] : ["BREAK_START", "OUT"];
   if (status === "ON_BREAK") return ["BREAK_END"];
   return [];
 }
@@ -99,7 +101,8 @@ export async function getKioskSnapshot(employeeId: string): Promise<KioskSnapsho
 
   const lastPunchType = activityLog.length > 0 ? activityLog[activityLog.length - 1].type : null;
   const status = derivePresenceStatus(lastPunchType);
-  const allowedActions = getAllowedActions(status);
+  const breakUsedToday = activityLog.some((p) => p.type === "BREAK_START");
+  const allowedActions = getAllowedActions(status, breakUsedToday);
 
   return { status, allowedActions, activityLog, totals: { todayMinutes, weekMinutes } };
 }
