@@ -109,7 +109,7 @@ export default async function PayPeriodDetailPage({
                 <div className="text-right">
                   <div className="font-semibold text-slate-900">₱{total.toFixed(2)}</div>
                   <div className="text-xs text-slate-500">
-                    base ₱{Number(payslip.grossPay).toFixed(2)}
+                    gross ₱{Number(payslip.grossPay).toFixed(2)}
                     {adjTotal !== 0 && ` ${adjTotal > 0 ? "+" : ""}${adjTotal.toFixed(2)} adj.`}
                   </div>
                 </div>

@@ -38,7 +38,6 @@ interface Payslip {
   regularHours: number;
   daysWorked: number;
   overtimeHours: number;
-  basePay: number;
   grossPay: number;
   adjustments: PayslipAdjustment[];
   adjustmentsTotal: number;
@@ -409,7 +408,7 @@ export default function EmployeeClient() {
                         {p.status === "FINALIZED" ? "Finalized" : "Draft — subject to change"}
                       </span>
                     </div>
-                    <div className="grid grid-cols-3 gap-2 text-sm text-slate-600 mb-2">
+                    <div className="grid grid-cols-2 gap-2 text-sm text-slate-600 mb-2">
                       <div>
                         {payBasis === "DAILY" ? (
                           <>
@@ -427,10 +426,6 @@ export default function EmployeeClient() {
                             <p className="text-slate-800">{p.regularHours.toFixed(2)}</p>
                           </>
                         )}
-                      </div>
-                      <div>
-                        <p className="text-slate-400">Base pay</p>
-                        <p className="text-slate-800">{peso(p.basePay)}</p>
                       </div>
                       <div>
                         <p className="text-slate-400">Gross pay</p>

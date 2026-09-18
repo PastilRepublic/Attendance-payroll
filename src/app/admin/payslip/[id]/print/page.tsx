@@ -65,7 +65,7 @@ export default async function PayslipPrintPage({
             <td className="py-2 text-right">{Number(payslip.overtimeHours).toFixed(2)}</td>
           </tr>
           <tr className="border-b border-slate-100">
-            <td className="py-2">Base + overtime pay</td>
+            <td className="py-2">Gross pay</td>
             <td className="py-2 text-right">₱{Number(payslip.grossPay).toFixed(2)}</td>
           </tr>
           {payslip.adjustments.map((adj) => (
