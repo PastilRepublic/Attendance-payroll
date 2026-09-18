@@ -10,6 +10,7 @@ import Badge from "@/components/Badge";
 
 type PresenceStatus = "OUT" | "WORKING" | "ON_BREAK" | "DONE";
 type OperationDay = "COOKING" | "JAR_FILLING";
+type ResolvedOperationDay = OperationDay | "OFF";
 type RiskLevel = "LOW" | "MEDIUM" | "HIGH";
 
 interface SanitationTask {
@@ -32,14 +33,16 @@ interface EmployeeOption {
 const EMPLOYEE_POLL_MS = 15000;
 const CLOCK_TICK_MS = 1000;
 
-const OPERATION_LABELS: Record<OperationDay, string> = {
+const OPERATION_LABELS: Record<ResolvedOperationDay, string> = {
   COOKING: "Cooking Day",
   JAR_FILLING: "Jar Filling Day",
+  OFF: "Day Off",
 };
 
-const OPERATION_TEXT_STYLES: Record<OperationDay, string> = {
+const OPERATION_TEXT_STYLES: Record<ResolvedOperationDay, string> = {
   COOKING: "text-orange-600",
   JAR_FILLING: "text-green-600",
+  OFF: "text-slate-400",
 };
 
 const PRESENCE_DOT_STYLES: Record<PresenceStatus, string> = {
@@ -75,43 +78,49 @@ function avatarColor(name: string): string {
 
 function OperationDayToggle({
   value,
-  onRequestToggle,
+  onRequestDay,
 }: {
-  value: OperationDay;
-  onRequestToggle: () => void;
+  value: ResolvedOperationDay;
+  onRequestDay: (day: OperationDay) => void;
 }) {
   const trackClass =
     value === "COOKING"
       ? "bg-orange-50 border-orange-200"
-      : "bg-green-50 border-green-200";
+      : value === "JAR_FILLING"
+        ? "bg-green-50 border-green-200"
+        : "bg-slate-50 border-slate-200";
   const thumbClass = value === "COOKING" ? "bg-orange-500" : "bg-green-500";
 
   return (
-    <button
-      onClick={onRequestToggle}
-      aria-label="Toggle today's operation"
+    <div
+      role="group"
+      aria-label="Set today's operation"
       className={`relative inline-flex h-8 w-44 items-center rounded-full border transition-colors ${trackClass}`}
     >
-      <span
-        className={`absolute inset-y-0.5 left-0.5 w-[calc(50%-2px)] rounded-full shadow transition-transform ${thumbClass} ${
-          value === "JAR_FILLING" ? "translate-x-full" : "translate-x-0"
-        }`}
-      />
-      <span
-        className={`relative z-10 w-1/2 text-center text-xs font-medium ${
+      {value !== "OFF" && (
+        <span
+          className={`absolute inset-y-0.5 left-0.5 w-[calc(50%-2px)] rounded-full shadow transition-transform ${thumbClass} ${
+            value === "JAR_FILLING" ? "translate-x-full" : "translate-x-0"
+          }`}
+        />
+      )}
+      <button
+        onClick={() => onRequestDay("COOKING")}
+        className={`relative z-10 w-1/2 h-full text-center text-xs font-medium ${
           value === "COOKING" ? "text-white" : "text-orange-400"
         }`}
       >
         Cooking
-      </span>
-      <span
-        className={`relative z-10 w-1/2 text-center text-xs font-medium ${
+      </button>
+      <button
+        onClick={() => onRequestDay("JAR_FILLING")}
+        className={`relative z-10 w-1/2 h-full text-center text-xs font-medium ${
           value === "JAR_FILLING" ? "text-white" : "text-green-500"
         }`}
       >
         Jar Filling
-      </span>
-    </button>
+      </button>
+    </div>
   );
 }
 
@@ -132,7 +141,7 @@ export default function HomeKiosk() {
   // actual clock and break hydration. The real clock only starts ticking
   // client-side, from the effect below.
   const [now, setNow] = useState<Date | null>(null);
-  const [operationDay, setOperationDay] = useState<OperationDay | null>(null);
+  const [operationDay, setOperationDay] = useState<ResolvedOperationDay | null>(null);
   const [dayPinGate, setDayPinGate] = useState<{
     target: OperationDay;
     pin: string;
@@ -176,7 +185,13 @@ export default function HomeKiosk() {
   useEffect(() => {
     fetch("/api/kiosk/operation-day")
       .then((res) => (res.ok ? res.json() : Promise.reject()))
-      .then((data) => setOperationDay(data.operationDay === "JAR_FILLING" ? "JAR_FILLING" : "COOKING"))
+      .then((data) =>
+        setOperationDay(
+          data.operationDay === "JAR_FILLING" || data.operationDay === "OFF"
+            ? data.operationDay
+            : "COOKING"
+        )
+      )
       .catch(() => setOperationDay("COOKING"));
   }, []);
 
@@ -193,11 +208,13 @@ export default function HomeKiosk() {
     };
   }, []);
 
-  const requestDayToggle = useCallback(() => {
-    if (!operationDay) return;
-    const next: OperationDay = operationDay === "COOKING" ? "JAR_FILLING" : "COOKING";
-    setDayPinGate({ target: next, pin: "", error: null, submitting: false });
-  }, [operationDay]);
+  const requestDay = useCallback(
+    (day: OperationDay) => {
+      if (operationDay === day) return;
+      setDayPinGate({ target: day, pin: "", error: null, submitting: false });
+    },
+    [operationDay]
+  );
 
   const cancelDayPinGate = useCallback(() => setDayPinGate(null), []);
 
@@ -377,7 +394,7 @@ export default function HomeKiosk() {
                 <p className={`text-base font-bold ${OPERATION_TEXT_STYLES[operationDay]}`}>
                   {OPERATION_LABELS[operationDay]}
                 </p>
-                <OperationDayToggle value={operationDay} onRequestToggle={requestDayToggle} />
+                <OperationDayToggle value={operationDay} onRequestDay={requestDay} />
               </div>
 
               {/* Smaller screens: original compact single-row version */}
@@ -385,7 +402,7 @@ export default function HomeKiosk() {
                 <span className={`text-sm font-semibold ${OPERATION_TEXT_STYLES[operationDay]}`}>
                   {OPERATION_LABELS[operationDay]}
                 </span>
-                <OperationDayToggle value={operationDay} onRequestToggle={requestDayToggle} />
+                <OperationDayToggle value={operationDay} onRequestDay={requestDay} />
               </div>
             </>
           )}

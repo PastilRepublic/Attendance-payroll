@@ -240,10 +240,15 @@ model Settings {
   shiftStartTime        String       @default("08:00")
   shiftEndTime          String       @default("17:00")
   payPeriodStartDay     Int          @default(1) // 1 = Monday (ISO weekday)
-  /** Which of the two daily operations the kiosk is showing today --
-   * manually toggled at the kiosk, persists until changed again. */
-  operationDay          OperationDay @default(COOKING)
-  updatedAt             DateTime     @updatedAt
+  /** Which of the two daily operations the kiosk is showing today. Only
+   * authoritative when operationDayOverrideDate is today -- otherwise it's
+   * stale and the day is derived from the weekday rotation instead. See
+   * getOperationDay() in src/lib/settings.ts. */
+  operationDay             OperationDay @default(COOKING)
+  /** The calendar date (Asia/Manila) that operationDay was last manually
+   * set for. Null, or not today, means no manual override is in effect. */
+  operationDayOverrideDate DateTime?    @db.Date
+  updatedAt                DateTime     @updatedAt
 }
 
 enum OperationDay {
@@ -336,11 +341,21 @@ model SanitationProcedure {
   frequency      String
   responsibleRole String
   riskLevel      RiskLevel @default(MEDIUM)
+  // Which operation day this duty is scheduled on -- BOTH covers duties that
+  // apply regardless of whether it's a Cooking or Jar Filling day (and are
+  // the only ones auto-scheduled on a day-off).
+  appliesTo      SanitationScope @default(BOTH)
   active         Boolean  @default(true)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
   assignments SanitationAssignment[]
+}
+
+enum SanitationScope {
+  COOKING
+  JAR_FILLING
+  BOTH
 }
 
 /** One scheduled occurrence of a SanitationProcedure for one date, done as a

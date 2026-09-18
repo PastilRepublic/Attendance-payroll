@@ -18,6 +18,12 @@ function riskAccent(level: "LOW" | "MEDIUM" | "HIGH") {
   return level === "HIGH" ? "red" : level === "MEDIUM" ? "amber" : "green";
 }
 
+const SCOPE_LABELS: Record<"COOKING" | "JAR_FILLING" | "BOTH", string> = {
+  COOKING: "Cooking Day only",
+  JAR_FILLING: "Jar Filling Day only",
+  BOTH: "Every day",
+};
+
 export default async function SanitationPage({
   searchParams,
 }: {
@@ -98,6 +104,7 @@ export default async function SanitationPage({
                 <p className="font-semibold text-slate-900 flex items-center gap-2">
                   {p.name}
                   <span className="text-xs font-normal text-slate-400">({p.riskLevel.toLowerCase()} risk)</span>
+                  <span className="text-xs font-normal text-slate-400">· {SCOPE_LABELS[p.appliesTo]}</span>
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 mt-1 text-slate-600">
                   <p><span className="text-slate-400">Area/Equipment:</span> {p.areaEquipment}</p>
@@ -171,6 +178,19 @@ export default async function SanitationPage({
                 <option value="LOW">Low</option>
                 <option value="MEDIUM">Medium</option>
                 <option value="HIGH">High</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-slate-500 mb-1">Applies to</label>
+              <select
+                name="appliesTo"
+                required
+                defaultValue="BOTH"
+                className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+              >
+                <option value="BOTH">Every day</option>
+                <option value="COOKING">Cooking Day only</option>
+                <option value="JAR_FILLING">Jar Filling Day only</option>
               </select>
             </div>
             <div className="sm:col-span-2">
