@@ -47,6 +47,8 @@ interface IdentifyData {
 interface ConfirmInfo {
   employeeName: string;
   type: PunchType;
+  /** Time Out tapped as the "Half Day" card (see isHalfDayOut). */
+  halfDay?: boolean;
 }
 
 type SanitationTiming = "PRE_COOKING" | "POST_COOKING" | "ANYTIME";
@@ -77,6 +79,21 @@ interface EmployeeOption {
 // Regular tasks and "anytime" sanitation duties show after any punch;
 // pre/post-cooking duties only show as a gate on their own punch.
 const isUngated = (t: PendingTask) => !t.timing || t.timing === "ANYTIME";
+
+/**
+ * Time Out offered next to Start Break, before ~1 PM, is how someone goes home
+ * for a half day (morning only, not coming back after lunch) -- shown as "Half
+ * Day" so it isn't mistaken for a lunch break. It's still a normal Time Out punch.
+ */
+function isHalfDayOut(type: PunchType, allowedActions: PunchType[]): boolean {
+  if (type !== "OUT" || !allowedActions.includes("BREAK_START")) return false;
+  const hour = Number(
+    new Intl.DateTimeFormat("en-US", { hour: "numeric", hourCycle: "h23", timeZone: "Asia/Manila" }).format(
+      new Date()
+    )
+  );
+  return hour < 13;
+}
 
 const AUTO_RESET_MS = 2200;
 const CONFIRM_AUTO_RESET_MS = 3000;
@@ -357,7 +374,11 @@ export default function KioskClient({
         });
         if (res.ok) {
           const data = await res.json();
-          setConfirmInfo({ employeeName: data.employeeName, type: data.type });
+          setConfirmInfo({
+            employeeName: data.employeeName,
+            type: data.type,
+            halfDay: identifyData ? isHalfDayOut(data.type, identifyData.allowedActions) : false,
+          });
           setScreen("confirm");
           finishAfterConfirm();
         } else if (res.status === 401) {
@@ -379,7 +400,7 @@ export default function KioskClient({
         queueOffline(pinToSubmit, type, photoDataUrl);
       }
     },
-    [queueOffline, finishAfterConfirm, scheduleReset, selectedEmployee]
+    [queueOffline, finishAfterConfirm, scheduleReset, selectedEmployee, identifyData]
   );
 
   const handleSubmitPin = useCallback(async () => {
@@ -564,7 +585,9 @@ export default function KioskClient({
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
               </svg>
             </div>
-            <p className="text-5xl font-bold">{CONFIRM_STYLES[confirmInfo.type].text}</p>
+            <p className="text-5xl font-bold">
+              {confirmInfo.halfDay ? "Half Day — Going Home" : CONFIRM_STYLES[confirmInfo.type].text}
+            </p>
             {confirmInfo.employeeName && (
               <p className="text-2xl mt-3 text-white/90">{confirmInfo.employeeName}</p>
             )}
@@ -773,7 +796,14 @@ function ActionPanel({
               onClick={() => onAction(type)}
               className={`w-36 h-28 rounded-2xl text-lg font-bold text-white flex items-center justify-center ${ACTION_BUTTON_STYLES[type]}`}
             >
-              {ACTION_LABELS[type]}
+              {isHalfDayOut(type, data.allowedActions) ? (
+                <span className="flex flex-col items-center leading-tight">
+                  Half Day
+                  <span className="text-xs font-medium text-white/80 mt-1">Not coming back</span>
+                </span>
+              ) : (
+                ACTION_LABELS[type]
+              )}
             </button>
           ))
         )}
