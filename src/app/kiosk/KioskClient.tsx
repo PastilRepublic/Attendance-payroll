@@ -80,11 +80,11 @@ const ACTION_BUTTON_STYLES: Record<PunchType, string> = {
   BREAK_END: "bg-green-600 hover:bg-green-500",
 };
 
-const CONFIRM_STYLES: Record<PunchType, { color: string; text: string }> = {
-  IN: { color: "text-green-600", text: "Time In" },
-  OUT: { color: "text-sky-600", text: "Time Out" },
-  BREAK_START: { color: "text-amber-600", text: "On Break" },
-  BREAK_END: { color: "text-green-600", text: "Back from Break" },
+const CONFIRM_STYLES: Record<PunchType, { bg: string; text: string }> = {
+  IN: { bg: "bg-green-600", text: "Time In" },
+  OUT: { bg: "bg-sky-600", text: "Time Out" },
+  BREAK_START: { bg: "bg-amber-600", text: "On Break" },
+  BREAK_END: { bg: "bg-green-600", text: "Back from Break" },
 };
 
 const STATUS_LABELS: Record<PresenceStatus, string> = {
@@ -472,12 +472,19 @@ export default function KioskClient({
         {screen === "submitting" && <StatusMessage text="Recording..." />}
 
         {screen === "confirm" && confirmInfo && (
-          <StatusMessage
-            big
-            color={CONFIRM_STYLES[confirmInfo.type].color}
-            text={CONFIRM_STYLES[confirmInfo.type].text}
-            subtext={confirmInfo.employeeName}
-          />
+          <div
+            className={`w-full max-w-sm rounded-3xl ${CONFIRM_STYLES[confirmInfo.type].bg} text-white px-10 py-12 flex flex-col items-center text-center`}
+          >
+            <div className="w-20 h-20 rounded-full bg-white/20 flex items-center justify-center mb-6">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="w-11 h-11">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+              </svg>
+            </div>
+            <p className="text-4xl font-bold">{CONFIRM_STYLES[confirmInfo.type].text}</p>
+            {confirmInfo.employeeName && (
+              <p className="text-xl mt-3 text-white/90">{confirmInfo.employeeName}</p>
+            )}
+          </div>
         )}
 
         {screen === "tasks" && (
