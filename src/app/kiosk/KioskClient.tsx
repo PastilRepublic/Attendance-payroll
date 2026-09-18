@@ -402,7 +402,9 @@ export default function KioskClient() {
   const handleAction = useCallback(
     (type: PunchType) => {
       setChosenAction(type);
-      if (identifyData?.requirePhoto) {
+      // Photo capture only applies to Time In / Time Out -- breaks don't
+      // need a face photo.
+      if (identifyData?.requirePhoto && (type === "IN" || type === "OUT")) {
         setScreen("photo");
       } else {
         submitPunch(pin, type);
