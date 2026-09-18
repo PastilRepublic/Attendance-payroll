@@ -223,3 +223,67 @@ export async function unlockPayslip(formData: FormData) {
 
   revalidatePath(`/admin/payroll/${payslip.payPeriodId}`);
 }
+
+const addSanitationBonusSchema = z.object({
+  payslipId: z.string().min(1),
+  sanitationAssignmentId: z.string().min(1),
+});
+
+export async function addSanitationBonusToPayslip(formData: FormData) {
+  const admin = await requireOwner();
+  const parsed = addSanitationBonusSchema.parse({
+    payslipId: formData.get("payslipId"),
+    sanitationAssignmentId: formData.get("sanitationAssignmentId"),
+  });
+
+  const payslip = await prisma.payslip.findUniqueOrThrow({ where: { id: parsed.payslipId } });
+  if (payslip.status === "FINALIZED") {
+    throw new Error("This payslip is finalized. Unlock it first to make changes.");
+  }
+
+  const assignment = await prisma.sanitationAssignment.findUniqueOrThrow({
+    where: { id: parsed.sanitationAssignmentId },
+    include: { procedure: true },
+  });
+  if (assignment.payslipAdjustmentId) {
+    throw new Error("This cleaning bonus has already been added to a payslip.");
+  }
+  if (
+    assignment.status !== "DONE" ||
+    assignment.inspectionResult !== "PASS" ||
+    !assignment.procedure.bonusAmount
+  ) {
+    throw new Error("This duty has no passed-inspection bonus to add.");
+  }
+  if (assignment.employeeId !== payslip.employeeId) {
+    throw new Error("This duty was done by a different employee.");
+  }
+
+  const adjustment = await prisma.payslipAdjustment.create({
+    data: {
+      payslipId: parsed.payslipId,
+      label: assignment.procedure.name,
+      amount: assignment.procedure.bonusAmount,
+      note: `Cleaning bonus — ${assignment.date.toISOString().slice(0, 10)}`,
+    },
+  });
+
+  await prisma.sanitationAssignment.update({
+    where: { id: assignment.id },
+    data: { payslipAdjustmentId: adjustment.id },
+  });
+
+  await logAudit({
+    actorAdminId: admin.id,
+    action: "ADD_SANITATION_BONUS_TO_PAYSLIP",
+    targetTable: "PayslipAdjustment",
+    targetId: adjustment.id,
+    after: {
+      label: assignment.procedure.name,
+      amount: Number(assignment.procedure.bonusAmount),
+      sanitationAssignmentId: assignment.id,
+    },
+  });
+
+  revalidatePath(`/admin/payroll/${payslip.payPeriodId}`);
+}

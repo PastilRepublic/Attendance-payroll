@@ -6,6 +6,14 @@ import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
 
+// Blank means no bonus. Stored as a number so it can also clear an existing one.
+const bonusAmountField = z
+  .string()
+  .trim()
+  .optional()
+  .transform((v) => (v ? Number(v) : null))
+  .refine((v) => v === null || (Number.isFinite(v) && v > 0), "Bonus must be a positive amount");
+
 const createProcedureSchema = z.object({
   name: z.string().trim().min(1, "Name is required"),
   areaEquipment: z.string().trim().min(1, "Area/Equipment is required"),
@@ -16,6 +24,7 @@ const createProcedureSchema = z.object({
   riskLevel: z.enum(["LOW", "MEDIUM", "HIGH"]),
   appliesTo: z.enum(["COOKING", "JAR_FILLING", "BOTH"]),
   timing: z.enum(["PRE_COOKING", "POST_COOKING", "ANYTIME"]),
+  bonusAmount: bonusAmountField,
 });
 
 export async function createProcedure(formData: FormData) {
@@ -30,6 +39,7 @@ export async function createProcedure(formData: FormData) {
     riskLevel: formData.get("riskLevel"),
     appliesTo: formData.get("appliesTo"),
     timing: formData.get("timing"),
+    bonusAmount: formData.get("bonusAmount") || undefined,
   });
 
   const procedure = await prisma.sanitationProcedure.create({ data: parsed });
@@ -57,6 +67,7 @@ const updateProcedureSchema = z.object({
   riskLevel: z.enum(["LOW", "MEDIUM", "HIGH"]),
   appliesTo: z.enum(["COOKING", "JAR_FILLING", "BOTH"]),
   timing: z.enum(["PRE_COOKING", "POST_COOKING", "ANYTIME"]),
+  bonusAmount: bonusAmountField,
 });
 
 export async function updateProcedure(formData: FormData) {
@@ -72,6 +83,7 @@ export async function updateProcedure(formData: FormData) {
     riskLevel: formData.get("riskLevel"),
     appliesTo: formData.get("appliesTo"),
     timing: formData.get("timing"),
+    bonusAmount: formData.get("bonusAmount") || undefined,
   });
   const { id, ...data } = parsed;
 

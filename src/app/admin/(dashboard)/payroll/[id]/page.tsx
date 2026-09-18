@@ -8,6 +8,7 @@ import {
   finalizePeriod,
   unlockPayslip,
   addTaskBonusToPayslip,
+  addSanitationBonusToPayslip,
 } from "../actions";
 
 export default async function PayPeriodDetailPage({
@@ -38,7 +39,19 @@ export default async function PayPeriodDetailPage({
         include: { template: true },
         orderBy: { date: "asc" },
       });
-      return { employee: emp, payslip, suggestedBonuses };
+      const suggestedCleaningBonuses = await prisma.sanitationAssignment.findMany({
+        where: {
+          employeeId: emp.id,
+          status: "DONE",
+          inspectionResult: "PASS",
+          payslipAdjustmentId: null,
+          procedure: { bonusAmount: { not: null } },
+          date: { gte: period.startDate, lte: period.endDate },
+        },
+        include: { procedure: true },
+        orderBy: { date: "asc" },
+      });
+      return { employee: emp, payslip, suggestedBonuses, suggestedCleaningBonuses };
     })
   );
 
@@ -75,7 +88,7 @@ export default async function PayPeriodDetailPage({
       </div>
 
       <div className="space-y-4">
-        {payslips.map(({ employee, payslip, suggestedBonuses }) => {
+        {payslips.map(({ employee, payslip, suggestedBonuses, suggestedCleaningBonuses }) => {
           const adjTotal = adjustmentsTotal(payslip.adjustments);
           const total = Number(payslip.grossPay) + adjTotal;
 
@@ -196,6 +209,32 @@ export default async function PayPeriodDetailPage({
                       <form action={addTaskBonusToPayslip}>
                         <input type="hidden" name="payslipId" value={payslip.id} />
                         <input type="hidden" name="taskAssignmentId" value={a.id} />
+                        <button className="rounded-md bg-amber-600 text-white px-2 py-1 hover:bg-amber-500">
+                          Add to payslip
+                        </button>
+                      </form>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {payslip.status !== "FINALIZED" && suggestedCleaningBonuses.length > 0 && (
+                <div className="mb-2 rounded-md bg-amber-50 border border-amber-200 p-2">
+                  <p className="text-xs font-medium text-amber-800 mb-1">
+                    Suggested bonuses from passed cleaning duties
+                  </p>
+                  {suggestedCleaningBonuses.map((a) => (
+                    <div
+                      key={a.id}
+                      className="flex items-center justify-between text-xs py-1"
+                    >
+                      <span className="text-slate-700">
+                        {a.procedure.name} — {a.date.toISOString().slice(0, 10)} — ₱
+                        {Number(a.procedure.bonusAmount).toFixed(2)}
+                      </span>
+                      <form action={addSanitationBonusToPayslip}>
+                        <input type="hidden" name="payslipId" value={payslip.id} />
+                        <input type="hidden" name="sanitationAssignmentId" value={a.id} />
                         <button className="rounded-md bg-amber-600 text-white px-2 py-1 hover:bg-amber-500">
                           Add to payslip
                         </button>

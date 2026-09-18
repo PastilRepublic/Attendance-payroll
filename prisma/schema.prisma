@@ -213,6 +213,7 @@ model PayslipAdjustment {
   createdAt DateTime @default(now())
 
   taskAssignment TaskAssignment?
+  sanitationAssignment SanitationAssignment?
 }
 
 model AuditLog {
@@ -348,6 +349,10 @@ model SanitationProcedure {
   // When this duty is due at the kiosk: PRE_COOKING gates the lunch-break
   // punch, POST_COOKING gates Time Out, ANYTIME shows after any punch.
   timing         SanitationTiming @default(ANYTIME)
+  // Optional pay incentive for whoever does this duty. Never shown at the
+  // kiosk; it is only suggested to admins on payroll once a supervisor has
+  // passed the inspection.
+  bonusAmount    Decimal? @db.Decimal(10, 2)
   active         Boolean  @default(true)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
@@ -392,6 +397,10 @@ model SanitationAssignment {
   inspectedAt        DateTime?
   inspectionResult   InspectionResult?
   inspectionNote     String?
+
+  /** Set once an admin turns this duty's bonus into a real PayslipAdjustment, so it can never be applied twice. */
+  payslipAdjustmentId String?            @unique
+  payslipAdjustment   PayslipAdjustment? @relation(fields: [payslipAdjustmentId], references: [id])
 
   createdAt DateTime @default(now())
 

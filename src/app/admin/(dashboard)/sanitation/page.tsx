@@ -112,6 +112,9 @@ export default async function SanitationPage({
                   {p.name}
                   <span className="text-xs font-normal text-slate-400">({p.riskLevel.toLowerCase()} risk)</span>
                   <span className="text-xs font-normal text-slate-400">· {SCOPE_LABELS[p.appliesTo]}</span>
+                  {p.bonusAmount && (
+                    <span className="text-xs font-normal text-amber-600">· ₱{Number(p.bonusAmount).toFixed(2)} bonus</span>
+                  )}
                   {p.timing !== "ANYTIME" && (
                     <span className="text-xs font-normal text-slate-400">· {TIMING_LABELS[p.timing]}</span>
                   )}
@@ -125,7 +128,7 @@ export default async function SanitationPage({
                 <p className="mt-2 text-slate-600 whitespace-pre-wrap">
                   <span className="text-slate-400">Steps:</span> {p.steps}
                 </p>
-                <EditProcedureForm procedure={p} />
+                <EditProcedureForm procedure={{ ...p, bonusAmount: p.bonusAmount ? Number(p.bonusAmount) : null }} />
               </Card>
             ))}
             {procedures.length === 0 && (
@@ -216,6 +219,20 @@ export default async function SanitationPage({
                 <option value="PRE_COOKING">Before lunch (must finish to start break)</option>
                 <option value="POST_COOKING">After cooking (must finish to Time Out)</option>
               </select>
+            </div>
+            <div>
+              <label className="block text-xs text-slate-500 mb-1">Bonus ₱ (optional)</label>
+              <input
+                name="bonusAmount"
+                type="number"
+                step="0.01"
+                min="0.01"
+                placeholder="50"
+                className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+              />
+              <p className="text-xs text-slate-400 mt-1">
+                Not shown at the kiosk. Whoever does it earns this once you pass the inspection.
+              </p>
             </div>
             <div className="sm:col-span-2">
               <label className="block text-xs text-slate-500 mb-1">Step-by-step procedure</label>
@@ -446,6 +463,7 @@ function EditProcedureForm({
     riskLevel: "LOW" | "MEDIUM" | "HIGH";
     appliesTo: "COOKING" | "JAR_FILLING" | "BOTH";
     timing: "PRE_COOKING" | "POST_COOKING" | "ANYTIME";
+    bonusAmount: number | null;
   };
 }) {
   return (
@@ -538,6 +556,18 @@ function EditProcedureForm({
             <option value="PRE_COOKING">Before lunch (must finish to start break)</option>
             <option value="POST_COOKING">After cooking (must finish to Time Out)</option>
           </select>
+        </div>
+        <div>
+          <label className="block text-xs text-slate-500 mb-1">Bonus ₱ (optional)</label>
+          <input
+            name="bonusAmount"
+            type="number"
+            step="0.01"
+            min="0.01"
+            defaultValue={procedure.bonusAmount ?? ""}
+            placeholder="50"
+            className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+          />
         </div>
         <div className="sm:col-span-2">
           <label className="block text-xs text-slate-500 mb-1">Step-by-step procedure</label>
