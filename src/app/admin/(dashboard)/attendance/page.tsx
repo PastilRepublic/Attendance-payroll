@@ -6,6 +6,7 @@ import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
 import { TIMEZONE } from "@/lib/payroll";
 import { saveDayPunches, setDayStatus, setShiftOverride, removeShiftOverride } from "./actions";
 import AutoRefresh from "./AutoRefresh";
+import ClosePanesOnOutsideClick from "./ClosePanesOnOutsideClick";
 import EmployeeSelect from "./EmployeeSelect";
 import { derivePresenceStatus, type PresenceStatus } from "@/lib/kioskAttendance";
 import PageHeader from "@/components/PageHeader";
@@ -278,6 +279,7 @@ export default async function AttendancePage({
   return (
     <div>
       <AutoRefresh />
+      <ClosePanesOnOutsideClick />
       <PageHeader
         title="Attendance"
         description="Today's status at a glance, or drill into a week or month for one employee."
@@ -605,7 +607,7 @@ function ManageDayForm({
   ] as const;
 
   return (
-    <details className="text-left">
+    <details data-manage-pane className="text-left">
       <summary className="text-xs text-slate-500 cursor-pointer hover:underline whitespace-nowrap">
         Manage
       </summary>
