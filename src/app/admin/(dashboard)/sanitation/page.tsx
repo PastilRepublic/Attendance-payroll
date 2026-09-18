@@ -12,10 +12,7 @@ import Card from "@/components/Card";
 import Badge from "@/components/Badge";
 import Button from "@/components/Button";
 import RiskDot from "@/components/RiskDot";
-
-function todayManila(): string {
-  return formatInTimeZone(new Date(), TIMEZONE, "yyyy-MM-dd");
-}
+import { ensureTodaysSanitationSchedule, todayManila } from "@/lib/sanitation";
 
 function riskAccent(level: "LOW" | "MEDIUM" | "HIGH") {
   return level === "HIGH" ? "red" : level === "MEDIUM" ? "amber" : "green";
@@ -28,6 +25,9 @@ export default async function SanitationPage({
 }) {
   const params = await searchParams;
   const date = params.date ?? todayManila();
+  if (date === todayManila()) {
+    await ensureTodaysSanitationSchedule();
+  }
 
   const [procedures, assignments, recentSignoffs, passCount, failCount] = await Promise.all([
     prisma.sanitationProcedure.findMany({ where: { active: true }, orderBy: { name: "asc" } }),

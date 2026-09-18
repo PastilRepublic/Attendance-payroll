@@ -1,13 +1,9 @@
 import { NextResponse } from "next/server";
-import { formatInTimeZone } from "date-fns-tz";
 import { prisma } from "@/lib/prisma";
-import { TIMEZONE } from "@/lib/payroll";
-
-function todayManila(): string {
-  return formatInTimeZone(new Date(), TIMEZONE, "yyyy-MM-dd");
-}
+import { ensureTodaysSanitationSchedule, todayManila } from "@/lib/sanitation";
 
 export async function GET() {
+  await ensureTodaysSanitationSchedule();
   const date = todayManila();
 
   const assignments = await prisma.sanitationAssignment.findMany({

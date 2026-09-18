@@ -5,14 +5,12 @@ import { TIMEZONE } from "@/lib/payroll";
 import Card from "@/components/Card";
 import Badge from "@/components/Badge";
 import RiskDot from "@/components/RiskDot";
+import { ensureTodaysSanitationSchedule, todayManila } from "@/lib/sanitation";
 
 export const dynamic = "force-dynamic";
 
-function todayManila(): string {
-  return formatInTimeZone(new Date(), TIMEZONE, "yyyy-MM-dd");
-}
-
 export default async function SanitationBoardPage() {
+  await ensureTodaysSanitationSchedule();
   const date = todayManila();
 
   const assignments = await prisma.sanitationAssignment.findMany({

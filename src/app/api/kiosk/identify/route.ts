@@ -5,6 +5,7 @@ import { getRequirePhotoOnPunch } from "@/lib/settings";
 import { TIMEZONE } from "@/lib/payroll";
 import { resolveEmployeeByPin } from "@/lib/kioskAuth";
 import { getKioskSnapshot } from "@/lib/kioskAttendance";
+import { ensureTodaysSanitationSchedule } from "@/lib/sanitation";
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
@@ -34,6 +35,9 @@ export async function POST(request: Request) {
   const isActiveSupervisor = supervisorAccount?.role === "SUPERVISOR" && supervisorAccount.active;
 
   const today = formatInTimeZone(new Date(), TIMEZONE, "yyyy-MM-dd");
+  if (!isActiveSupervisor) {
+    await ensureTodaysSanitationSchedule();
+  }
   const [pendingTasks, pendingSanitation] = isActiveSupervisor
     ? [[], []]
     : await Promise.all([
