@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { PAY_BASIS_LABELS, type PayBasis } from "@/lib/payroll";
 import {
   updateEmployee,
   resetEmployeePin,
@@ -65,8 +66,11 @@ export default async function EditEmployeePage({
                 defaultValue={employee.payBasis}
                 className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
               >
-                <option value="HOURLY">Hourly</option>
-                <option value="DAILY">Daily</option>
+                {(Object.keys(PAY_BASIS_LABELS) as PayBasis[]).map((basis) => (
+                  <option key={basis} value={basis}>
+                    {PAY_BASIS_LABELS[basis]}
+                  </option>
+                ))}
               </select>
             </div>
             <div>
@@ -79,11 +83,15 @@ export default async function EditEmployeePage({
                 step="0.01"
                 min="0"
                 defaultValue={Number(employee.payRate)}
-                required
                 className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
               />
             </div>
           </div>
+          <p className="text-xs text-slate-500 -mt-2">
+            Hourly: per hour. Daily / Flat daily: per day. Flat daily pays the full rate for any
+            day worked, however early they leave. Production ignores this rate and uses the
+            Cooking / Jar Filling rates in Settings.
+          </p>
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">
               Date hired

@@ -1,5 +1,5 @@
 import { formatInTimeZone } from "date-fns-tz";
-import { TIMEZONE } from "@/lib/payroll";
+import { TIMEZONE, PAY_BASIS_LABELS, type PayBasis } from "@/lib/payroll";
 import { createEmployee } from "../actions";
 import PasswordInput from "@/components/PasswordInput";
 import PhotoInput from "@/components/PhotoInput";
@@ -45,8 +45,11 @@ export default function NewEmployeePage() {
               name="payBasis"
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
             >
-              <option value="HOURLY">Hourly</option>
-              <option value="DAILY">Daily</option>
+              {(Object.keys(PAY_BASIS_LABELS) as PayBasis[]).map((basis) => (
+                <option key={basis} value={basis}>
+                  {PAY_BASIS_LABELS[basis]}
+                </option>
+              ))}
             </select>
           </div>
           <div>
@@ -58,11 +61,15 @@ export default function NewEmployeePage() {
               type="number"
               step="0.01"
               min="0"
-              required
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
             />
           </div>
         </div>
+        <p className="text-xs text-slate-500 -mt-2">
+          Hourly: per hour. Daily / Flat daily: per day. Flat daily pays the full rate for any day
+          worked, however early they leave. Production ignores this rate and uses the Cooking / Jar
+          Filling rates in Settings.
+        </p>
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1">
             Date hired

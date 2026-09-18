@@ -6,9 +6,11 @@ import {
   adjustmentsTotal,
   getPeriodDailyResults,
 } from "@/lib/payrollService";
-import { suggestedLateDeduction } from "@/lib/payroll";
-import { getSettings } from "@/lib/settings";
+import { suggestedLateDeduction, type PayBreakdownLine } from "@/lib/payroll";
+import { getSettings, getOperationDayOverrides } from "@/lib/settings";
+import { rotationDayForDate, resolveOperationDayForDate } from "@/lib/operationDay";
 import {
+  setPeriodDayType,
   addAdjustment,
   removeAdjustment,
   finalizePeriod,
@@ -35,6 +37,16 @@ export default async function PayPeriodDetailPage({
 
   const settings = await getSettings();
 
+  // Production (OPERATION_DAY) pay depends on each date's operation day, so
+  // show the days in this period and let an owner correct one that was wrong.
+  const hasProductionStaff = employees.some((e) => e.payBasis === "OPERATION_DAY");
+  const dayOverrides = await getOperationDayOverrides(period.startDate, period.endDate);
+  const periodDates: string[] = [];
+  for (let t = period.startDate.getTime(); t <= period.endDate.getTime(); t += 86400000) {
+    periodDates.push(new Date(t).toISOString().slice(0, 10));
+  }
+  const dayTypeLabels = { COOKING: "Cooking", JAR_FILLING: "Jar filling", OFF: "Off" } as const;
+
   const payslips = await Promise.all(
     employees.map(async (emp) => {
       const payslip = await getOrRefreshDraftPayslip(emp.id, id);
@@ -59,7 +71,21 @@ export default async function PayPeriodDetailPage({
           .filter((a) => a.dismissed || a.payslipAdjustmentId)
           .map((a) => a.date.toISOString().slice(0, 10))
       );
-      const suggestedLate = (await getPeriodDailyResults(emp.id, period, settings))
+      const dailyResults = await getPeriodDailyResults(emp.id, period, settings);
+      // Production staff are paid the full day rate for any day worked, so
+      // point out the days they cut short -- the admin decides whether each
+      // one needs a "Half day" deduction.
+      const earlyOutDays =
+        emp.payBasis === "OPERATION_DAY"
+          ? dailyResults
+              .filter((d) => d.isUndertime && d.workedMinutes > 0 && d.dayStatus === null)
+              .map((d) => ({
+                date: d.date,
+                dayType: resolveOperationDayForDate(d.date, dayOverrides),
+                hours: d.regularMinutes / 60,
+              }))
+          : [];
+      const suggestedLate = dailyResults
         .filter(
           (d) =>
             d.isLate && suggestedLateDeduction(d.lateMinutes) > 0 && !handledLateDays.has(d.date)
@@ -74,6 +100,7 @@ export default async function PayPeriodDetailPage({
         payslip,
         suggestedCleaningBonuses,
         suggestedLate,
+        earlyOutDays,
       };
     })
   );
@@ -110,10 +137,66 @@ export default async function PayPeriodDetailPage({
         </div>
       </div>
 
+      {hasProductionStaff && (
+        <details className="mb-4 bg-white rounded-lg shadow p-4">
+          <summary className="text-sm font-medium text-slate-700 cursor-pointer">
+            Day types this period (sets Production pay rate)
+          </summary>
+          <p className="text-xs text-slate-500 mt-2 mb-2">
+            Each date is a Cooking or Jar Filling day, recorded when a supervisor sets it at the
+            kiosk, otherwise following the weekly rotation. Fix any date that was wrong before
+            finalizing.
+          </p>
+          <div className="divide-y divide-slate-100">
+            {periodDates.map((date) => {
+              const recorded = dayOverrides.get(date);
+              const effective = recorded ?? rotationDayForDate(date);
+              return (
+                <div key={date} className="flex items-center justify-between py-1.5 text-sm">
+                  <span className="text-slate-700">
+                    {date}
+                    <span className="text-slate-400 ml-2">
+                      {new Date(`${date}T12:00:00Z`).toLocaleDateString("en-US", {
+                        weekday: "short",
+                        timeZone: "UTC",
+                      })}
+                    </span>
+                  </span>
+                  {period.status === "OPEN" ? (
+                    <form action={setPeriodDayType} className="flex items-center gap-2">
+                      <input type="hidden" name="payPeriodId" value={period.id} />
+                      <input type="hidden" name="date" value={date} />
+                      <select
+                        name="operationDay"
+                        defaultValue={recorded ?? "AUTO"}
+                        className="rounded-md border border-slate-300 px-2 py-1 text-xs"
+                      >
+                        <option value="AUTO">
+                          Rotation ({dayTypeLabels[rotationDayForDate(date)]})
+                        </option>
+                        <option value="COOKING">Cooking</option>
+                        <option value="JAR_FILLING">Jar filling</option>
+                      </select>
+                      <button className="rounded-md bg-slate-900 text-white text-xs px-3 py-1 hover:bg-slate-800">
+                        Save
+                      </button>
+                    </form>
+                  ) : (
+                    <span className="text-xs text-slate-600">{dayTypeLabels[effective]}</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </details>
+      )}
+
       <div className="space-y-4">
-        {payslips.map(({ employee, payslip, suggestedCleaningBonuses, suggestedLate }) => {
+        {payslips.map(({ employee, payslip, suggestedCleaningBonuses, suggestedLate, earlyOutDays }) => {
           const adjTotal = adjustmentsTotal(payslip.adjustments);
           const total = Number(payslip.grossPay) + adjTotal;
+          const breakdownLines =
+            (payslip.payBreakdown as { lines?: PayBreakdownLine[] } | null)?.lines ?? [];
 
           return (
             <div key={employee.id} className="bg-white rounded-lg shadow p-4">
@@ -134,6 +217,16 @@ export default async function PayPeriodDetailPage({
                   </div>
                 </div>
               </div>
+
+              {breakdownLines.length > 0 && (
+                <ul className="mb-2 text-xs text-slate-600 space-y-0.5">
+                  {breakdownLines.map((l) => (
+                    <li key={l.label}>
+                      {l.days} × {l.label} @ ₱{l.rate.toFixed(2)} = ₱{l.amount.toFixed(2)}
+                    </li>
+                  ))}
+                </ul>
+              )}
 
               {payslip.adjustments.length > 0 && (() => {
                 const sorted = [...payslip.adjustments].sort(
@@ -260,6 +353,21 @@ export default async function PayPeriodDetailPage({
                 </div>
               )}
 
+              {payslip.status !== "FINALIZED" && earlyOutDays.length > 0 && (
+                <div className="mb-2 rounded-md bg-blue-50 border border-blue-200 p-2">
+                  <p className="text-xs font-medium text-blue-800 mb-1">
+                    Left early — paid the full day rate. Add a &quot;Half day&quot; deduction below if
+                    it was a half day.
+                  </p>
+                  {earlyOutDays.map((d) => (
+                    <div key={d.date} className="text-xs text-slate-700 py-0.5">
+                      {d.date} — {d.dayType === "COOKING" ? "Cooking" : "Jar filling"} day,{" "}
+                      {d.hours.toFixed(2)}h worked
+                    </div>
+                  ))}
+                </div>
+              )}
+
               {payslip.status !== "FINALIZED" && suggestedLate.length > 0 && (
                 <div className="mb-2 rounded-md bg-red-50 border border-red-200 p-2">
                   <p className="text-xs font-medium text-red-800 mb-1">
@@ -323,6 +431,7 @@ export default async function PayPeriodDetailPage({
                         <option value="Cash Advance">Cash Advance</option>
                         <option value="Negligence">Negligence</option>
                         <option value="Late">Late</option>
+                        <option value="Half day">Half day</option>
                         <option value="Bonus">Bonus</option>
                       </select>
                     </div>

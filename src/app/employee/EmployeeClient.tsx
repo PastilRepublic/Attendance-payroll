@@ -129,6 +129,7 @@ export default function EmployeeClient() {
   const [employeeName, setEmployeeName] = useState<string | null>(null);
   const [days, setDays] = useState<AttendanceDay[] | null>(null);
   const [payslips, setPayslips] = useState<Payslip[] | null>(null);
+  // "DAILY" here means paid per day (Daily, Flat daily or Production) rather than per hour.
   const [payBasis, setPayBasis] = useState<"HOURLY" | "DAILY">("HOURLY");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [today, setToday] = useState<string | null>(null);
@@ -189,7 +190,7 @@ export default function EmployeeClient() {
       setEarliestDate(attData.earliestDate ?? null);
       setRangeKind("month");
       setPayslips(payData.payslips ?? []);
-      setPayBasis(payData.payBasis === "DAILY" ? "DAILY" : "HOURLY");
+      setPayBasis(payData.payBasis && payData.payBasis !== "HOURLY" ? "DAILY" : "HOURLY");
       setScreen("dashboard");
     } catch {
       setLoadError("Could not reach the server. Check your connection and try again.");

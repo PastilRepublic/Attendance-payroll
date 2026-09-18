@@ -4,7 +4,20 @@ import { addDays, eachDayOfInterval, parseISO } from "date-fns";
 export const TIMEZONE = "Asia/Manila";
 
 export type PunchType = "IN" | "OUT" | "BREAK_START" | "BREAK_END";
-export type PayBasis = "HOURLY" | "DAILY";
+export type PayBasis = "HOURLY" | "DAILY" | "FLAT_DAILY" | "OPERATION_DAY";
+/** Pay bases computed per day worked (see computeDayBasedPay) rather than from total regular hours. */
+export type DayBasedPayBasis = "FLAT_DAILY" | "OPERATION_DAY";
+
+export const PAY_BASIS_LABELS: Record<PayBasis, string> = {
+  HOURLY: "Hourly",
+  DAILY: "Daily (prorated by hours)",
+  FLAT_DAILY: "Flat daily (packing)",
+  OPERATION_DAY: "Production (by operation day)",
+};
+
+export function isDayBasedPayBasis(basis: PayBasis): basis is DayBasedPayBasis {
+  return basis === "FLAT_DAILY" || basis === "OPERATION_DAY";
+}
 export type DayStatusType = "PAID_LEAVE" | "UNPAID_ABSENCE";
 
 export interface PunchInput {
@@ -299,7 +312,7 @@ export function summarizePeriod(days: DailyResult[]): PeriodResult {
  */
 export function computePay(
   regularHours: number,
-  payBasis: PayBasis,
+  payBasis: "HOURLY" | "DAILY",
   payRate: number,
   settings: Pick<PayrollSettings, "regularHoursCapPerDay">
 ): PayResult {
@@ -311,6 +324,76 @@ export function computePay(
     basePay,
     grossPay: basePay,
   };
+}
+
+/** Pay per day worked for OPERATION_DAY (production) employees, by the
+ * date's operation day. */
+export interface OperationPayRates {
+  cooking: number;
+  jarFilling: number;
+}
+
+export interface PayBreakdownLine {
+  label: string;
+  /** Number of days at this rate. */
+  days: number;
+  rate: number;
+  amount: number;
+}
+
+export interface DayBasedPayResult {
+  basePay: number;
+  grossPay: number;
+  lines: PayBreakdownLine[];
+}
+
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+/**
+ * Gross pay for employees paid per day worked -- the full day's rate for any
+ * day with completed punches, however few hours. Cutting a day short isn't
+ * deducted here; the admin adds a "Half day" deduction on the payslip instead.
+ *
+ * FLAT_DAILY (packing): payRate per day worked.
+ *
+ * OPERATION_DAY (production): the Cooking or Jar Filling rate for that date's
+ * operation day. An OFF day (nothing scheduled) that someone still worked is
+ * paid at the Jar Filling rate unless an owner records it as a Cooking day.
+ *
+ * For both, an UNPAID_ABSENCE day pays nothing and a PAID_LEAVE day counts as
+ * worked.
+ */
+export function computeDayBasedPay(
+  days: DailyResult[],
+  payBasis: DayBasedPayBasis,
+  payRate: number,
+  operationDayFor: (date: string) => "COOKING" | "JAR_FILLING" | "OFF",
+  rates: OperationPayRates
+): DayBasedPayResult {
+  const counts = new Map<string, PayBreakdownLine>();
+  const add = (key: string, label: string, rate: number) => {
+    const line = counts.get(key) ?? { label, days: 0, rate, amount: 0 };
+    line.days += 1;
+    counts.set(key, line);
+  };
+
+  for (const d of days) {
+    if (d.dayStatus === "UNPAID_ABSENCE") continue;
+    if (d.dayStatus !== "PAID_LEAVE" && d.workedMinutes <= 0) continue;
+
+    if (payBasis === "FLAT_DAILY") add("flat", "Day worked", payRate);
+    else if (operationDayFor(d.date) === "COOKING") add("cooking", "Cooking day", rates.cooking);
+    else add("jar", "Jar filling day", rates.jarFilling);
+  }
+
+  const lines = ["flat", "cooking", "jar"]
+    .filter((k) => counts.has(k))
+    .map((k) => {
+      const line = counts.get(k)!;
+      return { ...line, amount: round2(line.days * line.rate) };
+    });
+  const basePay = round2(lines.reduce((sum, l) => sum + l.amount, 0));
+  return { basePay, grossPay: basePay, lines };
 }
 
 /** Suggested deduction for a late morning arrival, by minutes after shift

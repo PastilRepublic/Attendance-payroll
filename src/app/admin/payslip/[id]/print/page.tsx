@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { adjustmentsTotal, getPeriodDailyResults } from "@/lib/payrollService";
-import { TIMEZONE } from "@/lib/payroll";
+import { TIMEZONE, PAY_BASIS_LABELS, type PayBreakdownLine } from "@/lib/payroll";
 import { getSettings } from "@/lib/settings";
 import { formatInTimeZone } from "date-fns-tz";
 import PrintButton from "./PrintButton";
@@ -35,6 +35,8 @@ export default async function PayslipPrintPage({
 
   const adjTotal = adjustmentsTotal(payslip.adjustments);
   const total = Number(payslip.grossPay) + adjTotal;
+  const breakdownLines =
+    (payslip.payBreakdown as { lines?: PayBreakdownLine[] } | null)?.lines ?? [];
 
   return (
     <div className="max-w-2xl mx-auto p-10 bg-white text-slate-900">
@@ -62,11 +64,15 @@ export default async function PayslipPrintPage({
         </div>
         <div>
           <div className="text-slate-500">Pay basis</div>
-          <div className="font-medium">{payslip.employee.payBasis}</div>
+          <div className="font-medium">{PAY_BASIS_LABELS[payslip.employee.payBasis]}</div>
         </div>
         <div>
           <div className="text-slate-500">Rate</div>
-          <div className="font-medium">₱{Number(payslip.employee.payRate).toFixed(2)}</div>
+          <div className="font-medium">
+            {payslip.employee.payBasis === "OPERATION_DAY"
+              ? "By operation day"
+              : `₱${Number(payslip.employee.payRate).toFixed(2)}`}
+          </div>
         </div>
       </div>
 
@@ -80,6 +86,14 @@ export default async function PayslipPrintPage({
             <td className="py-2">Overtime hours</td>
             <td className="py-2 text-right">{Number(payslip.overtimeHours).toFixed(2)}</td>
           </tr>
+          {breakdownLines.map((l) => (
+            <tr key={l.label} className="border-b border-slate-100 text-slate-600">
+              <td className="py-2 pl-4">
+                {l.days} × {l.label} @ ₱{l.rate.toFixed(2)}
+              </td>
+              <td className="py-2 text-right">₱{l.amount.toFixed(2)}</td>
+            </tr>
+          ))}
           <tr className="border-b border-slate-100">
             <td className="py-2">Gross pay</td>
             <td className="py-2 text-right">₱{Number(payslip.grossPay).toFixed(2)}</td>

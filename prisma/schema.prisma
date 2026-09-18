@@ -12,7 +12,13 @@ datasource db {
 
 enum PayBasis {
   HOURLY
+  /// Rate is per full day, prorated by regular hours worked (rate / regular hours cap per hour).
   DAILY
+  /// Full flat daily rate for any day worked, regardless of hours (packing staff/helpers).
+  FLAT_DAILY
+  /// Production staff: the daily rate depends on that date's operation day
+  /// (Cooking vs Jar Filling rate in Settings), prorated by regular hours worked.
+  OPERATION_DAY
 }
 
 enum PunchType {
@@ -199,6 +205,10 @@ model Payslip {
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
+  /** Per-day-type pay lines ({ lines: [{ label, days, rate, amount }] }) for
+   * FLAT_DAILY / OPERATION_DAY employees, frozen once the payslip is finalized. */
+  payBreakdown  Json?
+
   adjustments PayslipAdjustment[]
 
   @@unique([employeeId, payPeriodId])
@@ -268,7 +278,21 @@ model Settings {
   /** The calendar date (Asia/Manila) that operationDay was last manually
    * set for. Null, or not today, means no manual override is in effect. */
   operationDayOverrideDate DateTime?    @db.Date
+  /** Pay per day worked for OPERATION_DAY employees, on a Cooking day / Jar
+   * Filling day. Half days are handled by an admin "Half day" deduction. */
+  cookingDayRate           Decimal      @default(400) @db.Decimal(10, 2)
+  jarFillingDayRate        Decimal      @default(350) @db.Decimal(10, 2)
   updatedAt                DateTime     @updatedAt
+}
+
+/** The operation day that was actually in effect on a given date, recorded
+ * whenever a supervisor toggles it at the kiosk (or an owner corrects it on
+ * payroll). Dates with no row fall back to the weekday rotation. Payroll reads
+ * this so a past date's pay rate doesn't depend on today's kiosk state. */
+model OperationDayLog {
+  date         DateTime     @id @db.Date
+  operationDay OperationDay
+  updatedAt    DateTime     @updatedAt
 }
 
 enum OperationDay {

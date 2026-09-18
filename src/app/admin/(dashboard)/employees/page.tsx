@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { PAY_BASIS_LABELS } from "@/lib/payroll";
 import { setEmployeeActive } from "./actions";
 import PageHeader from "@/components/PageHeader";
 import Card from "@/components/Card";
@@ -54,9 +55,11 @@ export default async function EmployeesPage() {
                     )}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-slate-600">{emp.payBasis}</td>
+                <td className="px-4 py-3 text-slate-600">{PAY_BASIS_LABELS[emp.payBasis]}</td>
                 <td className="px-4 py-3 text-slate-600">
-                  ₱{Number(emp.payRate).toFixed(2)}
+                  {emp.payBasis === "OPERATION_DAY"
+                    ? "By operation day"
+                    : `₱${Number(emp.payRate).toFixed(2)}`}
                 </td>
                 <td className="px-4 py-3 text-slate-600">
                   {emp.dateHired.toISOString().slice(0, 10)}

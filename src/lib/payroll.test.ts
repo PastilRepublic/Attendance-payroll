@@ -3,9 +3,12 @@ import {
   computeDailyResults,
   summarizePeriod,
   computePay,
+  computeDayBasedPay,
   localDateKey,
   type PayrollSettings,
+  type OperationPayRates,
 } from "./payroll";
+import { resolveOperationDayForDate } from "./operationDay";
 
 const settings: PayrollSettings = {
   otMultiplier: 1.25,
@@ -333,6 +336,93 @@ describe("computePay", () => {
     expect(result.hourlyRate).toBe(100);
     expect(result.basePay).toBe(800);
     expect(result.grossPay).toBe(800);
+  });
+});
+
+describe("computeDayBasedPay", () => {
+  const rates: OperationPayRates = { cooking: 400, jarFilling: 350 };
+  // 2026-01-05 is a Monday (Cooking), 01-06 Tuesday (Jar Filling), 01-11 Sunday (Off).
+  const overrides = new Map<string, "COOKING" | "JAR_FILLING">();
+  const dayFor = (d: string) => resolveOperationDayForDate(d, overrides);
+
+  const punchPair = (date: string, inH: number, outH: number) => [
+    { timestamp: atManila(date, inH, 0), type: "IN" as const },
+    { timestamp: atManila(date, outH, 0), type: "OUT" as const },
+  ];
+  const daysFor = (punches: ReturnType<typeof punchPair>, from: string, to: string) =>
+    computeDailyResults(punches, [], settings, from, to);
+
+  it("production: 400 for a cooking day, 350 for a jar filling day", () => {
+    const days = daysFor(
+      [...punchPair("2026-01-05", 8, 17), ...punchPair("2026-01-06", 8, 17)],
+      "2026-01-05",
+      "2026-01-06"
+    );
+    const pay = computeDayBasedPay(days, "OPERATION_DAY", 0, dayFor, rates);
+    expect(pay.basePay).toBe(750);
+    expect(pay.lines.map((l) => [l.label, l.days, l.amount])).toEqual([
+      ["Cooking day", 1, 400],
+      ["Jar filling day", 1, 350],
+    ]);
+  });
+
+  it("production: a short day still earns the full rate (a Half day deduction is added by hand)", () => {
+    const days = daysFor(punchPair("2026-01-05", 8, 12), "2026-01-05", "2026-01-05");
+    expect(days[0].isUndertime).toBe(true);
+    expect(computeDayBasedPay(days, "OPERATION_DAY", 0, dayFor, rates).basePay).toBe(400);
+  });
+
+  it("production: a recorded override changes the day's rate; Off days fall back to Jar Filling", () => {
+    const days = daysFor(
+      [...punchPair("2026-01-05", 8, 17), ...punchPair("2026-01-11", 8, 17)],
+      "2026-01-05",
+      "2026-01-11"
+    );
+    const swapped = new Map([["2026-01-05", "JAR_FILLING" as const]]);
+    const pay = computeDayBasedPay(
+      days,
+      "OPERATION_DAY",
+      0,
+      (d) => resolveOperationDayForDate(d, swapped),
+      rates
+    );
+    // Mon recorded as Jar Filling (350) + Sunday (Off) paid at the Jar Filling rate (350)
+    expect(pay.basePay).toBe(700);
+  });
+
+  it("production: no punches or unpaid absence pays nothing; paid leave counts as worked", () => {
+    const days = computeDailyResults(
+      punchPair("2026-01-05", 8, 17),
+      [
+        { date: "2026-01-05", status: "UNPAID_ABSENCE" },
+        { date: "2026-01-06", status: "PAID_LEAVE" },
+      ],
+      settings,
+      "2026-01-05",
+      "2026-01-07"
+    );
+    // Mon absent (0), Tue paid leave on a Jar Filling day (350), Wed nothing (0)
+    expect(computeDayBasedPay(days, "OPERATION_DAY", 0, dayFor, rates).basePay).toBe(350);
+  });
+
+  it("flat daily: full rate for any worked day, even a short one, none for a day without punches", () => {
+    const days = daysFor(
+      [...punchPair("2026-01-11", 8, 11), ...punchPair("2026-01-05", 8, 17)],
+      "2026-01-05",
+      "2026-01-12"
+    );
+    const pay = computeDayBasedPay(days, "FLAT_DAILY", 600, dayFor, rates);
+    expect(pay.basePay).toBe(1200); // Monday + a 3-hour Sunday, each the full 600
+    expect(pay.lines).toEqual([{ label: "Day worked", days: 2, rate: 600, amount: 1200 }]);
+  });
+
+  it("flat daily: an open punch-in with no punch-out is not a worked day", () => {
+    const days = daysFor(
+      [{ timestamp: atManila("2026-01-05", 8, 0), type: "IN" as const }],
+      "2026-01-05",
+      "2026-01-05"
+    );
+    expect(computeDayBasedPay(days, "FLAT_DAILY", 600, dayFor, rates).basePay).toBe(0);
   });
 });
 

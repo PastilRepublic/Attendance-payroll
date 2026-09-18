@@ -120,6 +120,37 @@ export default async function SettingsPage() {
                 Pay periods are weekly, starting on this day.
               </p>
             </div>
+
+            <div className="border-t border-slate-200 pt-5">
+              <h2 className="text-sm font-semibold text-slate-900 mb-1">
+                Production pay (by operation day)
+              </h2>
+              <p className="text-xs text-slate-500 mb-3">
+                For employees on the &quot;Production&quot; pay type: the full amount for each day
+                worked, depending on whether that date is a Cooking or Jar Filling day. If someone
+                leaves early or works a half day, add a &quot;Half day&quot; deduction on their payslip.
+              </p>
+              <div className="grid grid-cols-2 gap-4">
+                {(
+                  [
+                    ["cookingDayRate", "Cooking day (₱)", Number(settings.cookingDayRate)],
+                    ["jarFillingDayRate", "Jar filling day (₱)", Number(settings.jarFillingDayRate)],
+                  ] as const
+                ).map(([name, label, value]) => (
+                  <div key={name}>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
+                    <input
+                      name={name}
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      defaultValue={value}
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-slate-400"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
           </>
         )}
 

@@ -22,12 +22,20 @@ async function assertPinIsUnique(pin: string, excludeEmployeeId?: string) {
   }
 }
 
-const employeeSchema = z.object({
-  name: z.string().trim().min(1, "Name is required"),
-  payBasis: z.enum(["HOURLY", "DAILY"]),
-  payRate: z.coerce.number().positive("Pay rate must be greater than 0"),
-  dateHired: z.string().min(1, "Date hired is required"),
-});
+const employeeSchema = z
+  .object({
+    name: z.string().trim().min(1, "Name is required"),
+    payBasis: z.enum(["HOURLY", "DAILY", "FLAT_DAILY", "OPERATION_DAY"]),
+    payRate: z.coerce.number().min(0).catch(0),
+    dateHired: z.string().min(1, "Date hired is required"),
+  })
+  // Production (OPERATION_DAY) pay comes from the Settings rates, so the
+  // per-employee rate only has to be filled in for the other pay bases.
+  .refine((v) => v.payBasis === "OPERATION_DAY" || v.payRate > 0, {
+    message: "Pay rate must be greater than 0",
+    path: ["payRate"],
+  })
+  .transform((v) => (v.payBasis === "OPERATION_DAY" ? { ...v, payRate: 0 } : v));
 
 const pinSchema = z
   .string()

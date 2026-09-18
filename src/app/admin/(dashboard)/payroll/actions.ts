@@ -8,7 +8,7 @@ import { requireOwner } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
 import { nextWeeklyPeriod } from "@/lib/payroll";
 import { getOrRefreshDraftPayslip, getPeriodDailyResults } from "@/lib/payrollService";
-import { getSettings } from "@/lib/settings";
+import { getSettings, setOperationDayForDate } from "@/lib/settings";
 
 export async function createNextPayPeriod() {
   const admin = await requireOwner();
@@ -36,11 +36,56 @@ export async function createNextPayPeriod() {
   redirect(`/admin/payroll/${period.id}`);
 }
 
-const DEDUCTION_LABELS = ["Cash Advance", "Negligence", "Late"];
+const dayTypeSchema = z.object({
+  payPeriodId: z.string().min(1),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  // AUTO clears the recorded value so the weekday rotation applies again.
+  operationDay: z.enum(["AUTO", "COOKING", "JAR_FILLING"]),
+});
+
+/** Corrects which operation day (Cooking / Jar Filling) a date in an open pay
+ * period counts as, which sets the pay rate for Production employees. */
+export async function setPeriodDayType(formData: FormData) {
+  const admin = await requireOwner();
+  const parsed = dayTypeSchema.parse({
+    payPeriodId: formData.get("payPeriodId"),
+    date: formData.get("date"),
+    operationDay: formData.get("operationDay"),
+  });
+
+  const period = await prisma.payPeriod.findUniqueOrThrow({ where: { id: parsed.payPeriodId } });
+  if (period.status === "FINALIZED") {
+    throw new Error("This pay period is finalized.");
+  }
+  const date = new Date(`${parsed.date}T00:00:00.000Z`);
+  if (date < period.startDate || date > period.endDate) {
+    throw new Error("That date is outside this pay period.");
+  }
+
+  const before = await prisma.operationDayLog.findUnique({ where: { date } });
+  if (parsed.operationDay === "AUTO") {
+    await prisma.operationDayLog.deleteMany({ where: { date } });
+  } else {
+    await setOperationDayForDate(date, parsed.operationDay);
+  }
+
+  await logAudit({
+    actorAdminId: admin.id,
+    action: "SET_OPERATION_DAY",
+    targetTable: "OperationDayLog",
+    targetId: parsed.date,
+    before: before ? { operationDay: before.operationDay } : undefined,
+    after: { operationDay: parsed.operationDay },
+  });
+
+  revalidatePath(`/admin/payroll/${parsed.payPeriodId}`);
+}
+
+const DEDUCTION_LABELS = ["Cash Advance", "Negligence", "Late", "Half day"];
 
 const adjustmentSchema = z.object({
   payslipId: z.string().min(1),
-  label: z.enum(["Cash Advance", "Negligence", "Late", "Bonus"]),
+  label: z.enum(["Cash Advance", "Negligence", "Late", "Half day", "Bonus"]),
   amount: z.coerce.number().positive("Amount must be greater than zero"),
   note: z.string().trim().optional(),
 });
@@ -59,7 +104,7 @@ export async function addAdjustment(formData: FormData) {
     throw new Error("This payslip is finalized. Unlock it first to make changes.");
   }
 
-  // Cash Advance, Negligence, and Late are always deductions; Bonus is
+  // Cash Advance, Negligence, Late, and Half day are always deductions; Bonus is
   // always an incentive -- the admin enters a plain positive amount and the
   // sign is applied automatically based on the chosen label.
   const signedAmount = DEDUCTION_LABELS.includes(parsed.label) ? -parsed.amount : parsed.amount;

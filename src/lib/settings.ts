@@ -1,7 +1,11 @@
-import { formatInTimeZone } from "date-fns-tz";
 import { prisma } from "@/lib/prisma";
-import type { PayrollSettings } from "@/lib/payroll";
-import { TIMEZONE, localDateKey } from "@/lib/payroll";
+import type { PayrollSettings, OperationPayRates } from "@/lib/payroll";
+import { localDateKey } from "@/lib/payroll";
+import {
+  rotationDayForDate,
+  type OperationDay,
+  type ResolvedOperationDay,
+} from "@/lib/operationDay";
 
 export async function getSettings(): Promise<PayrollSettings> {
   const row = await prisma.settings.upsert({
@@ -20,6 +24,19 @@ export async function getSettings(): Promise<PayrollSettings> {
   };
 }
 
+/** Per-day rates for OPERATION_DAY (production) employees. */
+export async function getOperationPayRates(): Promise<OperationPayRates> {
+  const row = await prisma.settings.upsert({
+    where: { id: 1 },
+    update: {},
+    create: { id: 1 },
+  });
+  return {
+    cooking: Number(row.cookingDayRate),
+    jarFilling: Number(row.jarFillingDayRate),
+  };
+}
+
 export async function getRequirePhotoOnPunch(): Promise<boolean> {
   const row = await prisma.settings.upsert({
     where: { id: 1 },
@@ -29,30 +46,17 @@ export async function getRequirePhotoOnPunch(): Promise<boolean> {
   return row.requirePhotoOnPunch;
 }
 
-export type OperationDay = "COOKING" | "JAR_FILLING";
-export type ResolvedOperationDay = OperationDay | "OFF";
-
-// Default weekly rotation when nobody has manually overridden today's
-// operation day: alternates starting Monday, Sunday is a day off.
-const WEEKDAY_ROTATION: Record<string, ResolvedOperationDay> = {
-  Sunday: "OFF",
-  Monday: "COOKING",
-  Tuesday: "JAR_FILLING",
-  Wednesday: "COOKING",
-  Thursday: "JAR_FILLING",
-  Friday: "COOKING",
-  Saturday: "JAR_FILLING",
-};
+export type { OperationDay, ResolvedOperationDay };
 
 function defaultOperationDayForToday(): ResolvedOperationDay {
-  const weekday = formatInTimeZone(new Date(), TIMEZONE, "EEEE");
-  return WEEKDAY_ROTATION[weekday] ?? "COOKING";
+  return rotationDayForDate(localDateKey(new Date()));
 }
 
 /**
  * Today's operation day. A manual toggle (setOperationDay) only holds for
  * the calendar day it was set on -- once operationDayOverrideDate is no
- * longer today, this falls back to the fixed weekday rotation above.
+ * longer today, this falls back to the fixed weekday rotation. Every toggle is
+ * also kept per date in OperationDayLog, which is what payroll reads.
  */
 export async function getOperationDay(): Promise<ResolvedOperationDay> {
   const row = await prisma.settings.upsert({
@@ -67,10 +71,33 @@ export async function getOperationDay(): Promise<ResolvedOperationDay> {
 
 export async function setOperationDay(value: OperationDay): Promise<OperationDay> {
   const today = new Date(`${localDateKey(new Date())}T00:00:00.000Z`);
-  const row = await prisma.settings.upsert({
-    where: { id: 1 },
-    update: { operationDay: value, operationDayOverrideDate: today },
-    create: { id: 1, operationDay: value, operationDayOverrideDate: today },
-  });
+  const [row] = await Promise.all([
+    prisma.settings.upsert({
+      where: { id: 1 },
+      update: { operationDay: value, operationDayOverrideDate: today },
+      create: { id: 1, operationDay: value, operationDayOverrideDate: today },
+    }),
+    setOperationDayForDate(today, value),
+  ]);
   return row.operationDay;
+}
+
+/** Records the operation day for one date (a UTC-midnight Date), for payroll. */
+export async function setOperationDayForDate(date: Date, value: OperationDay) {
+  await prisma.operationDayLog.upsert({
+    where: { date },
+    update: { operationDay: value },
+    create: { date, operationDay: value },
+  });
+}
+
+/** Recorded operation-day overrides in [startDate, endDate], keyed by YYYY-MM-DD. */
+export async function getOperationDayOverrides(
+  startDate: Date,
+  endDate: Date
+): Promise<Map<string, OperationDay>> {
+  const rows = await prisma.operationDayLog.findMany({
+    where: { date: { gte: startDate, lte: endDate } },
+  });
+  return new Map(rows.map((r) => [r.date.toISOString().slice(0, 10), r.operationDay]));
 }

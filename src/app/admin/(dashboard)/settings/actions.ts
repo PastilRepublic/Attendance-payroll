@@ -22,6 +22,8 @@ const ownerOnlySettingsSchema = z.object({
   unpaidLunchMinutes: z.coerce.number().int().min(0),
   regularHoursCapPerDay: z.coerce.number().positive(),
   payPeriodStartDay: z.coerce.number().int().min(1).max(7),
+  cookingDayRate: z.coerce.number().min(0),
+  jarFillingDayRate: z.coerce.number().min(0),
 });
 
 export async function updateSettings(formData: FormData) {
@@ -42,12 +44,16 @@ export async function updateSettings(formData: FormData) {
         unpaidLunchMinutes: formData.get("unpaidLunchMinutes"),
         regularHoursCapPerDay: formData.get("regularHoursCapPerDay"),
         payPeriodStartDay: formData.get("payPeriodStartDay"),
+        cookingDayRate: formData.get("cookingDayRate"),
+        jarFillingDayRate: formData.get("jarFillingDayRate"),
       })
     : {
         gracePeriodMinutes: before?.gracePeriodMinutes ?? 10,
         unpaidLunchMinutes: before?.unpaidLunchMinutes ?? 60,
         regularHoursCapPerDay: before?.regularHoursCapPerDay ?? 8,
         payPeriodStartDay: before?.payPeriodStartDay ?? 1,
+        cookingDayRate: before?.cookingDayRate ?? 400,
+        jarFillingDayRate: before?.jarFillingDayRate ?? 350,
       };
 
   const parsed = { ...operational, ...ownerOnly };
