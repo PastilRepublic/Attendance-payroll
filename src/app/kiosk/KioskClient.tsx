@@ -209,11 +209,6 @@ export default function KioskClient({
       .finally(() => router.replace("/kiosk"));
   }, [initialEmployeeId, chooseEmployee, router]);
 
-  const chooseAgain = useCallback(() => {
-    setSelectedEmployee(null);
-    setPin("");
-  }, []);
-
   const scheduleReset = useCallback(
     (ms: number = AUTO_RESET_MS) => {
       if (resetTimer.current) clearTimeout(resetTimer.current);
@@ -434,13 +429,9 @@ export default function KioskClient({
     <div className="fixed inset-0 bg-white text-slate-900 flex flex-col select-none">
       <div className="flex justify-between items-center px-6 py-3 text-xs text-slate-500 border-b border-slate-200">
         <div className="flex items-center gap-3">
-          {screen === "home" ? (
-            <Link href="/" className="hover:text-slate-900">
-              ← Back
-            </Link>
-          ) : (
-            <span className="text-slate-300">← Back</span>
-          )}
+          <Link href="/" className="hover:text-slate-900">
+            ← Back
+          </Link>
           <span>Attendance Kiosk</span>
         </div>
         <div className="flex gap-3">
@@ -468,12 +459,7 @@ export default function KioskClient({
         {screen === "checking" && <StatusMessage text="Checking..." />}
 
         {screen === "actionPanel" && identifyData && (
-          <ActionPanel
-            data={identifyData}
-            elapsedText={elapsedText}
-            onAction={handleAction}
-            onChooseAgain={chooseAgain}
-          />
+          <ActionPanel data={identifyData} elapsedText={elapsedText} onAction={handleAction} />
         )}
 
         {screen === "photo" && (
@@ -639,27 +625,19 @@ function ActionPanel({
   data,
   elapsedText,
   onAction,
-  onChooseAgain,
 }: {
   data: IdentifyData;
   elapsedText: string | null;
   onAction: (type: PunchType) => void;
-  onChooseAgain: () => void;
 }) {
   return (
     <div className="w-full max-w-md text-center">
-      <div className="flex items-center justify-center gap-3 mb-1">
+      <div className="flex items-center justify-center gap-3 mb-6">
         <p className="text-2xl font-semibold text-slate-900">{data.employeeName}</p>
         <span className={`px-2.5 py-0.5 rounded-full text-sm font-medium ${STATUS_PILL_STYLES[data.status]}`}>
           {STATUS_LABELS[data.status]}
         </span>
       </div>
-      <button
-        onClick={onChooseAgain}
-        className="text-xs text-slate-400 hover:text-slate-600 underline mb-6"
-      >
-        Not you? Choose again
-      </button>
 
       {elapsedText && (
         <p className="text-5xl font-mono font-bold mb-6 tabular-nums text-slate-900">{elapsedText}</p>
