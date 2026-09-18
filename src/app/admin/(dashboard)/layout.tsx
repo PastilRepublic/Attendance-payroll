@@ -6,7 +6,6 @@ const navItems = [
   { href: "/admin/employees", label: "Employees", ownerOnly: true },
   { href: "/admin/payroll", label: "Payroll", ownerOnly: true },
   { href: "/admin/inventory", label: "Inventory", ownerOnly: false },
-  { href: "/admin/tasks", label: "Tasks", ownerOnly: true },
   { href: "/admin/sanitation", label: "Sanitation", ownerOnly: false },
   { href: "/admin/settings", label: "Settings", ownerOnly: false },
 ];

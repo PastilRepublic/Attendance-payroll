@@ -13,7 +13,6 @@ import {
   removeAdjustment,
   finalizePeriod,
   unlockPayslip,
-  addTaskBonusToPayslip,
   addSanitationBonusToPayslip,
   dismissBonusSuggestion,
   addLateDeductionToPayslip,
@@ -39,18 +38,6 @@ export default async function PayPeriodDetailPage({
   const payslips = await Promise.all(
     employees.map(async (emp) => {
       const payslip = await getOrRefreshDraftPayslip(emp.id, id);
-      const suggestedBonuses = await prisma.taskAssignment.findMany({
-        where: {
-          employeeId: emp.id,
-          status: "DONE",
-          bonusAmount: { not: null },
-          bonusDismissed: false,
-          payslipAdjustmentId: null,
-          date: { gte: period.startDate, lte: period.endDate },
-        },
-        include: { template: true },
-        orderBy: { date: "asc" },
-      });
       const suggestedCleaningBonuses = await prisma.sanitationAssignment.findMany({
         where: {
           employeeId: emp.id,
@@ -85,7 +72,6 @@ export default async function PayPeriodDetailPage({
       return {
         employee: emp,
         payslip,
-        suggestedBonuses,
         suggestedCleaningBonuses,
         suggestedLate,
       };
@@ -125,7 +111,7 @@ export default async function PayPeriodDetailPage({
       </div>
 
       <div className="space-y-4">
-        {payslips.map(({ employee, payslip, suggestedBonuses, suggestedCleaningBonuses, suggestedLate }) => {
+        {payslips.map(({ employee, payslip, suggestedCleaningBonuses, suggestedLate }) => {
           const adjTotal = adjustmentsTotal(payslip.adjustments);
           const total = Number(payslip.grossPay) + adjTotal;
 
@@ -228,42 +214,6 @@ export default async function PayPeriodDetailPage({
                   </div>
                 );
               })()}
-
-              {payslip.status !== "FINALIZED" && suggestedBonuses.length > 0 && (
-                <div className="mb-2 rounded-md bg-amber-50 border border-amber-200 p-2">
-                  <p className="text-xs font-medium text-amber-800 mb-1">
-                    Suggested bonuses from completed tasks
-                  </p>
-                  {suggestedBonuses.map((a) => (
-                    <div
-                      key={a.id}
-                      className="flex items-center justify-between text-xs py-1"
-                    >
-                      <span className="text-slate-700">
-                        {a.template.name} — {a.date.toISOString().slice(0, 10)} — ₱
-                        {Number(a.bonusAmount).toFixed(2)}
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <form action={addTaskBonusToPayslip}>
-                          <input type="hidden" name="payslipId" value={payslip.id} />
-                          <input type="hidden" name="taskAssignmentId" value={a.id} />
-                          <button className="rounded-md bg-amber-600 text-white px-2 py-1 hover:bg-amber-500">
-                            Add to payslip
-                          </button>
-                        </form>
-                        <form action={dismissBonusSuggestion}>
-                          <input type="hidden" name="kind" value="TASK" />
-                          <input type="hidden" name="assignmentId" value={a.id} />
-                          <input type="hidden" name="payPeriodId" value={period.id} />
-                          <button className="rounded-md border border-slate-300 bg-white text-slate-600 px-2 py-1 hover:bg-slate-50">
-                            Skip
-                          </button>
-                        </form>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
 
               {payslip.status !== "FINALIZED" && suggestedCleaningBonuses.length > 0 && (
                 <div className="mb-2 rounded-md bg-amber-50 border border-amber-200 p-2">

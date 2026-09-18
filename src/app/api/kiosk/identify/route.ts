@@ -39,27 +39,18 @@ export async function POST(request: Request) {
     await ensureTodaysSanitationSchedule();
   }
   const operationDay = await getOperationDay();
-  const [pendingTasks, pendingSanitation] = isActiveSupervisor
-    ? [[], []]
-    : await Promise.all([
-        prisma.taskAssignment.findMany({
-          where: {
-            employeeId: matched.id,
-            date: new Date(`${today}T00:00:00.000Z`),
-            status: "PENDING",
-          },
-          include: { template: true },
-        }),
-        prisma.sanitationAssignment.findMany({
-          where: {
-            date: new Date(`${today}T00:00:00.000Z`),
-            status: "PENDING",
-            OR: [{ employeeId: null }, { employeeId: matched.id }],
-            procedure: { appliesTo: scopeFilterFor(operationDay) },
-          },
-          include: { procedure: true },
-        }),
-      ]);
+  // Bonus tasks are no longer shown at the kiosk -- only cleaning duties.
+  const pendingSanitation = isActiveSupervisor
+    ? []
+    : await prisma.sanitationAssignment.findMany({
+        where: {
+          date: new Date(`${today}T00:00:00.000Z`),
+          status: "PENDING",
+          OR: [{ employeeId: null }, { employeeId: matched.id }],
+          procedure: { appliesTo: scopeFilterFor(operationDay) },
+        },
+        include: { procedure: true },
+      });
 
   return NextResponse.json({
     employeeId: matched.id,
@@ -71,12 +62,6 @@ export async function POST(request: Request) {
     totals: snapshot.totals,
     requirePhoto: await getRequirePhotoOnPunch(),
     pendingTasks: [
-      ...pendingTasks.map((t) => ({
-        id: t.id,
-        kind: "TASK" as const,
-        name: t.template.name,
-        bonusAmount: t.bonusAmount ? Number(t.bonusAmount) : null,
-      })),
       ...pendingSanitation.map((s) => ({
         id: s.id,
         kind: "SANITATION" as const,

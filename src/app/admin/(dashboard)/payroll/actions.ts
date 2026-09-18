@@ -109,59 +109,6 @@ export async function removeAdjustment(formData: FormData) {
   revalidatePath(`/admin/payroll/${adjustment.payslip.payPeriodId}`);
 }
 
-const addTaskBonusSchema = z.object({
-  payslipId: z.string().min(1),
-  taskAssignmentId: z.string().min(1),
-});
-
-export async function addTaskBonusToPayslip(formData: FormData) {
-  const admin = await requireOwner();
-  const parsed = addTaskBonusSchema.parse({
-    payslipId: formData.get("payslipId"),
-    taskAssignmentId: formData.get("taskAssignmentId"),
-  });
-
-  const payslip = await prisma.payslip.findUniqueOrThrow({ where: { id: parsed.payslipId } });
-  if (payslip.status === "FINALIZED") {
-    throw new Error("This payslip is finalized. Unlock it first to make changes.");
-  }
-
-  const assignment = await prisma.taskAssignment.findUniqueOrThrow({
-    where: { id: parsed.taskAssignmentId },
-    include: { template: true },
-  });
-  if (assignment.payslipAdjustmentId) {
-    throw new Error("This task bonus has already been added to a payslip.");
-  }
-  if (assignment.status !== "DONE" || !assignment.bonusAmount) {
-    throw new Error("This task has no pending bonus to add.");
-  }
-
-  const adjustment = await prisma.payslipAdjustment.create({
-    data: {
-      payslipId: parsed.payslipId,
-      label: assignment.template.name,
-      amount: assignment.bonusAmount,
-      note: `Task bonus — ${assignment.date.toISOString().slice(0, 10)}`,
-    },
-  });
-
-  await prisma.taskAssignment.update({
-    where: { id: assignment.id },
-    data: { payslipAdjustmentId: adjustment.id },
-  });
-
-  await logAudit({
-    actorAdminId: admin.id,
-    action: "ADD_TASK_BONUS_TO_PAYSLIP",
-    targetTable: "PayslipAdjustment",
-    targetId: adjustment.id,
-    after: { label: assignment.template.name, amount: Number(assignment.bonusAmount), taskAssignmentId: assignment.id },
-  });
-
-  revalidatePath(`/admin/payroll/${payslip.payPeriodId}`);
-}
-
 export async function finalizePeriod(formData: FormData) {
   const admin = await requireOwner();
   const payPeriodId = String(formData.get("payPeriodId"));
