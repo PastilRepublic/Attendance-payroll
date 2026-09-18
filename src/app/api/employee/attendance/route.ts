@@ -8,6 +8,18 @@ import { formatInTimeZone } from "date-fns-tz";
 import { endOfMonth, parseISO } from "date-fns";
 
 const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
+const DATE_RE = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
+
+function addDaysKey(dateKey: string, n: number): string {
+  const d = new Date(`${dateKey}T00:00:00.000Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+function mondayOf(dateKey: string): string {
+  const dow = new Date(`${dateKey}T00:00:00.000Z`).getUTCDay();
+  return addDaysKey(dateKey, -((dow + 6) % 7));
+}
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
@@ -27,11 +39,29 @@ export async function POST(request: Request) {
   const today = formatInTimeZone(new Date(), TIMEZONE, "yyyy-MM-dd");
   const currentMonth = today.slice(0, 7);
   const requested = typeof body?.month === "string" && MONTH_RE.test(body.month) ? body.month : null;
-  // Future months have nothing to show, so clamp to the current one.
-  const month = requested && requested <= currentMonth ? requested : currentMonth;
-  const startDate = `${month}-01`;
-  const monthEnd = formatInTimeZone(endOfMonth(parseISO(startDate)), TIMEZONE, "yyyy-MM-dd");
-  const endDate = monthEnd < today ? monthEnd : today;
+  const requestedWeek =
+    typeof body?.weekStart === "string" && DATE_RE.test(body.weekStart) ? body.weekStart : null;
+
+  let month: string;
+  let weekStart: string | null = null;
+  let startDate: string;
+  let endDate: string;
+  if (requestedWeek) {
+    // Payroll weeks run Mon-Sun and may straddle two months. Snap to the
+    // Monday, and clamp future weeks to the current one.
+    weekStart = mondayOf(requestedWeek);
+    if (weekStart > mondayOf(today)) weekStart = mondayOf(today);
+    startDate = weekStart;
+    const weekEnd = addDaysKey(weekStart, 6);
+    endDate = weekEnd < today ? weekEnd : today;
+    month = startDate.slice(0, 7);
+  } else {
+    // Future months have nothing to show, so clamp to the current one.
+    month = requested && requested <= currentMonth ? requested : currentMonth;
+    startDate = `${month}-01`;
+    const monthEnd = formatInTimeZone(endOfMonth(parseISO(startDate)), TIMEZONE, "yyyy-MM-dd");
+    endDate = monthEnd < today ? monthEnd : today;
+  }
 
   const [punches, dayStatuses, shiftOverrides] = await Promise.all([
     prisma.punch.findMany({
@@ -76,13 +106,16 @@ export async function POST(request: Request) {
     punchesByDay.get(key)!.push(p);
   }
 
-  const earliestMonth = punches.length > 0 ? localDateKey(punches[0].timestamp).slice(0, 7) : currentMonth;
+  const earliestDate = punches.length > 0 ? localDateKey(punches[0].timestamp) : today;
 
   return NextResponse.json({
     employeeName: matched.name,
     month,
-    earliestMonth,
+    weekStart,
+    earliestMonth: earliestDate.slice(0, 7),
+    earliestWeekStart: mondayOf(earliestDate),
     currentMonth,
+    currentWeekStart: mondayOf(today),
     days: days
       .slice()
       .reverse()

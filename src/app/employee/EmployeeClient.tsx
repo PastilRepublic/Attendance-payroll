@@ -91,11 +91,43 @@ function monthLabel(month: string): string {
   });
 }
 
+// Every month from earliest to current, newest first, for the month dropdown.
+function monthOptions(earliest: string, current: string): string[] {
+  const out: string[] = [];
+  for (let m = current; m >= earliest; m = shiftMonth(m, -1)) out.push(m);
+  return out;
+}
+
+type ViewMode = "month" | "week";
+
+function addDaysKey(dateStr: string, n: number): string {
+  const d = new Date(`${dateStr}T00:00:00.000Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
 // Monday of the week containing dateStr -- payroll weeks run Mon-Sun.
 function weekKey(dateStr: string): string {
   const d = new Date(`${dateStr}T00:00:00.000Z`);
-  d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
-  return d.toISOString().slice(0, 10);
+  return addDaysKey(dateStr, -((d.getUTCDay() + 6) % 7));
+}
+
+// "Sep 28 – Oct 4": weeks can straddle two months.
+function weekLabel(weekStart: string): string {
+  const fmt = (s: string) =>
+    new Date(`${s}T00:00:00.000Z`).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      timeZone: "UTC",
+    });
+  return `${fmt(weekStart)} – ${fmt(addDaysKey(weekStart, 6))}`;
+}
+
+// Every week from earliest to current, newest first, for the week dropdown.
+function weekOptions(earliest: string, current: string): string[] {
+  const out: string[] = [];
+  for (let w = current; w >= earliest; w = addDaysKey(w, -7)) out.push(w);
+  return out;
 }
 
 export default function EmployeeClient() {
@@ -117,6 +149,10 @@ export default function EmployeeClient() {
   const [currentMonth, setCurrentMonth] = useState<string | null>(null);
   const [monthLoading, setMonthLoading] = useState(false);
   const [monthError, setMonthError] = useState(false);
+  const [mode, setMode] = useState<ViewMode>("month");
+  const [weekStart, setWeekStart] = useState<string | null>(null);
+  const [earliestWeek, setEarliestWeek] = useState<string | null>(null);
+  const [currentWeek, setCurrentWeek] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/kiosk/employees")
@@ -161,6 +197,10 @@ export default function EmployeeClient() {
       setMonth(attData.month ?? null);
       setEarliestMonth(attData.earliestMonth ?? null);
       setCurrentMonth(attData.currentMonth ?? null);
+      setEarliestWeek(attData.earliestWeekStart ?? null);
+      setCurrentWeek(attData.currentWeekStart ?? null);
+      setMode("month");
+      setWeekStart(null);
       setPayslips(payData.payslips ?? []);
       setPayBasis(payData.payBasis === "DAILY" ? "DAILY" : "HOURLY");
       setScreen("dashboard");
@@ -171,7 +211,7 @@ export default function EmployeeClient() {
     }
   }
 
-  async function loadMonth(target: string) {
+  async function loadRange(range: { month: string } | { weekStart: string }) {
     if (!selected || monthLoading) return;
     setMonthLoading(true);
     setMonthError(false);
@@ -179,12 +219,19 @@ export default function EmployeeClient() {
       const res = await fetch("/api/employee/attendance", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pin, employeeId: selected.id, month: target }),
+        body: JSON.stringify({ pin, employeeId: selected.id, ...range }),
       });
       if (!res.ok) throw new Error();
       const data = await res.json();
       setDays(data.days ?? []);
-      setMonth(data.month ?? target);
+      if ("weekStart" in range) {
+        setMode("week");
+        setWeekStart(data.weekStart ?? range.weekStart);
+      } else {
+        setMode("month");
+        setWeekStart(null);
+        setMonth(data.month ?? range.month);
+      }
     } catch {
       setMonthError(true);
     } finally {
@@ -208,6 +255,8 @@ export default function EmployeeClient() {
     setLoadError(null);
     setMonth(null);
     setMonthError(false);
+    setMode("month");
+    setWeekStart(null);
     setTab("attendance");
   }
 
@@ -377,25 +426,98 @@ export default function EmployeeClient() {
 
             {tab === "attendance" && (
               <Card className="overflow-hidden">
+                <div className="px-4 pt-3 pb-2 flex justify-center">
+                  <div className="inline-flex gap-1 bg-slate-100 rounded-full p-1 text-xs">
+                    {(["month", "week"] as const).map((m) => (
+                      <button
+                        key={m}
+                        disabled={monthLoading}
+                        onClick={() => {
+                          if (m === mode) return;
+                          if (m === "week" && currentWeek) loadRange({ weekStart: currentWeek });
+                          if (m === "month" && currentMonth) loadRange({ month: currentMonth });
+                        }}
+                        className={`rounded-full px-3 py-1 font-medium transition ${
+                          mode === m
+                            ? "bg-white text-slate-900 shadow-sm"
+                            : "text-slate-600 hover:text-slate-900"
+                        }`}
+                      >
+                        {m === "month" ? "By month" : "By week"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 <div className="px-4 py-2 flex items-center justify-between border-b border-slate-200">
                   <button
-                    onClick={() => month && loadMonth(shiftMonth(month, -1))}
-                    disabled={!month || monthLoading || !earliestMonth || month <= earliestMonth}
-                    aria-label="Previous month"
+                    onClick={() =>
+                      mode === "week"
+                        ? weekStart && loadRange({ weekStart: addDaysKey(weekStart, -7) })
+                        : month && loadRange({ month: shiftMonth(month, -1) })
+                    }
+                    disabled={
+                      monthLoading ||
+                      (mode === "week"
+                        ? !weekStart || !earliestWeek || weekStart <= earliestWeek
+                        : !month || !earliestMonth || month <= earliestMonth)
+                    }
+                    aria-label={mode === "week" ? "Previous week" : "Previous month"}
                     className="rounded-md px-3 py-1 text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent"
                   >
                     ‹
                   </button>
-                  <p className="text-sm font-medium text-slate-700">
-                    {month ? monthLabel(month) : ""}
-                    {monthError && (
-                      <span className="ml-2 text-xs font-normal text-red-600">Could not load</span>
+                  <div className="flex items-center gap-2">
+                    {mode === "week" ? (
+                      <select
+                        value={weekStart ?? ""}
+                        onChange={(e) => loadRange({ weekStart: e.target.value })}
+                        disabled={!weekStart || monthLoading}
+                        aria-label="Select week"
+                        className="rounded-md border border-slate-300 bg-white px-2 py-1 text-sm font-medium text-slate-700 disabled:opacity-50"
+                      >
+                        {weekStart &&
+                          earliestWeek &&
+                          currentWeek &&
+                          weekOptions(earliestWeek, currentWeek).map((w) => (
+                            <option key={w} value={w}>
+                              {weekLabel(w)}
+                              {w === currentWeek ? " (this week)" : ""}
+                            </option>
+                          ))}
+                      </select>
+                    ) : (
+                      <select
+                        value={month ?? ""}
+                        onChange={(e) => loadRange({ month: e.target.value })}
+                        disabled={!month || monthLoading}
+                        aria-label="Select month"
+                        className="rounded-md border border-slate-300 bg-white px-2 py-1 text-sm font-medium text-slate-700 disabled:opacity-50"
+                      >
+                        {month &&
+                          earliestMonth &&
+                          currentMonth &&
+                          monthOptions(earliestMonth, currentMonth).map((m) => (
+                            <option key={m} value={m}>
+                              {monthLabel(m)}
+                            </option>
+                          ))}
+                      </select>
                     )}
-                  </p>
+                    {monthError && <span className="text-xs text-red-600">Could not load</span>}
+                  </div>
                   <button
-                    onClick={() => month && loadMonth(shiftMonth(month, 1))}
-                    disabled={!month || monthLoading || !currentMonth || month >= currentMonth}
-                    aria-label="Next month"
+                    onClick={() =>
+                      mode === "week"
+                        ? weekStart && loadRange({ weekStart: addDaysKey(weekStart, 7) })
+                        : month && loadRange({ month: shiftMonth(month, 1) })
+                    }
+                    disabled={
+                      monthLoading ||
+                      (mode === "week"
+                        ? !weekStart || !currentWeek || weekStart >= currentWeek
+                        : !month || !currentMonth || month >= currentMonth)
+                    }
+                    aria-label={mode === "week" ? "Next week" : "Next month"}
                     className="rounded-md px-3 py-1 text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent"
                   >
                     ›
