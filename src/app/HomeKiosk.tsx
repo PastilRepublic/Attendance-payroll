@@ -208,12 +208,14 @@ export default function HomeKiosk() {
         </aside>
 
         <main className="flex-1 flex flex-col min-h-0">
-          {/* Above the employee list at every width, not just small screens. */}
           {operationDay && (
-            <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-200">
-              <span className={`text-sm font-semibold ${OPERATION_TEXT_STYLES[operationDay]}`}>
+            <div className="flex flex-col items-center text-center gap-2 px-4 py-4 border-b border-slate-200">
+              <p className="text-[11px] font-semibold tracking-widest text-slate-400">
+                TODAY&apos;S OPERATION
+              </p>
+              <p className={`text-base font-bold ${OPERATION_TEXT_STYLES[operationDay]}`}>
                 {OPERATION_LABELS[operationDay]}
-              </span>
+              </p>
               <OperationDayToggle value={operationDay} onToggle={toggleOperationDay} />
             </div>
           )}
