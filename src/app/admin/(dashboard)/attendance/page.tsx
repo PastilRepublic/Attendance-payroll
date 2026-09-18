@@ -646,12 +646,10 @@ function ManageDayForm({
           </div>
 
           <div className="mt-3">
-            <label className="block text-xs text-slate-500 mb-1">Reason for the change (required)</label>
+            <label className="block text-xs text-slate-500 mb-1">Reason for the change (optional)</label>
             <input
               type="text"
               name="reason"
-              required
-              minLength={3}
               className="w-full rounded-md border border-slate-300 px-2 py-1 text-xs"
             />
           </div>

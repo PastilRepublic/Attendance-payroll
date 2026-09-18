@@ -81,7 +81,8 @@ const dayPunchesSchema = z.object({
   breakStart: timeField,
   breakEnd: timeField,
   timeOut: timeField,
-  reason: z.string().trim().min(3, "A reason is required (min 3 characters)"),
+  // Optional: a blank reason is stored as none. The punch is still marked as corrected.
+  reason: z.string().trim().optional().transform((v) => v || undefined),
 });
 
 const SLOT_TYPES = [
