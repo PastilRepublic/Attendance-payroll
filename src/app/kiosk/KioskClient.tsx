@@ -47,8 +47,6 @@ interface IdentifyData {
 interface ConfirmInfo {
   employeeName: string;
   type: PunchType;
-  /** Time Out tapped as the "Half Day" card (see isHalfDayOut). */
-  halfDay?: boolean;
 }
 
 type SanitationTiming = "PRE_COOKING" | "POST_COOKING" | "ANYTIME";
@@ -81,9 +79,8 @@ interface EmployeeOption {
 const isUngated = (t: PendingTask) => !t.timing || t.timing === "ANYTIME";
 
 /**
- * Time Out offered next to Start Break, before ~1 PM, is how someone goes home
- * for a half day (morning only, not coming back after lunch) -- shown as "Half
- * Day" so it isn't mistaken for a lunch break. It's still a normal Time Out punch.
+ * Time Out offered next to Start Break, before ~1 PM, means going home without
+ * taking lunch -- a half day -- so the kiosk asks them to confirm first.
  */
 function isHalfDayOut(type: PunchType, allowedActions: PunchType[]): boolean {
   if (type !== "OUT" || !allowedActions.includes("BREAK_START")) return false;
@@ -374,11 +371,7 @@ export default function KioskClient({
         });
         if (res.ok) {
           const data = await res.json();
-          setConfirmInfo({
-            employeeName: data.employeeName,
-            type: data.type,
-            halfDay: identifyData ? isHalfDayOut(data.type, identifyData.allowedActions) : false,
-          });
+          setConfirmInfo({ employeeName: data.employeeName, type: data.type });
           setScreen("confirm");
           finishAfterConfirm();
         } else if (res.status === 401) {
@@ -400,7 +393,7 @@ export default function KioskClient({
         queueOffline(pinToSubmit, type, photoDataUrl);
       }
     },
-    [queueOffline, finishAfterConfirm, scheduleReset, selectedEmployee, identifyData]
+    [queueOffline, finishAfterConfirm, scheduleReset, selectedEmployee]
   );
 
   const handleSubmitPin = useCallback(async () => {
@@ -585,9 +578,7 @@ export default function KioskClient({
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
               </svg>
             </div>
-            <p className="text-5xl font-bold">
-              {confirmInfo.halfDay ? "Half Day — Going Home" : CONFIRM_STYLES[confirmInfo.type].text}
-            </p>
+            <p className="text-5xl font-bold">{CONFIRM_STYLES[confirmInfo.type].text}</p>
             {confirmInfo.employeeName && (
               <p className="text-2xl mt-3 text-white/90">{confirmInfo.employeeName}</p>
             )}
@@ -771,8 +762,38 @@ function ActionPanel({
   elapsedText: string | null;
   onAction: (type: PunchType) => void;
 }) {
+  const [confirmingLeave, setConfirmingLeave] = useState(false);
+
   return (
     <div className="w-full max-w-md text-center">
+      {confirmingLeave && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-6">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-xl">
+            <p className="text-xl font-bold text-slate-900 mb-2">Leaving early?</p>
+            <p className="text-slate-600 mb-6">
+              If you time out now, it will be recorded as a <strong>half day</strong>.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmingLeave(false)}
+                className="flex-1 rounded-xl border border-slate-300 py-3 font-semibold text-slate-700"
+              >
+                No, go back
+              </button>
+              <button
+                onClick={() => {
+                  setConfirmingLeave(false);
+                  onAction("OUT");
+                }}
+                className="flex-1 rounded-xl bg-slate-700 py-3 font-semibold text-white"
+              >
+                Yes, time out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-center gap-3 mb-6">
         <p className="text-2xl font-semibold text-slate-900">{data.employeeName}</p>
         <span className={`px-2.5 py-0.5 rounded-full text-sm font-medium ${STATUS_PILL_STYLES[data.status]}`}>
@@ -793,17 +814,12 @@ function ActionPanel({
           data.allowedActions.map((type) => (
             <button
               key={type}
-              onClick={() => onAction(type)}
+              onClick={() =>
+                isHalfDayOut(type, data.allowedActions) ? setConfirmingLeave(true) : onAction(type)
+              }
               className={`w-36 h-28 rounded-2xl text-lg font-bold text-white flex items-center justify-center ${ACTION_BUTTON_STYLES[type]}`}
             >
-              {isHalfDayOut(type, data.allowedActions) ? (
-                <span className="flex flex-col items-center leading-tight">
-                  Half Day
-                  <span className="text-xs font-medium text-white/80 mt-1">Not coming back</span>
-                </span>
-              ) : (
-                ACTION_LABELS[type]
-              )}
+              {ACTION_LABELS[type]}
             </button>
           ))
         )}
