@@ -1,10 +1,9 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { adjustmentsTotal } from "@/lib/payrollService";
-import { TIMEZONE, computeDailyResults } from "@/lib/payroll";
+import { adjustmentsTotal, getPeriodDailyResults } from "@/lib/payrollService";
+import { TIMEZONE } from "@/lib/payroll";
 import { getSettings } from "@/lib/settings";
-import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
-import { addDays } from "date-fns";
+import { formatInTimeZone } from "date-fns-tz";
 import PrintButton from "./PrintButton";
 
 export default async function PayslipPrintPage({
@@ -21,49 +20,13 @@ export default async function PayslipPrintPage({
 
   // Days in this period worth pointing out on the paper copy -- flagged the
   // same way as the employee's Attendance History, so the two always agree.
-  const startDate = payslip.payPeriod.startDate.toISOString().slice(0, 10);
-  const endDate = payslip.payPeriod.endDate.toISOString().slice(0, 10);
-  const periodStartUtc = fromZonedTime(`${startDate}T00:00:00`, TIMEZONE);
-  const periodEndExclusiveUtc = fromZonedTime(
-    `${addDays(new Date(`${endDate}T00:00:00.000Z`), 1).toISOString().slice(0, 10)}T00:00:00`,
-    TIMEZONE
-  );
-  const [settings, punches, dayStatuses, shiftOverrides] = await Promise.all([
-    getSettings(),
-    prisma.punch.findMany({
-      where: {
-        employeeId: payslip.employeeId,
-        voided: false,
-        timestamp: { gte: periodStartUtc, lt: periodEndExclusiveUtc },
-      },
-    }),
-    prisma.dayStatus.findMany({
-      where: {
-        employeeId: payslip.employeeId,
-        date: { gte: payslip.payPeriod.startDate, lte: payslip.payPeriod.endDate },
-      },
-    }),
-    prisma.shiftOverride.findMany({
-      where: { date: { gte: payslip.payPeriod.startDate, lte: payslip.payPeriod.endDate } },
-    }),
-  ]);
-  const attendanceNotes = computeDailyResults(
-    punches.map((p) => ({ timestamp: p.timestamp, type: p.type })),
-    dayStatuses.map((d) => ({ date: d.date.toISOString().slice(0, 10), status: d.status })),
-    settings,
-    startDate,
-    endDate,
-    shiftOverrides.map((o) => ({
-      date: o.date.toISOString().slice(0, 10),
-      shiftStartTime: o.shiftStartTime,
-      shiftEndTime: o.shiftEndTime,
-    }))
-  )
+  const settings = await getSettings();
+  const attendanceNotes = (await getPeriodDailyResults(payslip.employeeId, payslip.payPeriod, settings))
     .map((d) => {
       const flags: string[] = [];
       if (d.dayStatus === "UNPAID_ABSENCE") flags.push("Absent");
       if (d.dayStatus === "PAID_LEAVE") flags.push("Paid leave");
-      if (d.isLate) flags.push("Late");
+      if (d.isLate) flags.push(`Late (${d.lateMinutes} min)`);
       if (d.returnedLateFromBreak) flags.push("Late back from break");
       if (d.isUndertime) flags.push("Left early");
       return { date: d.date, flags };

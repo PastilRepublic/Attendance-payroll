@@ -35,6 +35,9 @@ export interface DailyResult {
   regularMinutes: number;
   overtimeMinutes: number;
   isLate: boolean;
+  /** Minutes after shift start (not after the grace period) that the first
+   * time-in came in; 0 when not late. */
+  lateMinutes: number;
   isUndertime: boolean;
   returnedLateFromBreak: boolean;
   dayStatus: DayStatusType | null;
@@ -208,6 +211,7 @@ export function computeDailyResults(
         regularMinutes: capMinutes,
         overtimeMinutes: 0,
         isLate: false,
+        lateMinutes: 0,
         isUndertime: false,
         returnedLateFromBreak: false,
         dayStatus,
@@ -220,6 +224,7 @@ export function computeDailyResults(
         regularMinutes: 0,
         overtimeMinutes: 0,
         isLate: false,
+        lateMinutes: 0,
         isUndertime: false,
         returnedLateFromBreak: false,
         dayStatus,
@@ -254,6 +259,8 @@ export function computeDailyResults(
     const isLate = firstIn
       ? localMinutesOfDay(firstIn.timestamp) > lateThreshold
       : false;
+    const lateMinutes =
+      isLate && firstIn ? Math.max(localMinutesOfDay(firstIn.timestamp) - shiftStartMinutes, 0) : 0;
     const isUndertime = lastOut
       ? localMinutesOfDay(lastOut.timestamp) < shiftEndMinutes
       : false;
@@ -264,6 +271,7 @@ export function computeDailyResults(
       regularMinutes,
       overtimeMinutes,
       isLate,
+      lateMinutes,
       isUndertime,
       returnedLateFromBreak,
       dayStatus,

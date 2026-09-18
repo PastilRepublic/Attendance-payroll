@@ -37,6 +37,9 @@ interface Payslip {
   status: "DRAFT" | "FINALIZED";
   regularHours: number;
   daysWorked: number;
+  absentDays: number;
+  lateCount: number;
+  lateMinutes: number;
   overtimeHours: number;
   grossPay: number;
   adjustments: PayslipAdjustment[];
@@ -46,6 +49,11 @@ interface Payslip {
 
 type Screen = "selectName" | "pin" | "dashboard";
 type Tab = "attendance" | "payslips";
+
+function formatLate(minutes: number) {
+  const m = Math.round(minutes);
+  return m < 60 ? `${m} min` : `${Math.floor(m / 60)}h ${m % 60}m`;
+}
 
 function peso(n: number) {
   return `₱${n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -432,6 +440,21 @@ export default function EmployeeClient() {
                         <p className="text-slate-800">{peso(p.grossPay)}</p>
                       </div>
                     </div>
+                    {(p.absentDays > 0 || p.lateCount > 0) && (
+                      <div className="flex flex-wrap gap-2 mb-2 text-sm">
+                        {p.absentDays > 0 && (
+                          <span className="rounded-full bg-red-50 text-red-700 px-3 py-1">
+                            Absent: {p.absentDays} {p.absentDays === 1 ? "day" : "days"}
+                          </span>
+                        )}
+                        {p.lateCount > 0 && (
+                          <span className="rounded-full bg-amber-50 text-amber-700 px-3 py-1">
+                            Late: {p.lateCount} {p.lateCount === 1 ? "time" : "times"} (
+                            {formatLate(p.lateMinutes)})
+                          </span>
+                        )}
+                      </div>
+                    )}
                     {p.adjustments.length > 0 && (() => {
                       const sorted = [...p.adjustments].sort((a, b) => b.amount - a.amount);
                       return (

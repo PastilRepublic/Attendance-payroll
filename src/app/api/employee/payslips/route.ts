@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { resolveEmployeeByPin } from "@/lib/kioskAuth";
 import { getSettings } from "@/lib/settings";
+import { getPeriodDailyResults } from "@/lib/payrollService";
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
@@ -30,10 +31,15 @@ export async function POST(request: Request) {
     take: 20,
   });
 
+  const attendance = await Promise.all(
+    payslips.map((p) => getPeriodDailyResults(matched.id, p.payPeriod, settings))
+  );
+
   return NextResponse.json({
     employeeName: matched.name,
     payBasis: employee.payBasis,
-    payslips: payslips.map((p) => {
+    payslips: payslips.map((p, i) => {
+      const days = attendance[i];
       const adjustmentsTotal = p.adjustments.reduce((sum, a) => sum + Number(a.amount), 0);
       return {
         id: p.id,
@@ -47,6 +53,9 @@ export async function POST(request: Request) {
         overtimeHours: Number(p.overtimeHours),
         basePay: Number(p.basePay),
         grossPay: Number(p.grossPay),
+        absentDays: days.filter((d) => d.dayStatus === "UNPAID_ABSENCE").length,
+        lateCount: days.filter((d) => d.isLate).length,
+        lateMinutes: days.reduce((sum, d) => sum + d.lateMinutes, 0),
         adjustments: p.adjustments.map((a) => ({
           label: a.label,
           amount: Number(a.amount),
