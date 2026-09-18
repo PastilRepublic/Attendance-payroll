@@ -349,7 +349,7 @@ describe("computeDayBasedPay", () => {
     { timestamp: atManila(date, inH, 0), type: "IN" as const },
     { timestamp: atManila(date, outH, 0), type: "OUT" as const },
   ];
-  const daysFor = (punches: ReturnType<typeof punchPair>, from: string, to: string) =>
+  const daysFor = (punches: Parameters<typeof computeDailyResults>[0], from: string, to: string) =>
     computeDailyResults(punches, [], settings, from, to);
 
   it("production: 400 for a cooking day, 350 for a jar filling day", () => {
@@ -403,6 +403,20 @@ describe("computeDayBasedPay", () => {
     );
     // Mon absent (0), Tue paid leave on a Jar Filling day (350), Wed nothing (0)
     expect(computeDayBasedPay(days, "OPERATION_DAY", 0, dayFor, rates).basePay).toBe(350);
+  });
+
+  it("production: half day = Start Break and never come back; still full rate, flagged as missing Time Out", () => {
+    const days = daysFor(
+      [
+        { timestamp: atManila("2026-01-05", 8, 0), type: "IN" as const },
+        { timestamp: atManila("2026-01-05", 12, 0), type: "BREAK_START" as const },
+      ],
+      "2026-01-05",
+      "2026-01-05"
+    );
+    expect(days[0].missingTimeOut).toBe(true);
+    expect(days[0].workedMinutes).toBe(4 * 60);
+    expect(computeDayBasedPay(days, "OPERATION_DAY", 0, dayFor, rates).basePay).toBe(400);
   });
 
   it("flat daily: full rate for any worked day, even a short one, none for a day without punches", () => {

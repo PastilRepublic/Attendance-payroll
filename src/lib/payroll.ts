@@ -53,6 +53,9 @@ export interface DailyResult {
   lateMinutes: number;
   isUndertime: boolean;
   returnedLateFromBreak: boolean;
+  /** Timed in but never timed out -- e.g. started the lunch break and never
+   * came back. Only the time up to the last punch counts as worked. */
+  missingTimeOut: boolean;
   dayStatus: DayStatusType | null;
 }
 
@@ -227,6 +230,7 @@ export function computeDailyResults(
         lateMinutes: 0,
         isUndertime: false,
         returnedLateFromBreak: false,
+        missingTimeOut: false,
         dayStatus,
       };
     }
@@ -240,6 +244,7 @@ export function computeDailyResults(
         lateMinutes: 0,
         isUndertime: false,
         returnedLateFromBreak: false,
+        missingTimeOut: false,
         dayStatus,
       };
     }
@@ -287,6 +292,7 @@ export function computeDailyResults(
       lateMinutes,
       isUndertime,
       returnedLateFromBreak,
+      missingTimeOut: Boolean(firstIn) && !lastOut,
       dayStatus,
     };
   });
