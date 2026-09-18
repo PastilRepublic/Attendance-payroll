@@ -149,15 +149,15 @@ export default function HomeKiosk() {
 
   return (
     <div className="flex-1 flex flex-col lg:flex-row bg-white text-slate-900 min-h-0">
-      <aside className="lg:w-64 shrink-0 border-b lg:border-b-0 lg:border-r border-slate-200 flex flex-row lg:flex-col items-center justify-between lg:justify-start gap-4 p-4 lg:p-6 text-center">
-        <div className="lg:w-full">
+      <aside className="lg:w-64 shrink-0 border-b lg:border-b-0 lg:border-r border-slate-200 flex flex-col items-center justify-start gap-4 p-4 lg:p-6 text-center">
+        <div className="w-full">
           <p className="text-lg lg:text-xl font-bold tracking-tight text-slate-900">
             The Famous Pastil Republic
           </p>
           <p className="text-[11px] font-semibold tracking-widest text-slate-400 mt-0.5">KIOSK</p>
         </div>
 
-        <div className="lg:w-full lg:mt-8">
+        <div className="w-full lg:mt-8">
           <p className="text-sm text-slate-500">{dateLabel}</p>
           <p className="text-2xl lg:text-3xl font-semibold text-slate-900 tabular-nums">{timeLabel}</p>
         </div>
