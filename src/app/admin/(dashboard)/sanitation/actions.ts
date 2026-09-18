@@ -3,8 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/authz";
+import { requireAdmin, requireOwner } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
+import { todayManila } from "@/lib/sanitation";
 
 // Blank means no bonus. Stored as a number so it can also clear an existing one.
 const bonusAmountField = z
@@ -191,6 +192,58 @@ export async function inspectSanitationAssignment(formData: FormData) {
     targetTable: "SanitationAssignment",
     targetId: assignment.id,
     after: { result: parsed.result, note: parsed.note },
+  });
+
+  revalidatePath("/admin/sanitation");
+  revalidatePath("/sanitation");
+}
+
+const reopenSchema = z.object({
+  reason: z.string().trim().min(3, "A reason is required (min 3 characters)"),
+});
+
+/**
+ * Puts every duty scheduled for today back to pending -- clears who signed it
+ * off and any inspection -- so the day's checklist can be run again (e.g. to
+ * test the kiosk). Owner only, since it erases inspection results. Duties whose
+ * bonus has already been added to a payslip are left alone.
+ */
+export async function reopenTodaysSanitation(formData: FormData) {
+  const admin = await requireOwner();
+  const { reason } = reopenSchema.parse({ reason: formData.get("reason") });
+
+  const date = new Date(`${todayManila()}T00:00:00.000Z`);
+  const assignments = await prisma.sanitationAssignment.findMany({
+    where: { date, payslipAdjustmentId: null, OR: [{ status: "DONE" }, { inspectionResult: { not: null } }] },
+  });
+
+  await prisma.sanitationAssignment.updateMany({
+    where: { id: { in: assignments.map((a) => a.id) } },
+    data: {
+      status: "PENDING",
+      employeeId: null,
+      completedAt: null,
+      inspectedByAdminId: null,
+      inspectedAt: null,
+      inspectionResult: null,
+      inspectionNote: null,
+      bonusDismissed: false,
+    },
+  });
+
+  await logAudit({
+    actorAdminId: admin.id,
+    action: "REOPEN_SANITATION_DAY",
+    targetTable: "SanitationAssignment",
+    targetId: todayManila(),
+    before: assignments.map((a) => ({
+      id: a.id,
+      status: a.status,
+      employeeId: a.employeeId,
+      inspectionResult: a.inspectionResult,
+    })),
+    after: { reopened: assignments.length },
+    reason,
   });
 
   revalidatePath("/admin/sanitation");
