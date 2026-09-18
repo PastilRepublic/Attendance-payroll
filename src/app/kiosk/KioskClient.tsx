@@ -483,21 +483,19 @@ export default function KioskClient({
         {screen === "submitting" && <StatusMessage text="Recording..." />}
 
         {screen === "confirm" && confirmInfo && (
-          <div className="w-full max-w-sm flex flex-col items-center">
-            <div
-              className={`w-full rounded-3xl ${CONFIRM_STYLES[confirmInfo.type].bg} text-white px-10 py-12 flex flex-col items-center text-center`}
-            >
-              <div className="w-20 h-20 rounded-full bg-white/20 flex items-center justify-center mb-6">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="w-11 h-11">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                </svg>
-              </div>
-              <p className="text-4xl font-bold">{CONFIRM_STYLES[confirmInfo.type].text}</p>
-              {confirmInfo.employeeName && (
-                <p className="text-xl mt-3 text-white/90">{confirmInfo.employeeName}</p>
-              )}
+          <div
+            className={`w-full max-w-lg rounded-3xl ${CONFIRM_STYLES[confirmInfo.type].bg} text-white px-12 py-16 flex flex-col items-center text-center`}
+          >
+            <div className="w-24 h-24 rounded-full bg-white/20 flex items-center justify-center mb-7">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="w-14 h-14">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+              </svg>
             </div>
-            <p className="mt-5 text-sm text-slate-400">
+            <p className="text-5xl font-bold">{CONFIRM_STYLES[confirmInfo.type].text}</p>
+            {confirmInfo.employeeName && (
+              <p className="text-2xl mt-3 text-white/90">{confirmInfo.employeeName}</p>
+            )}
+            <p className="mt-8 text-sm text-white/70">
               The screen will close in {confirmSecondsLeft}...
             </p>
           </div>
