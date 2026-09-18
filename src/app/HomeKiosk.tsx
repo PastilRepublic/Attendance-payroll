@@ -162,39 +162,39 @@ export default function HomeKiosk() {
 
   return (
     <div className="flex-1 flex flex-col bg-white text-slate-900 min-h-0">
-      <header className="flex items-center justify-between gap-3 px-4 lg:px-6 py-3 border-b border-slate-200">
-        <div className="flex items-center gap-2.5">
-          <span className="shrink-0 w-9 h-9 rounded-lg bg-orange-500 text-white flex items-center justify-center font-bold text-lg">
+      <header className="flex items-center justify-between gap-2 px-3 sm:px-4 lg:px-6 py-3 border-b border-slate-200">
+        <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+          <span className="shrink-0 w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-orange-500 text-white flex items-center justify-center font-bold text-base sm:text-lg">
             P
           </span>
-          <div>
-            <p className="text-base lg:text-lg font-bold tracking-tight text-slate-900 leading-tight">
+          <div className="min-w-0">
+            <p className="text-sm sm:text-base lg:text-lg font-bold tracking-tight text-slate-900 leading-tight truncate">
               The Famous Pastil Republic
             </p>
-            <p className="text-[10px] font-semibold tracking-widest text-slate-400">
+            <p className="text-[9px] sm:text-[10px] font-semibold tracking-widest text-slate-400 truncate">
               ATTENDANCE &amp; PAYROLL
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           <Link
             href="/employee"
-            className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
+            className="inline-flex items-center gap-1.5 rounded-md px-2 sm:px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 shrink-0">
               <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.5 20.25a7.5 7.5 0 0 1 15 0" />
             </svg>
-            Employee
+            <span className="hidden sm:inline">Employee</span>
           </Link>
           <Link
             href="/admin"
-            className="inline-flex items-center gap-1.5 rounded-md bg-slate-900 text-white px-3 py-1.5 text-sm font-medium hover:bg-slate-800"
+            className="inline-flex items-center gap-1.5 rounded-md bg-slate-900 text-white px-2 sm:px-3 py-1.5 text-sm font-medium hover:bg-slate-800"
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 shrink-0">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 3 4.5 6v5.25c0 4.83 3.24 8.94 7.5 9.75 4.26-.81 7.5-4.92 7.5-9.75V6L12 3Z" />
             </svg>
-            Admin
+            <span className="hidden sm:inline">Admin</span>
           </Link>
         </div>
       </header>
