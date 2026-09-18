@@ -5,9 +5,21 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { formatInTimeZone } from "date-fns-tz";
 import { TIMEZONE } from "@/lib/payroll";
+import RiskDot from "@/components/RiskDot";
+import Badge from "@/components/Badge";
 
 type PresenceStatus = "OUT" | "WORKING" | "ON_BREAK" | "DONE";
 type OperationDay = "COOKING" | "JAR_FILLING";
+type RiskLevel = "LOW" | "MEDIUM" | "HIGH";
+
+interface SanitationTask {
+  id: string;
+  name: string;
+  riskLevel: RiskLevel;
+  status: "PENDING" | "DONE";
+  employeeName: string | null;
+  inspectionResult: "PASS" | "FAIL" | null;
+}
 
 interface EmployeeOption {
   id: string;
@@ -98,6 +110,9 @@ export default function HomeKiosk() {
   const router = useRouter();
   const [employees, setEmployees] = useState<EmployeeOption[]>([]);
   const [employeesFailed, setEmployeesFailed] = useState(false);
+  const [sanitationTasks, setSanitationTasks] = useState<SanitationTask[]>([]);
+  const [sanitationFailed, setSanitationFailed] = useState(false);
+  const [sanitationLoaded, setSanitationLoaded] = useState(false);
   // Which of the two nav links is "on" -- the home page is employee-facing,
   // so Employee starts highlighted. Clicking either swaps which one is lit
   // up, right as the click happens (just before the link navigates away).
@@ -126,6 +141,23 @@ export default function HomeKiosk() {
     const interval = setInterval(refreshEmployees, EMPLOYEE_POLL_MS);
     return () => clearInterval(interval);
   }, [refreshEmployees]);
+
+  const refreshSanitation = useCallback(() => {
+    fetch("/api/kiosk/sanitation")
+      .then((res) => (res.ok ? res.json() : Promise.reject()))
+      .then((data) => {
+        setSanitationTasks(Array.isArray(data.tasks) ? data.tasks : []);
+        setSanitationFailed(false);
+      })
+      .catch(() => setSanitationFailed(true))
+      .finally(() => setSanitationLoaded(true));
+  }, []);
+
+  useEffect(() => {
+    refreshSanitation();
+    const interval = setInterval(refreshSanitation, EMPLOYEE_POLL_MS);
+    return () => clearInterval(interval);
+  }, [refreshSanitation]);
 
   useEffect(() => {
     fetch("/api/kiosk/operation-day")
@@ -218,6 +250,50 @@ export default function HomeKiosk() {
           <div className="w-full">
             <p className="text-sm text-slate-500">{dateLabel}</p>
             <p className="text-2xl lg:text-3xl font-semibold text-slate-900 tabular-nums">{timeLabel}</p>
+          </div>
+
+          <div className="w-full text-left border-t border-slate-100 pt-4">
+            <p className="text-[11px] font-semibold tracking-widest text-slate-400 mb-2">
+              TODAY&apos;S SANITATION
+            </p>
+            {!sanitationLoaded && (
+              <p className="text-xs text-slate-400">Loading…</p>
+            )}
+            {sanitationLoaded && sanitationFailed && (
+              <p className="text-xs text-red-500">Could not load sanitation tasks.</p>
+            )}
+            {sanitationLoaded && !sanitationFailed && sanitationTasks.length === 0 && (
+              <p className="text-xs text-slate-400">No sanitation duties scheduled today.</p>
+            )}
+            {sanitationLoaded && !sanitationFailed && sanitationTasks.length > 0 && (
+              <>
+                <ul className="space-y-1.5">
+                  {sanitationTasks.map((task) => (
+                    <li key={task.id} className="flex items-center gap-2 text-sm">
+                      <RiskDot level={task.riskLevel} />
+                      <span
+                        className={`flex-1 truncate ${
+                          task.status === "DONE" ? "text-slate-400 line-through" : "text-slate-700"
+                        }`}
+                      >
+                        {task.name}
+                      </span>
+                      {task.inspectionResult && (
+                        <Badge status={task.inspectionResult === "PASS" ? "pass" : "fail"}>
+                          {task.inspectionResult === "PASS" ? "Passed" : "Failed"}
+                        </Badge>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+                <p className="text-xs text-slate-400 mt-2">
+                  {sanitationTasks.filter((t) => t.status === "DONE").length}/{sanitationTasks.length} done
+                </p>
+              </>
+            )}
+            <Link href="/sanitation" className="text-xs text-amber-600 hover:underline mt-2 inline-block">
+              View full board →
+            </Link>
           </div>
         </aside>
 
