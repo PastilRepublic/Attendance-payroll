@@ -238,12 +238,19 @@ export default function KioskClient({
       .finally(() => router.replace("/kiosk"));
   }, [initialEmployeeId, chooseEmployee, router]);
 
+  // After a completed punch the kiosk goes back to the home page (name list),
+  // not the PIN pad -- the PIN pad is only for the next person's own sign-in.
+  const goHome = useCallback(() => {
+    resetToIdle();
+    router.push("/");
+  }, [resetToIdle, router]);
+
   const scheduleReset = useCallback(
-    (ms: number = AUTO_RESET_MS) => {
+    (ms: number = AUTO_RESET_MS, home = false) => {
       if (resetTimer.current) clearTimeout(resetTimer.current);
-      resetTimer.current = setTimeout(resetToIdle, ms);
+      resetTimer.current = setTimeout(home ? goHome : resetToIdle, ms);
     },
-    [resetToIdle]
+    [resetToIdle, goHome]
   );
 
   const finishAfterConfirm = useCallback(() => {
@@ -253,12 +260,12 @@ export default function KioskClient({
         if (current.some(isUngated)) {
           setScreen("tasks");
         } else {
-          resetToIdle();
+          goHome();
         }
         return current;
       });
     }, CONFIRM_AUTO_RESET_MS);
-  }, [resetToIdle]);
+  }, [goHome]);
 
   const completeTask = useCallback(
     async (taskId: string, kind: "TASK" | "SANITATION") => {
@@ -327,7 +334,7 @@ export default function KioskClient({
         scheduleReset(5000);
       } else {
         setScreen("queued");
-        scheduleReset(2600);
+        scheduleReset(2600, true);
       }
     },
     [refreshCounts, scheduleReset, selectedEmployee]
@@ -602,10 +609,7 @@ export default function KioskClient({
             onComplete={completeTask}
             onUndo={undoTask}
             finishLabel="Finish"
-            onFinish={() => {
-              resetToIdle();
-              router.push("/");
-            }}
+            onFinish={goHome}
           />
         )}
 
