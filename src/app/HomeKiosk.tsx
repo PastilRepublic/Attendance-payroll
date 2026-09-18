@@ -75,10 +75,10 @@ function avatarColor(name: string): string {
 
 function OperationDayToggle({
   value,
-  onToggle,
+  onRequestToggle,
 }: {
   value: OperationDay;
-  onToggle: () => void;
+  onRequestToggle: () => void;
 }) {
   const trackClass =
     value === "COOKING"
@@ -88,7 +88,7 @@ function OperationDayToggle({
 
   return (
     <button
-      onClick={onToggle}
+      onClick={onRequestToggle}
       aria-label="Toggle today's operation"
       className={`relative inline-flex h-8 w-44 items-center rounded-full border transition-colors ${trackClass}`}
     >
@@ -133,7 +133,12 @@ export default function HomeKiosk() {
   // client-side, from the effect below.
   const [now, setNow] = useState<Date | null>(null);
   const [operationDay, setOperationDay] = useState<OperationDay | null>(null);
-  const [togglingDay, setTogglingDay] = useState(false);
+  const [dayPinGate, setDayPinGate] = useState<{
+    target: OperationDay;
+    pin: string;
+    error: string | null;
+    submitting: boolean;
+  } | null>(null);
 
   const refreshEmployees = useCallback(() => {
     fetch("/api/kiosk/employees")
@@ -188,19 +193,59 @@ export default function HomeKiosk() {
     };
   }, []);
 
-  const toggleOperationDay = useCallback(() => {
-    if (!operationDay || togglingDay) return;
+  const requestDayToggle = useCallback(() => {
+    if (!operationDay) return;
     const next: OperationDay = operationDay === "COOKING" ? "JAR_FILLING" : "COOKING";
-    setOperationDay(next);
-    setTogglingDay(true);
-    fetch("/api/kiosk/operation-day", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ operationDay: next }),
-    })
-      .catch(() => {})
-      .finally(() => setTogglingDay(false));
-  }, [operationDay, togglingDay]);
+    setDayPinGate({ target: next, pin: "", error: null, submitting: false });
+  }, [operationDay]);
+
+  const cancelDayPinGate = useCallback(() => setDayPinGate(null), []);
+
+  const dayPinDigit = useCallback((d: string) => {
+    setDayPinGate((g) => (g && g.pin.length < 4 ? { ...g, pin: g.pin + d, error: null } : g));
+  }, []);
+  const dayPinBackspace = useCallback(() => {
+    setDayPinGate((g) => (g ? { ...g, pin: g.pin.slice(0, -1), error: null } : g));
+  }, []);
+  const dayPinClear = useCallback(() => {
+    setDayPinGate((g) => (g ? { ...g, pin: "", error: null } : g));
+  }, []);
+
+  const submitDayPin = useCallback(() => {
+    setDayPinGate((g) => (g ? { ...g, submitting: true, error: null } : g));
+    setDayPinGate((current) => {
+      if (!current) return current;
+      fetch("/api/kiosk/operation-day", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ operationDay: current.target, pin: current.pin }),
+      })
+        .then(async (res) => {
+          if (res.ok) {
+            setOperationDay(current.target);
+            setDayPinGate(null);
+          } else {
+            const data = await res.json().catch(() => null);
+            setDayPinGate((g) =>
+              g
+                ? {
+                    ...g,
+                    pin: "",
+                    submitting: false,
+                    error: data?.error ?? "Could not change the operation day.",
+                  }
+                : g
+            );
+          }
+        })
+        .catch(() => {
+          setDayPinGate((g) =>
+            g ? { ...g, pin: "", submitting: false, error: "Network error. Try again." } : g
+          );
+        });
+      return current;
+    });
+  }, []);
 
   const dateLabel = now ? formatInTimeZone(now, TIMEZONE, "EEEE, d MMM") : "";
   const timeLabel = now ? formatInTimeZone(now, TIMEZONE, "h:mm a") : "";
@@ -332,7 +377,7 @@ export default function HomeKiosk() {
                 <p className={`text-base font-bold ${OPERATION_TEXT_STYLES[operationDay]}`}>
                   {OPERATION_LABELS[operationDay]}
                 </p>
-                <OperationDayToggle value={operationDay} onToggle={toggleOperationDay} />
+                <OperationDayToggle value={operationDay} onRequestToggle={requestDayToggle} />
               </div>
 
               {/* Smaller screens: original compact single-row version */}
@@ -340,7 +385,7 @@ export default function HomeKiosk() {
                 <span className={`text-sm font-semibold ${OPERATION_TEXT_STYLES[operationDay]}`}>
                   {OPERATION_LABELS[operationDay]}
                 </span>
-                <OperationDayToggle value={operationDay} onToggle={toggleOperationDay} />
+                <OperationDayToggle value={operationDay} onRequestToggle={requestDayToggle} />
               </div>
             </>
           )}
@@ -395,6 +440,85 @@ export default function HomeKiosk() {
           </div>
         </main>
       </div>
+
+      {dayPinGate && (
+        <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center z-50 px-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-xs p-6 text-center">
+            <p className="text-sm font-semibold text-slate-900">Supervisor PIN required</p>
+            <p className="text-xs text-slate-500 mt-1">
+              Switch to {OPERATION_LABELS[dayPinGate.target]}
+            </p>
+
+            <div className="flex justify-center gap-2 my-4">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <span
+                  key={i}
+                  className={`w-3 h-3 rounded-full border-2 ${
+                    i < dayPinGate.pin.length
+                      ? "bg-orange-500 border-orange-500"
+                      : "border-slate-300"
+                  }`}
+                />
+              ))}
+            </div>
+
+            {dayPinGate.error && (
+              <p className="text-xs text-red-600 mb-3">{dayPinGate.error}</p>
+            )}
+
+            <div className="grid grid-cols-3 gap-2">
+              {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((d) => (
+                <button
+                  key={d}
+                  onClick={() => dayPinDigit(d)}
+                  disabled={dayPinGate.submitting}
+                  className="rounded-lg bg-slate-100 hover:bg-slate-200 py-3 text-lg font-medium text-slate-900 disabled:opacity-50"
+                >
+                  {d}
+                </button>
+              ))}
+              <button
+                onClick={dayPinClear}
+                disabled={dayPinGate.submitting}
+                className="rounded-lg bg-slate-100 hover:bg-slate-200 py-3 text-sm font-medium text-slate-600 disabled:opacity-50"
+              >
+                Clear
+              </button>
+              <button
+                onClick={() => dayPinDigit("0")}
+                disabled={dayPinGate.submitting}
+                className="rounded-lg bg-slate-100 hover:bg-slate-200 py-3 text-lg font-medium text-slate-900 disabled:opacity-50"
+              >
+                0
+              </button>
+              <button
+                onClick={dayPinBackspace}
+                disabled={dayPinGate.submitting}
+                className="rounded-lg bg-slate-100 hover:bg-slate-200 py-3 text-sm font-medium text-slate-600 disabled:opacity-50"
+              >
+                ⌫
+              </button>
+            </div>
+
+            <div className="flex gap-2 mt-4">
+              <button
+                onClick={cancelDayPinGate}
+                disabled={dayPinGate.submitting}
+                className="flex-1 rounded-lg border border-slate-300 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitDayPin}
+                disabled={dayPinGate.pin.length !== 4 || dayPinGate.submitting}
+                className="flex-1 rounded-lg bg-orange-500 hover:bg-orange-600 text-white py-2.5 text-sm font-medium disabled:opacity-50"
+              >
+                {dayPinGate.submitting ? "Checking…" : "Confirm"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
