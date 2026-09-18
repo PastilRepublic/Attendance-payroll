@@ -1,10 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
 import { computeDailyResults, localDateKey } from "@/lib/payroll";
-import { computeDayTimeline } from "@/lib/attendanceSlots";
+import { computeDayTimeline, pickDaySlots } from "@/lib/attendanceSlots";
 import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
 import { TIMEZONE } from "@/lib/payroll";
-import { addPunch, editPunch, voidPunch, setDayStatus, setShiftOverride, removeShiftOverride } from "./actions";
+import { saveDayPunches, setDayStatus, setShiftOverride, removeShiftOverride } from "./actions";
 import AutoRefresh from "./AutoRefresh";
 import EmployeeSelect from "./EmployeeSelect";
 import { derivePresenceStatus, type PresenceStatus } from "@/lib/kioskAttendance";
@@ -594,67 +594,72 @@ function ManageDayForm({
   employeeId: string;
   date: string;
   dayStatus: string;
-  punches: { id: string; type: string; timestamp: Date; isCorrection: boolean; photoPath: string | null }[];
+  punches: { id: string; type: "IN" | "OUT" | "BREAK_START" | "BREAK_END"; timestamp: Date; photoPath: string | null }[];
 }) {
+  const slots = pickDaySlots(punches);
+  const fields = [
+    { name: "timeIn", label: "Time In", punch: slots.timeIn },
+    { name: "breakStart", label: "Start Break", punch: slots.breakStart },
+    { name: "breakEnd", label: "End Break", punch: slots.breakEnd },
+    { name: "timeOut", label: "Time Out", punch: slots.timeOut },
+  ] as const;
+
   return (
     <details className="text-left">
       <summary className="text-xs text-slate-500 cursor-pointer hover:underline whitespace-nowrap">
         Manage
       </summary>
-      <div className="absolute z-10 right-0 mt-1 bg-white shadow-lg rounded-md border border-slate-200 p-3 w-80 text-left">
-        <table className="w-full text-xs mb-2">
-          <thead className="text-slate-500 text-left">
-            <tr>
-              <th className="py-1 pr-2 font-normal">Type</th>
-              <th className="py-1 pr-2 font-normal">Time</th>
-              <th className="py-1 pr-2 font-normal">Source</th>
-              <th className="py-1 pr-2 font-normal">Photo</th>
-              <th className="py-1 font-normal"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {punches.map((p) => (
-              <tr key={p.id} className="border-t border-slate-100">
-                <td className="py-1.5 pr-2">{p.type}</td>
-                <td className="py-1.5 pr-2">{formatInTimeZone(p.timestamp, TIMEZONE, "h:mm a")}</td>
-                <td className="py-1.5 pr-2 text-slate-500">
-                  {p.isCorrection ? "Correction" : "Kiosk"}
-                </td>
-                <td className="py-1.5 pr-2">
-                  {p.photoPath ? (
-                    <a
-                      href={`/api/admin/punch-photo/${p.photoPath}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={`/api/admin/punch-photo/${p.photoPath}`}
-                        alt="Punch photo"
-                        className="w-8 h-8 rounded object-cover border border-slate-200 hover:opacity-80"
-                      />
-                    </a>
-                  ) : (
-                    <span className="text-slate-300">—</span>
-                  )}
-                </td>
-                <td className="py-1.5 text-right space-x-2 relative">
-                  <EditPunchForm punch={p} date={date} />
-                  <VoidPunchForm punchId={p.id} />
-                </td>
-              </tr>
+      <div className="absolute z-10 right-0 mt-1 bg-white shadow-lg rounded-md border border-slate-200 p-3 w-72 max-w-[90vw] text-left">
+        <form action={saveDayPunches}>
+          <input type="hidden" name="employeeId" value={employeeId} />
+          <input type="hidden" name="date" value={date} />
+          <div className="space-y-2">
+            {fields.map((f) => (
+              <div key={f.name} className="flex items-center gap-3">
+                <label htmlFor={`${f.name}-${employeeId}-${date}`} className="w-24 shrink-0 text-xs font-medium text-slate-600">
+                  {f.label}
+                </label>
+                <input
+                  id={`${f.name}-${employeeId}-${date}`}
+                  type="time"
+                  name={f.name}
+                  defaultValue={f.punch ? formatInTimeZone(f.punch.timestamp, TIMEZONE, "HH:mm") : ""}
+                  className="flex-1 rounded-md border border-slate-300 px-2 py-1 text-sm text-slate-800"
+                />
+                {f.punch?.photoPath && (
+                  <a
+                    href={`/api/admin/punch-photo/${f.punch.photoPath}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="shrink-0"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={`/api/admin/punch-photo/${f.punch.photoPath}`}
+                      alt={`${f.label} photo`}
+                      className="w-8 h-8 rounded object-cover border border-slate-200 hover:opacity-80"
+                    />
+                  </a>
+                )}
+              </div>
             ))}
-            {punches.length === 0 && (
-              <tr>
-                <td colSpan={5} className="py-2 text-slate-400">
-                  No punches
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+          </div>
 
-        <AddPunchForm employeeId={employeeId} date={date} />
+          <div className="mt-3">
+            <label className="block text-xs text-slate-500 mb-1">Reason for the change (required)</label>
+            <input
+              type="text"
+              name="reason"
+              required
+              minLength={3}
+              className="w-full rounded-md border border-slate-300 px-2 py-1 text-xs"
+            />
+          </div>
+          <div className="flex items-center justify-between mt-2">
+            <p className="text-xs text-slate-400">Clear a time to remove that punch.</p>
+            <Button size="sm">Save</Button>
+          </div>
+        </form>
 
         <form action={setDayStatus} className="flex items-center gap-2 mt-3 pt-3 border-t border-slate-100">
           <input type="hidden" name="employeeId" value={employeeId} />
@@ -671,132 +676,6 @@ function ManageDayForm({
           <Button variant="secondary" size="sm">Set</Button>
         </form>
       </div>
-    </details>
-  );
-}
-
-function AddPunchForm({ employeeId, date }: { employeeId: string; date: string }) {
-  return (
-    <details>
-      <summary className="text-xs text-slate-500 cursor-pointer hover:underline">
-        + Add punch
-      </summary>
-      <form action={addPunch} className="flex flex-wrap items-end gap-2 mt-2">
-        <input type="hidden" name="employeeId" value={employeeId} />
-        <input type="hidden" name="date" value={date} />
-        <div>
-          <label className="block text-xs text-slate-500">Type</label>
-          <select name="type" className="rounded-md border border-slate-300 px-2 py-1 text-xs">
-            <option value="IN">IN</option>
-            <option value="OUT">OUT</option>
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs text-slate-500">Time</label>
-          <input
-            type="time"
-            name="time"
-            required
-            className="rounded-md border border-slate-300 px-2 py-1 text-xs"
-          />
-        </div>
-        <div className="flex-1 min-w-[120px]">
-          <label className="block text-xs text-slate-500">Reason (required)</label>
-          <input
-            type="text"
-            name="reason"
-            required
-            minLength={3}
-            className="w-full rounded-md border border-slate-300 px-2 py-1 text-xs"
-          />
-        </div>
-        <Button size="sm">Add</Button>
-      </form>
-    </details>
-  );
-}
-
-function EditPunchForm({
-  punch,
-  date,
-}: {
-  punch: { id: string; type: string; timestamp: Date };
-  date: string;
-}) {
-  const localTime = formatInTimeZone(punch.timestamp, TIMEZONE, "HH:mm");
-  return (
-    <details className="inline-block text-left">
-      <summary className="text-xs text-slate-600 hover:underline cursor-pointer inline">
-        Edit
-      </summary>
-      <form
-        action={editPunch}
-        className="absolute z-20 mt-1 right-0 bg-white shadow-lg rounded-md border border-slate-200 p-3 flex flex-col gap-2 w-56"
-      >
-        <input type="hidden" name="punchId" value={punch.id} />
-        <input type="hidden" name="date" value={date} />
-        <div>
-          <label className="block text-xs text-slate-500">Type</label>
-          <select
-            name="type"
-            defaultValue={punch.type}
-            className="w-full rounded-md border border-slate-300 px-2 py-1 text-xs"
-          >
-            <option value="IN">IN</option>
-            <option value="OUT">OUT</option>
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs text-slate-500">Time</label>
-          <input
-            type="time"
-            name="time"
-            defaultValue={localTime}
-            required
-            className="w-full rounded-md border border-slate-300 px-2 py-1 text-xs"
-          />
-        </div>
-        <div>
-          <label className="block text-xs text-slate-500">Reason (required)</label>
-          <input
-            type="text"
-            name="reason"
-            required
-            minLength={3}
-            className="w-full rounded-md border border-slate-300 px-2 py-1 text-xs"
-          />
-        </div>
-        <Button size="sm">Save Correction</Button>
-      </form>
-    </details>
-  );
-}
-
-function VoidPunchForm({ punchId }: { punchId: string }) {
-  return (
-    <details className="inline-block text-left">
-      <summary className="text-xs text-red-600 hover:underline cursor-pointer inline">
-        Delete
-      </summary>
-      <form
-        action={voidPunch}
-        className="absolute z-20 mt-1 right-0 bg-white shadow-lg rounded-md border border-slate-200 p-3 flex flex-col gap-2 w-56"
-      >
-        <input type="hidden" name="punchId" value={punchId} />
-        <div>
-          <label className="block text-xs text-slate-500">Reason (required)</label>
-          <input
-            type="text"
-            name="reason"
-            required
-            minLength={3}
-            className="w-full rounded-md border border-slate-300 px-2 py-1 text-xs"
-          />
-        </div>
-        <button className="rounded-md bg-red-600 text-white text-xs px-3 py-1.5 hover:bg-red-500">
-          Confirm Delete
-        </button>
-      </form>
     </details>
   );
 }

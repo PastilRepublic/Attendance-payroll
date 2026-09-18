@@ -22,29 +22,41 @@ interface PunchLike {
  * first complete Start Break -> End Break pair (typical case: one lunch
  * break/day).
  */
-export function computeDayTimeline(dayPunches: PunchLike[]): DayTimeline {
+export interface DaySlots<T> {
+  timeIn?: T;
+  breakStart?: T;
+  breakEnd?: T;
+  timeOut?: T;
+}
+
+/** Which punch stands for each of the four slots (see computeDayTimeline). */
+export function pickDaySlots<T extends PunchLike>(dayPunches: T[]): DaySlots<T> {
   const sorted = [...dayPunches].sort(
     (a, b) => a.timestamp.getTime() - b.timestamp.getTime()
   );
-  const formatTime = (t?: Date) => (t ? formatInTimeZone(t, TIMEZONE, "h:mm a") : null);
+  const timeIn = sorted.find((p) => p.type === "IN");
+  const timeOut = [...sorted].reverse().find((p) => p.type === "OUT");
 
-  const firstIn = sorted.find((p) => p.type === "IN");
-  const lastOut = [...sorted].reverse().find((p) => p.type === "OUT");
-
-  let breakStart: Date | undefined;
-  let breakEnd: Date | undefined;
+  let breakStart: T | undefined;
+  let breakEnd: T | undefined;
   for (const p of sorted) {
     if (p.type === "BREAK_START" && !breakStart) {
-      breakStart = p.timestamp;
+      breakStart = p;
     } else if (p.type === "BREAK_END" && breakStart && !breakEnd) {
-      breakEnd = p.timestamp;
+      breakEnd = p;
     }
   }
+  return { timeIn, breakStart, breakEnd, timeOut };
+}
 
+export function computeDayTimeline(dayPunches: PunchLike[]): DayTimeline {
+  const slots = pickDaySlots(dayPunches);
+  const formatTime = (p?: PunchLike) =>
+    p ? formatInTimeZone(p.timestamp, TIMEZONE, "h:mm a") : null;
   return {
-    timeIn: formatTime(firstIn?.timestamp),
-    breakIn: formatTime(breakStart),
-    breakOut: formatTime(breakEnd),
-    timeOut: formatTime(lastOut?.timestamp),
+    timeIn: formatTime(slots.timeIn),
+    breakIn: formatTime(slots.breakStart),
+    breakOut: formatTime(slots.breakEnd),
+    timeOut: formatTime(slots.timeOut),
   };
 }
