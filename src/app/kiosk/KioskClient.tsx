@@ -159,6 +159,7 @@ export default function KioskClient({
   const [identifyData, setIdentifyData] = useState<IdentifyData | null>(null);
   const [chosenAction, setChosenAction] = useState<PunchType | null>(null);
   const [gate, setGate] = useState<SanitationTiming | null>(null);
+  const [overrideOpen, setOverrideOpen] = useState(false);
   const [nowTick, setNowTick] = useState(() => Date.now());
   const [confirmSecondsLeft, setConfirmSecondsLeft] = useState(CONFIRM_AUTO_RESET_MS / 1000);
   const deviceIdRef = useRef<string>("");
@@ -212,6 +213,7 @@ export default function KioskClient({
     setIdentifyData(null);
     setChosenAction(null);
     setGate(null);
+    setOverrideOpen(false);
   }, []);
 
   const chooseEmployee = useCallback((employee: EmployeeOption | null) => {
@@ -447,6 +449,33 @@ export default function KioskClient({
     proceedWithAction(chosenAction);
   }, [chosenAction, proceedWithAction]);
 
+  // Returns an error message on failure; on success it moves on with the punch.
+  const verifyOverride = useCallback(
+    async (supervisorPin: string): Promise<string | null> => {
+      try {
+        const res = await fetch("/api/kiosk/sanitation-override", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            pin: supervisorPin,
+            employeeId: selectedEmployee?.id,
+            action: chosenAction,
+          }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => null);
+          return data?.error ?? "Could not verify the supervisor PIN.";
+        }
+      } catch {
+        return "Network error. Try again.";
+      }
+      setOverrideOpen(false);
+      finishGate();
+      return null;
+    },
+    [selectedEmployee, chosenAction, finishGate]
+  );
+
   const cancelGate = useCallback(() => {
     setGate(null);
     setChosenAction(null);
@@ -554,6 +583,14 @@ export default function KioskClient({
             requireAllDone
             onFinish={finishGate}
             onCancel={cancelGate}
+            onOverride={() => setOverrideOpen(true)}
+          />
+        )}
+
+        {overrideOpen && screen === "tasks" && gate && (
+          <SupervisorOverrideModal
+            onCancel={() => setOverrideOpen(false)}
+            onVerify={verifyOverride}
           />
         )}
 
@@ -777,6 +814,7 @@ function TaskChecklist({
   requireAllDone = false,
   onFinish,
   onCancel,
+  onOverride,
 }: {
   title: string;
   subtitle?: string;
@@ -788,6 +826,7 @@ function TaskChecklist({
   requireAllDone?: boolean;
   onFinish: () => void;
   onCancel?: () => void;
+  onOverride?: () => void;
 }) {
   const allDone = tasks.every((t) => doneIds.has(t.id));
   const finishDisabled = requireAllDone && !allDone;
@@ -842,6 +881,109 @@ function TaskChecklist({
           className="rounded-2xl bg-slate-900 hover:bg-slate-800 disabled:bg-slate-300 disabled:cursor-not-allowed text-white px-8 py-3 text-lg font-medium"
         >
           {finishLabel}
+        </button>
+      </div>
+      {onOverride && !allDone && (
+        <button
+          onClick={onOverride}
+          className="mt-5 text-sm text-slate-500 hover:text-slate-800 underline"
+        >
+          Supervisor override
+        </button>
+      )}
+    </div>
+  );
+}
+
+function SupervisorOverrideModal({
+  onCancel,
+  onVerify,
+}: {
+  onCancel: () => void;
+  onVerify: (pin: string) => Promise<string | null>;
+}) {
+  const [pin, setPin] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const submit = async (value: string) => {
+    setBusy(true);
+    const err = await onVerify(value);
+    // On success the parent unmounts this modal, so only failures land here.
+    if (err) {
+      setError(err);
+      setPin("");
+      setBusy(false);
+    }
+  };
+
+  const digit = (d: string) => {
+    if (busy || pin.length >= 4) return;
+    const next = pin + d;
+    setPin(next);
+    setError(null);
+    if (next.length === 4) submit(next);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center z-50 px-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-xs p-6 text-center">
+        <p className="text-sm font-semibold text-slate-900">Supervisor PIN required</p>
+        <p className="text-xs text-slate-500 mt-1">Skip the cleaning list for this punch</p>
+
+        <div className="flex justify-center gap-2 my-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <span
+              key={i}
+              className={`w-3 h-3 rounded-full border-2 ${
+                i < pin.length ? "bg-orange-500 border-orange-500" : "border-slate-300"
+              }`}
+            />
+          ))}
+        </div>
+
+        {error && <p className="text-xs text-red-600 mb-3">{error}</p>}
+
+        <div className="grid grid-cols-3 gap-2">
+          {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((d) => (
+            <button
+              key={d}
+              onClick={() => digit(d)}
+              disabled={busy}
+              className="rounded-lg bg-slate-100 hover:bg-slate-200 py-3 text-lg font-medium text-slate-900 disabled:opacity-50"
+            >
+              {d}
+            </button>
+          ))}
+          <button
+            onClick={() => setPin("")}
+            disabled={busy}
+            className="rounded-lg bg-slate-100 hover:bg-slate-200 py-3 text-sm font-medium text-slate-600 disabled:opacity-50"
+          >
+            Clear
+          </button>
+          <button
+            onClick={() => digit("0")}
+            disabled={busy}
+            className="rounded-lg bg-slate-100 hover:bg-slate-200 py-3 text-lg font-medium text-slate-900 disabled:opacity-50"
+          >
+            0
+          </button>
+          <button
+            onClick={() => setPin((p) => p.slice(0, -1))}
+            disabled={busy}
+            className="rounded-lg bg-slate-100 hover:bg-slate-200 py-3 text-sm font-medium text-slate-600 disabled:opacity-50"
+          >
+            ⌫
+          </button>
+        </div>
+
+        <button
+          onClick={onCancel}
+          disabled={busy}
+          className="mt-4 text-sm text-slate-500 hover:text-slate-800 disabled:opacity-50"
+        >
+          Cancel
         </button>
       </div>
     </div>
