@@ -196,3 +196,48 @@ export async function inspectSanitationAssignment(formData: FormData) {
   revalidatePath("/admin/sanitation");
   revalidatePath("/sanitation");
 }
+
+const passAllSchema = z.object({
+  date: z.string().regex(/^d{4}-d{2}-d{2}$/),
+});
+
+/**
+ * Passes every duty on a date that is done but not yet inspected, in one
+ * click. Pending duties and ones already inspected (passed or failed) are left
+ * alone. Any admin (supervisor or owner) can use it -- same as inspecting one.
+ */
+export async function passAllSanitationAssignments(formData: FormData) {
+  const admin = await requireAdmin();
+  const { date } = passAllSchema.parse({ date: formData.get("date") });
+
+  const waiting = await prisma.sanitationAssignment.findMany({
+    where: {
+      date: new Date(`${date}T00:00:00.000Z`),
+      status: "DONE",
+      inspectionResult: null,
+    },
+    select: { id: true },
+  });
+
+  if (waiting.length > 0) {
+    await prisma.sanitationAssignment.updateMany({
+      where: { id: { in: waiting.map((a) => a.id) }, inspectionResult: null },
+      data: {
+        inspectedByAdminId: admin.id,
+        inspectedAt: new Date(),
+        inspectionResult: "PASS",
+      },
+    });
+
+    await logAudit({
+      actorAdminId: admin.id,
+      action: "PASS_ALL_SANITATION_ASSIGNMENTS",
+      targetTable: "SanitationAssignment",
+      targetId: date,
+      after: { result: "PASS", count: waiting.length, ids: waiting.map((a) => a.id) },
+    });
+  }
+
+  revalidatePath("/admin/sanitation");
+  revalidatePath("/sanitation");
+}

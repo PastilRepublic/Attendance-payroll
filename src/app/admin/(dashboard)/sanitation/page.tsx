@@ -7,6 +7,7 @@ import {
   assignSanitation,
   deleteSanitationAssignment,
   inspectSanitationAssignment,
+  passAllSanitationAssignments,
 } from "./actions";
 import PageHeader from "@/components/PageHeader";
 import Card from "@/components/Card";
@@ -251,17 +252,30 @@ export default async function SanitationPage({
         </div>
       </details>
 
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
         <h2 className="text-sm font-semibold text-slate-700">Schedule</h2>
-        <form method="get" className="flex items-center gap-2">
-          <input
-            type="date"
-            name="date"
-            defaultValue={date}
-            className="rounded-full border border-slate-300 px-3 py-1.5 text-sm"
-          />
-          <Button size="sm">Go</Button>
-        </form>
+        <div className="flex flex-wrap items-center gap-3">
+          {pendingChecks > 0 && (
+            <form action={passAllSanitationAssignments}>
+              <input type="hidden" name="date" value={date} />
+              <button
+                className="rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium px-3 py-1.5"
+                title="Passes every duty that is done and waiting for inspection"
+              >
+                Pass all ({pendingChecks} waiting)
+              </button>
+            </form>
+          )}
+          <form method="get" className="flex items-center gap-2">
+            <input
+              type="date"
+              name="date"
+              defaultValue={date}
+              className="rounded-full border border-slate-300 px-3 py-1.5 text-sm"
+            />
+            <Button size="sm">Go</Button>
+          </form>
+        </div>
       </div>
 
       <Card padded>
