@@ -76,6 +76,28 @@ function dayAbbrev(dateStr: string): { label: string; className: string } {
   return DAY_ABBREV_STYLES[dow];
 }
 
+function shiftMonth(month: string, delta: number): string {
+  const [y, m] = month.split("-").map(Number);
+  const d = new Date(Date.UTC(y, m - 1 + delta, 1));
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+function monthLabel(month: string): string {
+  const [y, m] = month.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+// Monday of the week containing dateStr -- payroll weeks run Mon-Sun.
+function weekKey(dateStr: string): string {
+  const d = new Date(`${dateStr}T00:00:00.000Z`);
+  d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+  return d.toISOString().slice(0, 10);
+}
+
 export default function EmployeeClient() {
   const [screen, setScreen] = useState<Screen>("selectName");
   const [tab, setTab] = useState<Tab>("attendance");
@@ -90,6 +112,11 @@ export default function EmployeeClient() {
   const [payslips, setPayslips] = useState<Payslip[] | null>(null);
   const [payBasis, setPayBasis] = useState<"HOURLY" | "DAILY">("HOURLY");
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [month, setMonth] = useState<string | null>(null);
+  const [earliestMonth, setEarliestMonth] = useState<string | null>(null);
+  const [currentMonth, setCurrentMonth] = useState<string | null>(null);
+  const [monthLoading, setMonthLoading] = useState(false);
+  const [monthError, setMonthError] = useState(false);
 
   useEffect(() => {
     fetch("/api/kiosk/employees")
@@ -131,6 +158,9 @@ export default function EmployeeClient() {
       const payData = await paySlipRes.json();
       setEmployeeName(attData.employeeName ?? employee.name);
       setDays(attData.days ?? []);
+      setMonth(attData.month ?? null);
+      setEarliestMonth(attData.earliestMonth ?? null);
+      setCurrentMonth(attData.currentMonth ?? null);
       setPayslips(payData.payslips ?? []);
       setPayBasis(payData.payBasis === "DAILY" ? "DAILY" : "HOURLY");
       setScreen("dashboard");
@@ -138,6 +168,27 @@ export default function EmployeeClient() {
       setLoadError("Could not reach the server. Check your connection and try again.");
     } finally {
       setChecking(false);
+    }
+  }
+
+  async function loadMonth(target: string) {
+    if (!selected || monthLoading) return;
+    setMonthLoading(true);
+    setMonthError(false);
+    try {
+      const res = await fetch("/api/employee/attendance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pin, employeeId: selected.id, month: target }),
+      });
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      setDays(data.days ?? []);
+      setMonth(data.month ?? target);
+    } catch {
+      setMonthError(true);
+    } finally {
+      setMonthLoading(false);
     }
   }
 
@@ -155,6 +206,8 @@ export default function EmployeeClient() {
     setDays(null);
     setPayslips(null);
     setLoadError(null);
+    setMonth(null);
+    setMonthError(false);
     setTab("attendance");
   }
 
@@ -324,10 +377,31 @@ export default function EmployeeClient() {
 
             {tab === "attendance" && (
               <Card className="overflow-hidden">
-                <p className="px-4 py-3 text-sm text-slate-500 border-b border-slate-200">
-                  Last 30 days
-                </p>
-                <div className="overflow-x-auto">
+                <div className="px-4 py-2 flex items-center justify-between border-b border-slate-200">
+                  <button
+                    onClick={() => month && loadMonth(shiftMonth(month, -1))}
+                    disabled={!month || monthLoading || !earliestMonth || month <= earliestMonth}
+                    aria-label="Previous month"
+                    className="rounded-md px-3 py-1 text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent"
+                  >
+                    ‹
+                  </button>
+                  <p className="text-sm font-medium text-slate-700">
+                    {month ? monthLabel(month) : ""}
+                    {monthError && (
+                      <span className="ml-2 text-xs font-normal text-red-600">Could not load</span>
+                    )}
+                  </p>
+                  <button
+                    onClick={() => month && loadMonth(shiftMonth(month, 1))}
+                    disabled={!month || monthLoading || !currentMonth || month >= currentMonth}
+                    aria-label="Next month"
+                    className="rounded-md px-3 py-1 text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent"
+                  >
+                    ›
+                  </button>
+                </div>
+                <div className={`overflow-x-auto transition-opacity ${monthLoading ? "opacity-50" : ""}`}>
                   <table className="w-full text-sm">
                     <thead className="bg-slate-50 text-slate-600">
                       <tr>
@@ -341,13 +415,19 @@ export default function EmployeeClient() {
                       </tr>
                     </thead>
                     <tbody>
-                      {(days ?? []).map((d) => {
+                      {(days ?? []).map((d, i, all) => {
+                        // Days are newest-first, so a week boundary is where the
+                        // previous row belongs to a different Mon-Sun week.
+                        const weekStarts = i > 0 && weekKey(all[i - 1].date) !== weekKey(d.date);
                         // Paid Leave / Unpaid Absence pay is fixed regardless of
                         // punches, so showing raw times next to that status would
                         // look contradictory.
                         const showTimes = d.dayStatus === null;
                         return (
-                        <tr key={d.date} className="border-t border-slate-100">
+                        <tr
+                          key={d.date}
+                          className={`border-t ${weekStarts ? "border-slate-300" : "border-slate-100"}`}
+                        >
                           <td className="px-4 py-2 text-slate-800 whitespace-nowrap">
                             <span className="flex items-center gap-1.5">
                               <span

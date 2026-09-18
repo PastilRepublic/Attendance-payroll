@@ -5,9 +5,9 @@ import { getSettings } from "@/lib/settings";
 import { computeDailyResults, localDateKey, TIMEZONE } from "@/lib/payroll";
 import { computeDayTimeline } from "@/lib/attendanceSlots";
 import { formatInTimeZone } from "date-fns-tz";
-import { subDays } from "date-fns";
+import { endOfMonth, parseISO } from "date-fns";
 
-const HISTORY_DAYS = 30;
+const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
@@ -24,8 +24,14 @@ export async function POST(request: Request) {
   }
 
   const settings = await getSettings();
-  const endDate = formatInTimeZone(new Date(), TIMEZONE, "yyyy-MM-dd");
-  const startDate = formatInTimeZone(subDays(new Date(), HISTORY_DAYS - 1), TIMEZONE, "yyyy-MM-dd");
+  const today = formatInTimeZone(new Date(), TIMEZONE, "yyyy-MM-dd");
+  const currentMonth = today.slice(0, 7);
+  const requested = typeof body?.month === "string" && MONTH_RE.test(body.month) ? body.month : null;
+  // Future months have nothing to show, so clamp to the current one.
+  const month = requested && requested <= currentMonth ? requested : currentMonth;
+  const startDate = `${month}-01`;
+  const monthEnd = formatInTimeZone(endOfMonth(parseISO(startDate)), TIMEZONE, "yyyy-MM-dd");
+  const endDate = monthEnd < today ? monthEnd : today;
 
   const [punches, dayStatuses, shiftOverrides] = await Promise.all([
     prisma.punch.findMany({
@@ -70,8 +76,13 @@ export async function POST(request: Request) {
     punchesByDay.get(key)!.push(p);
   }
 
+  const earliestMonth = punches.length > 0 ? localDateKey(punches[0].timestamp).slice(0, 7) : currentMonth;
+
   return NextResponse.json({
     employeeName: matched.name,
+    month,
+    earliestMonth,
+    currentMonth,
     days: days
       .slice()
       .reverse()
