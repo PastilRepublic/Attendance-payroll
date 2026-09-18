@@ -49,10 +49,21 @@ interface ConfirmInfo {
   type: PunchType;
 }
 
+type SanitationTiming = "PRE_COOKING" | "POST_COOKING" | "ANYTIME";
+
+// Time Out and starting the lunch break are the two punches that require a
+// finished cleaning checklist first (pre-cooking clean before lunch,
+// post-cooking clean before going home).
+const GATE_FOR_ACTION: Partial<Record<PunchType, SanitationTiming>> = {
+  BREAK_START: "PRE_COOKING",
+  OUT: "POST_COOKING",
+};
+
 interface PendingTask {
   id: string;
   kind: "TASK" | "SANITATION";
   name: string;
+  timing?: SanitationTiming;
   bonusAmount: number | null;
 }
 
@@ -62,6 +73,10 @@ interface EmployeeOption {
   photoUrl: string | null;
   status: PresenceStatus;
 }
+
+// Regular tasks and "anytime" sanitation duties show after any punch;
+// pre/post-cooking duties only show as a gate on their own punch.
+const isUngated = (t: PendingTask) => !t.timing || t.timing === "ANYTIME";
 
 const AUTO_RESET_MS = 2200;
 const CONFIRM_AUTO_RESET_MS = 3000;
@@ -143,6 +158,7 @@ export default function KioskClient({
   const [selectedEmployee, setSelectedEmployee] = useState<EmployeeOption | null>(null);
   const [identifyData, setIdentifyData] = useState<IdentifyData | null>(null);
   const [chosenAction, setChosenAction] = useState<PunchType | null>(null);
+  const [gate, setGate] = useState<SanitationTiming | null>(null);
   const [nowTick, setNowTick] = useState(() => Date.now());
   const [confirmSecondsLeft, setConfirmSecondsLeft] = useState(CONFIRM_AUTO_RESET_MS / 1000);
   const deviceIdRef = useRef<string>("");
@@ -195,6 +211,7 @@ export default function KioskClient({
     setSelectedEmployee(null);
     setIdentifyData(null);
     setChosenAction(null);
+    setGate(null);
   }, []);
 
   const chooseEmployee = useCallback((employee: EmployeeOption | null) => {
@@ -231,7 +248,7 @@ export default function KioskClient({
     if (resetTimer.current) clearTimeout(resetTimer.current);
     resetTimer.current = setTimeout(() => {
       setPendingTasks((current) => {
-        if (current.length > 0) {
+        if (current.some(isUngated)) {
           setScreen("tasks");
         } else {
           resetToIdle();
@@ -393,7 +410,7 @@ export default function KioskClient({
     }
   }, [pin, queueOffline, scheduleReset, selectedEmployee]);
 
-  const handleAction = useCallback(
+  const proceedWithAction = useCallback(
     (type: PunchType) => {
       setChosenAction(type);
       // Photo capture only applies to Time In / Time Out -- breaks don't
@@ -406,6 +423,35 @@ export default function KioskClient({
     },
     [identifyData, pin, submitPunch]
   );
+
+  const handleAction = useCallback(
+    (type: PunchType) => {
+      const requiredTiming = GATE_FOR_ACTION[type];
+      const blocking =
+        requiredTiming &&
+        pendingTasks.some((t) => t.timing === requiredTiming && !doneTaskIds.has(t.id));
+      if (requiredTiming && blocking) {
+        setChosenAction(type);
+        setGate(requiredTiming);
+        setScreen("tasks");
+        return;
+      }
+      proceedWithAction(type);
+    },
+    [pendingTasks, doneTaskIds, proceedWithAction]
+  );
+
+  const finishGate = useCallback(() => {
+    if (!chosenAction) return;
+    setGate(null);
+    proceedWithAction(chosenAction);
+  }, [chosenAction, proceedWithAction]);
+
+  const cancelGate = useCallback(() => {
+    setGate(null);
+    setChosenAction(null);
+    setScreen("actionPanel");
+  }, []);
 
   const handleDigit = (d: string) => {
     if (screen !== "home") return;
@@ -492,12 +538,33 @@ export default function KioskClient({
           </div>
         )}
 
-        {screen === "tasks" && (
+        {screen === "tasks" && gate && chosenAction && (
           <TaskChecklist
-            tasks={pendingTasks}
+            title={
+              gate === "PRE_COOKING"
+                ? "Clean up before your break"
+                : "Clean up before you time out"
+            }
+            subtitle={`Finish every item below to continue to ${ACTION_LABELS[chosenAction]}.`}
+            tasks={pendingTasks.filter((t) => t.timing === gate)}
             doneIds={doneTaskIds}
             onComplete={completeTask}
             onUndo={undoTask}
+            finishLabel={`Continue to ${ACTION_LABELS[chosenAction]}`}
+            requireAllDone
+            onFinish={finishGate}
+            onCancel={cancelGate}
+          />
+        )}
+
+        {screen === "tasks" && !gate && (
+          <TaskChecklist
+            title="Your tasks today"
+            tasks={pendingTasks.filter(isUngated)}
+            doneIds={doneTaskIds}
+            onComplete={completeTask}
+            onUndo={undoTask}
+            finishLabel="Finish"
             onFinish={() => {
               resetToIdle();
               router.push("/");
@@ -700,21 +767,36 @@ function ActionPanel({
 }
 
 function TaskChecklist({
+  title,
+  subtitle,
   tasks,
   doneIds,
   onComplete,
   onUndo,
+  finishLabel,
+  requireAllDone = false,
   onFinish,
+  onCancel,
 }: {
+  title: string;
+  subtitle?: string;
   tasks: PendingTask[];
   doneIds: Set<string>;
   onComplete: (taskId: string, kind: "TASK" | "SANITATION") => void;
   onUndo: (taskId: string, kind: "TASK" | "SANITATION") => void;
+  finishLabel: string;
+  requireAllDone?: boolean;
   onFinish: () => void;
+  onCancel?: () => void;
 }) {
+  const allDone = tasks.every((t) => doneIds.has(t.id));
+  const finishDisabled = requireAllDone && !allDone;
   return (
     <div className="text-center w-full max-w-md">
-      <p className="text-2xl font-semibold mb-6 text-slate-900">Your tasks today</p>
+      <p className={`text-2xl font-semibold text-slate-900 ${subtitle ? "mb-2" : "mb-6"}`}>
+        {title}
+      </p>
+      {subtitle && <p className="text-sm text-slate-500 mb-6">{subtitle}</p>}
       <div className="space-y-3 mb-8 text-left">
         {tasks.map((t) => {
           const done = doneIds.has(t.id);
@@ -745,12 +827,23 @@ function TaskChecklist({
           );
         })}
       </div>
-      <button
-        onClick={onFinish}
-        className="rounded-2xl bg-slate-900 hover:bg-slate-800 text-white px-8 py-3 text-lg font-medium"
-      >
-        Finish
-      </button>
+      <div className="flex items-center justify-center gap-3">
+        {onCancel && (
+          <button
+            onClick={onCancel}
+            className="rounded-2xl border border-slate-300 hover:bg-slate-50 text-slate-700 px-6 py-3 text-lg font-medium"
+          >
+            Back
+          </button>
+        )}
+        <button
+          onClick={onFinish}
+          disabled={finishDisabled}
+          className="rounded-2xl bg-slate-900 hover:bg-slate-800 disabled:bg-slate-300 disabled:cursor-not-allowed text-white px-8 py-3 text-lg font-medium"
+        >
+          {finishLabel}
+        </button>
+      </div>
     </div>
   );
 }

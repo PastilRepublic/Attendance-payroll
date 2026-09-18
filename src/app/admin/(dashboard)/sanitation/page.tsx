@@ -25,6 +25,12 @@ const SCOPE_LABELS: Record<"COOKING" | "JAR_FILLING" | "BOTH", string> = {
   BOTH: "Every day",
 };
 
+const TIMING_LABELS: Record<"PRE_COOKING" | "POST_COOKING" | "ANYTIME", string> = {
+  PRE_COOKING: "Before lunch",
+  POST_COOKING: "At Time Out",
+  ANYTIME: "Anytime",
+};
+
 export default async function SanitationPage({
   searchParams,
 }: {
@@ -106,6 +112,9 @@ export default async function SanitationPage({
                   {p.name}
                   <span className="text-xs font-normal text-slate-400">({p.riskLevel.toLowerCase()} risk)</span>
                   <span className="text-xs font-normal text-slate-400">· {SCOPE_LABELS[p.appliesTo]}</span>
+                  {p.timing !== "ANYTIME" && (
+                    <span className="text-xs font-normal text-slate-400">· {TIMING_LABELS[p.timing]}</span>
+                  )}
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 mt-1 text-slate-600">
                   <p><span className="text-slate-400">Area/Equipment:</span> {p.areaEquipment}</p>
@@ -193,6 +202,19 @@ export default async function SanitationPage({
                 <option value="BOTH">Every day</option>
                 <option value="COOKING">Cooking Day only</option>
                 <option value="JAR_FILLING">Jar Filling Day only</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-slate-500 mb-1">Due</label>
+              <select
+                name="timing"
+                required
+                defaultValue="ANYTIME"
+                className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+              >
+                <option value="ANYTIME">Anytime (shown after any punch)</option>
+                <option value="PRE_COOKING">Before lunch (must finish to start break)</option>
+                <option value="POST_COOKING">After cooking (must finish to Time Out)</option>
               </select>
             </div>
             <div className="sm:col-span-2">
@@ -423,6 +445,7 @@ function EditProcedureForm({
     responsibleRole: string;
     riskLevel: "LOW" | "MEDIUM" | "HIGH";
     appliesTo: "COOKING" | "JAR_FILLING" | "BOTH";
+    timing: "PRE_COOKING" | "POST_COOKING" | "ANYTIME";
   };
 }) {
   return (
@@ -501,6 +524,19 @@ function EditProcedureForm({
             <option value="BOTH">Every day</option>
             <option value="COOKING">Cooking Day only</option>
             <option value="JAR_FILLING">Jar Filling Day only</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs text-slate-500 mb-1">Due</label>
+          <select
+            name="timing"
+            required
+            defaultValue={procedure.timing}
+            className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+          >
+            <option value="ANYTIME">Anytime (shown after any punch)</option>
+            <option value="PRE_COOKING">Before lunch (must finish to start break)</option>
+            <option value="POST_COOKING">After cooking (must finish to Time Out)</option>
           </select>
         </div>
         <div className="sm:col-span-2">

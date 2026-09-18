@@ -345,11 +345,20 @@ model SanitationProcedure {
   // apply regardless of whether it's a Cooking or Jar Filling day (and are
   // the only ones auto-scheduled on a day-off).
   appliesTo      SanitationScope @default(BOTH)
+  // When this duty is due at the kiosk: PRE_COOKING gates the lunch-break
+  // punch, POST_COOKING gates Time Out, ANYTIME shows after any punch.
+  timing         SanitationTiming @default(ANYTIME)
   active         Boolean  @default(true)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
   assignments SanitationAssignment[]
+}
+
+enum SanitationTiming {
+  PRE_COOKING
+  POST_COOKING
+  ANYTIME
 }
 
 enum SanitationScope {

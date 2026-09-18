@@ -81,6 +81,7 @@ export async function POST(request: Request) {
         id: s.id,
         kind: "SANITATION" as const,
         name: s.procedure.name,
+        timing: s.procedure.timing,
         bonusAmount: null,
       })),
     ],

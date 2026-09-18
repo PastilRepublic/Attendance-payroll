@@ -15,6 +15,7 @@ const createProcedureSchema = z.object({
   responsibleRole: z.string().trim().min(1, "Responsible role is required"),
   riskLevel: z.enum(["LOW", "MEDIUM", "HIGH"]),
   appliesTo: z.enum(["COOKING", "JAR_FILLING", "BOTH"]),
+  timing: z.enum(["PRE_COOKING", "POST_COOKING", "ANYTIME"]),
 });
 
 export async function createProcedure(formData: FormData) {
@@ -28,6 +29,7 @@ export async function createProcedure(formData: FormData) {
     responsibleRole: formData.get("responsibleRole"),
     riskLevel: formData.get("riskLevel"),
     appliesTo: formData.get("appliesTo"),
+    timing: formData.get("timing"),
   });
 
   const procedure = await prisma.sanitationProcedure.create({ data: parsed });
@@ -54,6 +56,7 @@ const updateProcedureSchema = z.object({
   responsibleRole: z.string().trim().min(1, "Responsible role is required"),
   riskLevel: z.enum(["LOW", "MEDIUM", "HIGH"]),
   appliesTo: z.enum(["COOKING", "JAR_FILLING", "BOTH"]),
+  timing: z.enum(["PRE_COOKING", "POST_COOKING", "ANYTIME"]),
 });
 
 export async function updateProcedure(formData: FormData) {
@@ -68,6 +71,7 @@ export async function updateProcedure(formData: FormData) {
     responsibleRole: formData.get("responsibleRole"),
     riskLevel: formData.get("riskLevel"),
     appliesTo: formData.get("appliesTo"),
+    timing: formData.get("timing"),
   });
   const { id, ...data } = parsed;
 
@@ -79,8 +83,8 @@ export async function updateProcedure(formData: FormData) {
     action: "UPDATE_SANITATION_PROCEDURE",
     targetTable: "SanitationProcedure",
     targetId: procedure.id,
-    before: { name: before.name, riskLevel: before.riskLevel, appliesTo: before.appliesTo },
-    after: { name: procedure.name, riskLevel: procedure.riskLevel, appliesTo: procedure.appliesTo },
+    before: { name: before.name, riskLevel: before.riskLevel, appliesTo: before.appliesTo, timing: before.timing },
+    after: { name: procedure.name, riskLevel: procedure.riskLevel, appliesTo: procedure.appliesTo, timing: procedure.timing },
   });
 
   revalidatePath("/admin/sanitation");
