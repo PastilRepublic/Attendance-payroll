@@ -98,7 +98,12 @@ export default function HomeKiosk() {
   const router = useRouter();
   const [employees, setEmployees] = useState<EmployeeOption[]>([]);
   const [employeesFailed, setEmployeesFailed] = useState(false);
-  const [now, setNow] = useState(() => new Date());
+  // Seeded as null (not `new Date()`) so the server-rendered HTML and the
+  // client's first render agree -- this page is statically prerendered, so
+  // baking in a real timestamp during render would drift from the client's
+  // actual clock and break hydration. The real clock only starts ticking
+  // client-side, from the effect below.
+  const [now, setNow] = useState<Date | null>(null);
   const [operationDay, setOperationDay] = useState<OperationDay | null>(null);
   const [togglingDay, setTogglingDay] = useState(false);
 
@@ -126,8 +131,16 @@ export default function HomeKiosk() {
   }, []);
 
   useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), CLOCK_TICK_MS);
-    return () => clearInterval(t);
+    const tick = () => setNow(new Date());
+    // Kick off the first tick asynchronously (not a direct setState call in
+    // the effect body) so the clock fills in almost immediately instead of
+    // waiting a full CLOCK_TICK_MS for the interval's first fire.
+    const kickoff = setTimeout(tick, 0);
+    const interval = setInterval(tick, CLOCK_TICK_MS);
+    return () => {
+      clearTimeout(kickoff);
+      clearInterval(interval);
+    };
   }, []);
 
   const toggleOperationDay = useCallback(() => {
@@ -144,8 +157,8 @@ export default function HomeKiosk() {
       .finally(() => setTogglingDay(false));
   }, [operationDay, togglingDay]);
 
-  const dateLabel = formatInTimeZone(now, TIMEZONE, "EEEE, d MMM");
-  const timeLabel = formatInTimeZone(now, TIMEZONE, "h:mm a");
+  const dateLabel = now ? formatInTimeZone(now, TIMEZONE, "EEEE, d MMM") : "";
+  const timeLabel = now ? formatInTimeZone(now, TIMEZONE, "h:mm a") : "";
 
   return (
     <div className="flex-1 flex flex-col bg-white text-slate-900 min-h-0">
