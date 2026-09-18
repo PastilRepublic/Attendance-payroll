@@ -64,6 +64,7 @@ interface EmployeeOption {
 }
 
 const AUTO_RESET_MS = 2200;
+const CONFIRM_AUTO_RESET_MS = 3000;
 const TASKS_AUTO_FINISH_MS = 45000;
 
 const ACTION_LABELS: Record<PunchType, string> = {
@@ -144,6 +145,7 @@ export default function KioskClient({
   const [identifyData, setIdentifyData] = useState<IdentifyData | null>(null);
   const [chosenAction, setChosenAction] = useState<PunchType | null>(null);
   const [nowTick, setNowTick] = useState(() => Date.now());
+  const [confirmSecondsLeft, setConfirmSecondsLeft] = useState(CONFIRM_AUTO_RESET_MS / 1000);
   const deviceIdRef = useRef<string>("");
 
   const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -171,6 +173,15 @@ export default function KioskClient({
   useEffect(() => {
     if (screen !== "actionPanel") return;
     const t = setInterval(() => setNowTick(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [screen]);
+
+  useEffect(() => {
+    if (screen !== "confirm") return;
+    setConfirmSecondsLeft(CONFIRM_AUTO_RESET_MS / 1000);
+    const t = setInterval(() => {
+      setConfirmSecondsLeft((s) => (s > 1 ? s - 1 : 1));
+    }, 1000);
     return () => clearInterval(t);
   }, [screen]);
 
@@ -228,7 +239,7 @@ export default function KioskClient({
         }
         return current;
       });
-    }, AUTO_RESET_MS);
+    }, CONFIRM_AUTO_RESET_MS);
   }, [resetToIdle]);
 
   const completeTask = useCallback(
@@ -472,18 +483,23 @@ export default function KioskClient({
         {screen === "submitting" && <StatusMessage text="Recording..." />}
 
         {screen === "confirm" && confirmInfo && (
-          <div
-            className={`w-full max-w-sm rounded-3xl ${CONFIRM_STYLES[confirmInfo.type].bg} text-white px-10 py-12 flex flex-col items-center text-center`}
-          >
-            <div className="w-20 h-20 rounded-full bg-white/20 flex items-center justify-center mb-6">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="w-11 h-11">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-              </svg>
+          <div className="w-full max-w-sm flex flex-col items-center">
+            <div
+              className={`w-full rounded-3xl ${CONFIRM_STYLES[confirmInfo.type].bg} text-white px-10 py-12 flex flex-col items-center text-center`}
+            >
+              <div className="w-20 h-20 rounded-full bg-white/20 flex items-center justify-center mb-6">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="w-11 h-11">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                </svg>
+              </div>
+              <p className="text-4xl font-bold">{CONFIRM_STYLES[confirmInfo.type].text}</p>
+              {confirmInfo.employeeName && (
+                <p className="text-xl mt-3 text-white/90">{confirmInfo.employeeName}</p>
+              )}
             </div>
-            <p className="text-4xl font-bold">{CONFIRM_STYLES[confirmInfo.type].text}</p>
-            {confirmInfo.employeeName && (
-              <p className="text-xl mt-3 text-white/90">{confirmInfo.employeeName}</p>
-            )}
+            <p className="mt-5 text-sm text-slate-400">
+              The screen will close in {confirmSecondsLeft}...
+            </p>
           </div>
         )}
 
