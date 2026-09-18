@@ -229,12 +229,21 @@ export default async function PayPeriodDetailPage({
                       className="flex items-center justify-between text-xs py-1"
                     >
                       <span className="text-slate-700">
-                        {a.procedure.name} — {a.date.toISOString().slice(0, 10)} — ₱
-                        {Number(a.procedure.bonusAmount).toFixed(2)}
+                        {a.procedure.name} — {a.date.toISOString().slice(0, 10)}
                       </span>
-                      <form action={addSanitationBonusToPayslip}>
+                      <form action={addSanitationBonusToPayslip} className="flex items-center gap-2">
                         <input type="hidden" name="payslipId" value={payslip.id} />
                         <input type="hidden" name="sanitationAssignmentId" value={a.id} />
+                        <span className="text-slate-500">₱</span>
+                        <input
+                          name="amount"
+                          type="number"
+                          step="0.01"
+                          min="0.01"
+                          required
+                          defaultValue={Number(a.procedure.bonusAmount).toFixed(2)}
+                          className="w-20 rounded-md border border-slate-300 px-2 py-1 text-xs"
+                        />
                         <button className="rounded-md bg-amber-600 text-white px-2 py-1 hover:bg-amber-500">
                           Add to payslip
                         </button>

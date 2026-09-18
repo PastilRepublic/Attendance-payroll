@@ -227,6 +227,8 @@ export async function unlockPayslip(formData: FormData) {
 const addSanitationBonusSchema = z.object({
   payslipId: z.string().min(1),
   sanitationAssignmentId: z.string().min(1),
+  // Defaults to the procedure's bonus; the admin can change it per approval.
+  amount: z.coerce.number().positive("Amount must be more than 0").max(100000),
 });
 
 export async function addSanitationBonusToPayslip(formData: FormData) {
@@ -234,6 +236,7 @@ export async function addSanitationBonusToPayslip(formData: FormData) {
   const parsed = addSanitationBonusSchema.parse({
     payslipId: formData.get("payslipId"),
     sanitationAssignmentId: formData.get("sanitationAssignmentId"),
+    amount: formData.get("amount"),
   });
 
   const payslip = await prisma.payslip.findUniqueOrThrow({ where: { id: parsed.payslipId } });
@@ -263,7 +266,7 @@ export async function addSanitationBonusToPayslip(formData: FormData) {
     data: {
       payslipId: parsed.payslipId,
       label: assignment.procedure.name,
-      amount: assignment.procedure.bonusAmount,
+      amount: parsed.amount,
       note: `Cleaning bonus — ${assignment.date.toISOString().slice(0, 10)}`,
     },
   });
@@ -280,7 +283,7 @@ export async function addSanitationBonusToPayslip(formData: FormData) {
     targetId: adjustment.id,
     after: {
       label: assignment.procedure.name,
-      amount: Number(assignment.procedure.bonusAmount),
+      amount: parsed.amount,
       sanitationAssignmentId: assignment.id,
     },
   });
