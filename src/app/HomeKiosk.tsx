@@ -7,6 +7,7 @@ import { formatInTimeZone } from "date-fns-tz";
 import { TIMEZONE } from "@/lib/payroll";
 import RiskDot from "@/components/RiskDot";
 import Badge from "@/components/Badge";
+import SanitationProgress from "@/components/SanitationProgress";
 
 type PresenceStatus = "OUT" | "WORKING" | "ON_BREAK" | "DONE";
 type OperationDay = "COOKING" | "JAR_FILLING";
@@ -340,6 +341,9 @@ export default function HomeKiosk() {
               const sorted = sortSanitationTasks(sanitationTasks);
               return (
                 <>
+                  <div className="mb-3">
+                    <SanitationProgress tasks={sanitationTasks} />
+                  </div>
                   <ul className="space-y-1.5">
                     {sorted.map((task) => {
                       const needsAttention = task.status === "PENDING" && task.riskLevel === "HIGH";
@@ -371,9 +375,6 @@ export default function HomeKiosk() {
                       );
                     })}
                   </ul>
-                  <p className="text-xs text-slate-400 mt-2">
-                    {sanitationTasks.filter((t) => t.status === "DONE").length}/{sanitationTasks.length} done
-                  </p>
                 </>
               );
             })()}

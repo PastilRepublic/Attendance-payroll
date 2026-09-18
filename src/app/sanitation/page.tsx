@@ -5,6 +5,7 @@ import { TIMEZONE } from "@/lib/payroll";
 import Card from "@/components/Card";
 import Badge from "@/components/Badge";
 import RiskDot from "@/components/RiskDot";
+import SanitationProgress from "@/components/SanitationProgress";
 import { ensureTodaysSanitationSchedule, scopeFilterFor, todayManila } from "@/lib/sanitation";
 import { getOperationDay } from "@/lib/settings";
 
@@ -44,6 +45,12 @@ export default async function SanitationBoardPage() {
             Sanitation Inspection &amp; Schedule
           </h2>
           <p className="text-sm text-slate-500 mb-6">{date} — who&apos;s in charge of what today</p>
+
+          {assignments.length > 0 && (
+            <Card className="p-4 mb-4">
+              <SanitationProgress tasks={assignments} />
+            </Card>
+          )}
 
           <Card className="overflow-x-auto">
             <table className="w-full text-sm">
