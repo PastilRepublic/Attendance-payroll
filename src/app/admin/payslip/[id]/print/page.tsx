@@ -1,8 +1,10 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { adjustmentsTotal } from "@/lib/payrollService";
-import { TIMEZONE } from "@/lib/payroll";
-import { formatInTimeZone } from "date-fns-tz";
+import { TIMEZONE, computeDailyResults } from "@/lib/payroll";
+import { getSettings } from "@/lib/settings";
+import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
+import { addDays } from "date-fns";
 import PrintButton from "./PrintButton";
 
 export default async function PayslipPrintPage({
@@ -16,6 +18,57 @@ export default async function PayslipPrintPage({
     include: { employee: true, payPeriod: true, adjustments: true },
   });
   if (!payslip) notFound();
+
+  // Days in this period worth pointing out on the paper copy -- flagged the
+  // same way as the employee's Attendance History, so the two always agree.
+  const startDate = payslip.payPeriod.startDate.toISOString().slice(0, 10);
+  const endDate = payslip.payPeriod.endDate.toISOString().slice(0, 10);
+  const periodStartUtc = fromZonedTime(`${startDate}T00:00:00`, TIMEZONE);
+  const periodEndExclusiveUtc = fromZonedTime(
+    `${addDays(new Date(`${endDate}T00:00:00.000Z`), 1).toISOString().slice(0, 10)}T00:00:00`,
+    TIMEZONE
+  );
+  const [settings, punches, dayStatuses, shiftOverrides] = await Promise.all([
+    getSettings(),
+    prisma.punch.findMany({
+      where: {
+        employeeId: payslip.employeeId,
+        voided: false,
+        timestamp: { gte: periodStartUtc, lt: periodEndExclusiveUtc },
+      },
+    }),
+    prisma.dayStatus.findMany({
+      where: {
+        employeeId: payslip.employeeId,
+        date: { gte: payslip.payPeriod.startDate, lte: payslip.payPeriod.endDate },
+      },
+    }),
+    prisma.shiftOverride.findMany({
+      where: { date: { gte: payslip.payPeriod.startDate, lte: payslip.payPeriod.endDate } },
+    }),
+  ]);
+  const attendanceNotes = computeDailyResults(
+    punches.map((p) => ({ timestamp: p.timestamp, type: p.type })),
+    dayStatuses.map((d) => ({ date: d.date.toISOString().slice(0, 10), status: d.status })),
+    settings,
+    startDate,
+    endDate,
+    shiftOverrides.map((o) => ({
+      date: o.date.toISOString().slice(0, 10),
+      shiftStartTime: o.shiftStartTime,
+      shiftEndTime: o.shiftEndTime,
+    }))
+  )
+    .map((d) => {
+      const flags: string[] = [];
+      if (d.dayStatus === "UNPAID_ABSENCE") flags.push("Absent");
+      if (d.dayStatus === "PAID_LEAVE") flags.push("Paid leave");
+      if (d.isLate) flags.push("Late");
+      if (d.returnedLateFromBreak) flags.push("Late back from break");
+      if (d.isUndertime) flags.push("Left early");
+      return { date: d.date, flags };
+    })
+    .filter((d) => d.flags.length > 0);
 
   const adjTotal = adjustmentsTotal(payslip.adjustments);
   const total = Number(payslip.grossPay) + adjTotal;
@@ -86,6 +139,24 @@ export default async function PayslipPrintPage({
           </tr>
         </tbody>
       </table>
+
+      {attendanceNotes.length > 0 && (
+        <div className="mb-6 text-sm">
+          <div className="font-semibold mb-2">Attendance notes</div>
+          <table className="w-full border-t border-slate-200">
+            <tbody>
+              {attendanceNotes.map((n) => (
+                <tr key={n.date} className="border-b border-slate-100">
+                  <td className="py-1.5 w-40">
+                    {formatInTimeZone(new Date(`${n.date}T12:00:00+08:00`), TIMEZONE, "EEE, MMM d")}
+                  </td>
+                  <td className="py-1.5">{n.flags.join(", ")}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <p className="text-xs text-slate-400">
         Generated {formatInTimeZone(new Date(), TIMEZONE, "yyyy-MM-dd")}. This payslip reflects gross pay from
