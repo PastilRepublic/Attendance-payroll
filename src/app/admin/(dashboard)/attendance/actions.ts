@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
 import { TIMEZONE } from "@/lib/payroll";
+import { pickDaySlots } from "@/lib/attendanceSlots";
 import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
 
 function localToUtc(date: string, time: string): Date {
@@ -96,11 +97,13 @@ function nextDayKey(dateStr: string): string {
 
 /**
  * Sets one employee's Time In / Start Break / End Break / Time Out for a day
- * from four fixed fields. For each slot: a blank field removes that punch, a
- * changed time replaces it, and an unchanged time is left alone. A slot that
- * somehow has several punches of the same type is collapsed to the one value
- * in the field. Replaced punches are voided (never deleted) and the new ones
- * carry the reason, so every correction stays visible in the audit trail.
+ * from four fixed fields. Each slot keeps a single punch: a changed time
+ * updates that punch in place (marked as corrected, with the reason), a blank
+ * field removes it, and a filled field with no punch yet adds one. Extra
+ * punches of the same type (from older edits) are removed so each slot is
+ * one row. Nothing is hard-deleted, and the audit log records the old and new
+ * times with the reason, so a correction stays traceable without piling up
+ * replacement rows.
  */
 export async function saveDayPunches(formData: FormData) {
   const admin = await requireAdmin();
@@ -133,37 +136,66 @@ export async function saveDayPunches(formData: FormData) {
     orderBy: { timestamp: "asc" },
   });
 
+  const kept = pickDaySlots(existing);
+  const keptBySlot = {
+    timeIn: kept.timeIn,
+    breakStart: kept.breakStart,
+    breakEnd: kept.breakEnd,
+    timeOut: kept.timeOut,
+  };
+  const hhmm = (d: Date) => formatInTimeZone(d, TIMEZONE, "HH:mm");
+
   const voidIds: string[] = [];
-  const created: { type: (typeof SLOT_TYPES)[number]["type"]; time: string; from: string | null }[] = [];
-  const before: { type: string; time: string }[] = [];
+  const updates: { id: string; time: string }[] = [];
+  const creates: { type: (typeof SLOT_TYPES)[number]["type"]; time: string }[] = [];
+  const changes: { type: string; from: string | null; to: string | null }[] = [];
 
   for (const slot of SLOT_TYPES) {
-    const current = existing.filter((p) => p.type === slot.type);
+    const keep = keptBySlot[slot.field];
     const wanted = parsed[slot.field];
-    const currentTimes = current.map((p) => formatInTimeZone(p.timestamp, TIMEZONE, "HH:mm"));
-    const unchanged =
-      wanted === "" ? current.length === 0 : current.length === 1 && currentTimes[0] === wanted;
-    if (unchanged) continue;
+    const extras = existing.filter((p) => p.type === slot.type && p.id !== keep?.id);
 
-    for (const p of current) {
+    for (const p of extras) {
       voidIds.push(p.id);
-      before.push({ type: slot.type, time: formatInTimeZone(p.timestamp, TIMEZONE, "HH:mm") });
+      changes.push({ type: slot.type, from: hhmm(p.timestamp), to: null });
     }
-    if (wanted !== "") created.push({ type: slot.type, time: wanted, from: current[0]?.id ?? null });
+
+    if (wanted === "") {
+      if (keep) {
+        voidIds.push(keep.id);
+        changes.push({ type: slot.type, from: hhmm(keep.timestamp), to: null });
+      }
+    } else if (!keep) {
+      creates.push({ type: slot.type, time: wanted });
+      changes.push({ type: slot.type, from: null, to: wanted });
+    } else if (hhmm(keep.timestamp) !== wanted) {
+      updates.push({ id: keep.id, time: wanted });
+      changes.push({ type: slot.type, from: hhmm(keep.timestamp), to: wanted });
+    }
   }
 
-  if (voidIds.length === 0 && created.length === 0) return;
+  if (changes.length === 0) return;
 
   await prisma.$transaction([
     prisma.punch.updateMany({ where: { id: { in: voidIds } }, data: { voided: true } }),
-    ...created.map((c) =>
+    ...updates.map((u) =>
+      prisma.punch.update({
+        where: { id: u.id },
+        data: {
+          timestamp: localToUtc(parsed.date, u.time),
+          isCorrection: true,
+          correctionReason: parsed.reason,
+          createdByAdminId: admin.id,
+        },
+      })
+    ),
+    ...creates.map((c) =>
       prisma.punch.create({
         data: {
           employeeId: parsed.employeeId,
           timestamp: localToUtc(parsed.date, c.time),
           type: c.type,
           isCorrection: true,
-          correctedFromPunchId: c.from,
           correctionReason: parsed.reason,
           createdByAdminId: admin.id,
         },
@@ -176,8 +208,7 @@ export async function saveDayPunches(formData: FormData) {
     action: "EDIT_DAY_PUNCHES",
     targetTable: "Punch",
     targetId: `${parsed.employeeId}:${parsed.date}`,
-    before,
-    after: created.map((c) => ({ type: c.type, time: c.time })),
+    after: { changes },
     reason: parsed.reason,
   });
 
