@@ -640,8 +640,8 @@ function ActionPanel({
 
       <div className="flex justify-center gap-3 mb-8">
         {data.allowedActions.length === 0 ? (
-          <p className="text-sm text-slate-500 max-w-xs">
-            You&apos;ve completed your shift for today. See your admin if this is a mistake.
+          <p className="text-sm text-red-600 max-w-xs">
+            Oops! You&apos;ve completed your shift for today. See your admin if this is a mistake.
           </p>
         ) : (
           data.allowedActions.map((type) => (
