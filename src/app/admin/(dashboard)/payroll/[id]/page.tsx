@@ -85,6 +85,19 @@ export default async function PayPeriodDetailPage({
                 hours: d.regularMinutes / 60,
               }))
           : [];
+      // Worked on a day the rotation says is Off (Sunday) and nobody set the day
+      // type: they're paid the Jar Filling rate unless it's set to Cooking.
+      const offDaysWorked =
+        emp.payBasis === "OPERATION_DAY"
+          ? dailyResults
+              .filter(
+                (d) =>
+                  d.workedMinutes > 0 &&
+                  d.dayStatus !== "UNPAID_ABSENCE" &&
+                  resolveOperationDayForDate(d.date, dayOverrides) === "OFF"
+              )
+              .map((d) => d.date)
+          : [];
       const suggestedLate = dailyResults
         .filter(
           (d) =>
@@ -101,9 +114,12 @@ export default async function PayPeriodDetailPage({
         suggestedCleaningBonuses,
         suggestedLate,
         earlyOutDays,
+        offDaysWorked,
       };
     })
   );
+
+  const unsetOffDays = [...new Set(payslips.flatMap((p) => p.offDaysWorked))].sort();
 
   return (
     <div>
@@ -137,8 +153,16 @@ export default async function PayPeriodDetailPage({
         </div>
       </div>
 
+      {period.status === "OPEN" && unsetOffDays.length > 0 && (
+        <div className="mb-4 rounded-md bg-amber-50 border border-amber-200 p-3 text-sm text-amber-800">
+          Production staff worked on {unsetOffDays.join(", ")}, which is normally a day off. They&apos;re
+          being paid the Jar Filling rate — open &quot;Day types this period&quot; below and set the
+          date to Cooking or Jar filling if that&apos;s not right.
+        </div>
+      )}
+
       {hasProductionStaff && (
-        <details className="mb-4 bg-white rounded-lg shadow p-4">
+        <details open={unsetOffDays.length > 0} className="mb-4 bg-white rounded-lg shadow p-4">
           <summary className="text-sm font-medium text-slate-700 cursor-pointer">
             Day types this period (sets Production pay rate)
           </summary>
