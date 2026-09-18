@@ -3,6 +3,7 @@ import { formatInTimeZone } from "date-fns-tz";
 import { TIMEZONE } from "@/lib/payroll";
 import {
   createProcedure,
+  updateProcedure,
   assignSanitation,
   deleteSanitationAssignment,
   inspectSanitationAssignment,
@@ -115,6 +116,7 @@ export default async function SanitationPage({
                 <p className="mt-2 text-slate-600 whitespace-pre-wrap">
                   <span className="text-slate-400">Steps:</span> {p.steps}
                 </p>
+                <EditProcedureForm procedure={p} />
               </Card>
             ))}
             {procedures.length === 0 && (
@@ -403,6 +405,117 @@ function InspectForm({ assignmentId }: { assignmentId: string }) {
           />
         </div>
         <Button size="sm">Save Inspection</Button>
+      </form>
+    </details>
+  );
+}
+
+function EditProcedureForm({
+  procedure,
+}: {
+  procedure: {
+    id: string;
+    name: string;
+    areaEquipment: string;
+    chemicals: string;
+    steps: string;
+    frequency: string;
+    responsibleRole: string;
+    riskLevel: "LOW" | "MEDIUM" | "HIGH";
+    appliesTo: "COOKING" | "JAR_FILLING" | "BOTH";
+  };
+}) {
+  return (
+    <details className="mt-2">
+      <summary className="text-xs text-slate-600 hover:underline cursor-pointer">
+        Edit
+      </summary>
+      <form action={updateProcedure} className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+        <input type="hidden" name="id" value={procedure.id} />
+        <div>
+          <label className="block text-xs text-slate-500 mb-1">Name</label>
+          <input
+            name="name"
+            required
+            defaultValue={procedure.name}
+            className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-xs text-slate-500 mb-1">Area / Equipment</label>
+          <input
+            name="areaEquipment"
+            required
+            defaultValue={procedure.areaEquipment}
+            className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-xs text-slate-500 mb-1">Sanitizer Agent</label>
+          <input
+            name="chemicals"
+            required
+            defaultValue={procedure.chemicals}
+            className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-xs text-slate-500 mb-1">Frequency</label>
+          <input
+            name="frequency"
+            required
+            defaultValue={procedure.frequency}
+            className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-xs text-slate-500 mb-1">Responsible role</label>
+          <input
+            name="responsibleRole"
+            required
+            defaultValue={procedure.responsibleRole}
+            className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-xs text-slate-500 mb-1">Risk level</label>
+          <select
+            name="riskLevel"
+            required
+            defaultValue={procedure.riskLevel}
+            className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+          >
+            <option value="LOW">Low</option>
+            <option value="MEDIUM">Medium</option>
+            <option value="HIGH">High</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs text-slate-500 mb-1">Applies to</label>
+          <select
+            name="appliesTo"
+            required
+            defaultValue={procedure.appliesTo}
+            className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+          >
+            <option value="BOTH">Every day</option>
+            <option value="COOKING">Cooking Day only</option>
+            <option value="JAR_FILLING">Jar Filling Day only</option>
+          </select>
+        </div>
+        <div className="sm:col-span-2">
+          <label className="block text-xs text-slate-500 mb-1">Step-by-step procedure</label>
+          <textarea
+            name="steps"
+            required
+            rows={4}
+            defaultValue={procedure.steps}
+            className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+          />
+        </div>
+        <div className="sm:col-span-2">
+          <Button size="sm">Save Changes</Button>
+        </div>
       </form>
     </details>
   );
