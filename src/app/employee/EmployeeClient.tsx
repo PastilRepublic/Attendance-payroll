@@ -4,6 +4,12 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import Card from "@/components/Card";
 import Badge from "@/components/Badge";
+import RangeCalendar, {
+  addDaysKey,
+  mondayOf,
+  monthEndKey,
+  shiftMonthKey,
+} from "./RangeCalendar";
 
 interface EmployeeOption {
   id: string;
@@ -76,58 +82,39 @@ function dayAbbrev(dateStr: string): { label: string; className: string } {
   return DAY_ABBREV_STYLES[dow];
 }
 
-function shiftMonth(month: string, delta: number): string {
-  const [y, m] = month.split("-").map(Number);
-  const d = new Date(Date.UTC(y, m - 1 + delta, 1));
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
-}
-
-function monthLabel(month: string): string {
-  const [y, m] = month.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString("en-US", {
-    month: "long",
-    year: "numeric",
+function fmtDay(dateStr: string, withYear: boolean): string {
+  return new Date(`${dateStr}T00:00:00.000Z`).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: withYear ? "numeric" : undefined,
     timeZone: "UTC",
   });
 }
 
-// Every month from earliest to current, newest first, for the month dropdown.
-function monthOptions(earliest: string, current: string): string[] {
-  const out: string[] = [];
-  for (let m = current; m >= earliest; m = shiftMonth(m, -1)) out.push(m);
-  return out;
+// "Sep 28 – Oct 3, 2026" (or a single day).
+function rangeLabel(start: string, end: string): string {
+  if (start === end) return fmtDay(start, true);
+  const sameYear = start.slice(0, 4) === end.slice(0, 4);
+  return `${fmtDay(start, !sameYear)} – ${fmtDay(end, true)}`;
 }
 
-type ViewMode = "month" | "week";
-
-function addDaysKey(dateStr: string, n: number): string {
-  const d = new Date(`${dateStr}T00:00:00.000Z`);
-  d.setUTCDate(d.getUTCDate() + n);
-  return d.toISOString().slice(0, 10);
-}
-
-// Monday of the week containing dateStr -- payroll weeks run Mon-Sun.
-function weekKey(dateStr: string): string {
-  const d = new Date(`${dateStr}T00:00:00.000Z`);
-  return addDaysKey(dateStr, -((d.getUTCDay() + 6) % 7));
-}
-
-// "Sep 28 – Oct 4": weeks can straddle two months.
-function weekLabel(weekStart: string): string {
-  const fmt = (s: string) =>
-    new Date(`${s}T00:00:00.000Z`).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      timeZone: "UTC",
-    });
-  return `${fmt(weekStart)} – ${fmt(addDaysKey(weekStart, 6))}`;
-}
-
-// Every week from earliest to current, newest first, for the week dropdown.
-function weekOptions(earliest: string, current: string): string[] {
-  const out: string[] = [];
-  for (let w = current; w >= earliest; w = addDaysKey(w, -7)) out.push(w);
-  return out;
+// Arrows step a whole month when the range is one, otherwise by its own length
+// (so a Mon-Sun week moves a week).
+function shiftRange(start: string, end: string, dir: 1 | -1, today: string) {
+  const month = start.slice(0, 7);
+  const isMonth =
+    start.endsWith("-01") &&
+    (end === monthEndKey(month) || (end === today && end.slice(0, 7) === month));
+  if (isMonth) {
+    const m = shiftMonthKey(month, dir);
+    return { start: `${m}-01`, end: monthEndKey(m) };
+  }
+  const span =
+    Math.round(
+      (new Date(`${end}T00:00:00.000Z`).getTime() - new Date(`${start}T00:00:00.000Z`).getTime()) /
+        86400000
+    ) + 1;
+  return { start: addDaysKey(start, dir * span), end: addDaysKey(end, dir * span) };
 }
 
 export default function EmployeeClient() {
@@ -144,15 +131,12 @@ export default function EmployeeClient() {
   const [payslips, setPayslips] = useState<Payslip[] | null>(null);
   const [payBasis, setPayBasis] = useState<"HOURLY" | "DAILY">("HOURLY");
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [month, setMonth] = useState<string | null>(null);
-  const [earliestMonth, setEarliestMonth] = useState<string | null>(null);
-  const [currentMonth, setCurrentMonth] = useState<string | null>(null);
+  const [range, setRange] = useState<{ start: string; end: string } | null>(null);
+  const [today, setToday] = useState<string | null>(null);
+  const [earliestDate, setEarliestDate] = useState<string | null>(null);
+  const [calOpen, setCalOpen] = useState(false);
   const [monthLoading, setMonthLoading] = useState(false);
   const [monthError, setMonthError] = useState(false);
-  const [mode, setMode] = useState<ViewMode>("month");
-  const [weekStart, setWeekStart] = useState<string | null>(null);
-  const [earliestWeek, setEarliestWeek] = useState<string | null>(null);
-  const [currentWeek, setCurrentWeek] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/kiosk/employees")
@@ -194,13 +178,9 @@ export default function EmployeeClient() {
       const payData = await paySlipRes.json();
       setEmployeeName(attData.employeeName ?? employee.name);
       setDays(attData.days ?? []);
-      setMonth(attData.month ?? null);
-      setEarliestMonth(attData.earliestMonth ?? null);
-      setCurrentMonth(attData.currentMonth ?? null);
-      setEarliestWeek(attData.earliestWeekStart ?? null);
-      setCurrentWeek(attData.currentWeekStart ?? null);
-      setMode("month");
-      setWeekStart(null);
+      setRange({ start: attData.start, end: attData.end });
+      setToday(attData.today ?? null);
+      setEarliestDate(attData.earliestDate ?? null);
       setPayslips(payData.payslips ?? []);
       setPayBasis(payData.payBasis === "DAILY" ? "DAILY" : "HOURLY");
       setScreen("dashboard");
@@ -211,27 +191,21 @@ export default function EmployeeClient() {
     }
   }
 
-  async function loadRange(range: { month: string } | { weekStart: string }) {
+  async function loadRange(start: string, end: string) {
     if (!selected || monthLoading) return;
     setMonthLoading(true);
     setMonthError(false);
+    setCalOpen(false);
     try {
       const res = await fetch("/api/employee/attendance", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pin, employeeId: selected.id, ...range }),
+        body: JSON.stringify({ pin, employeeId: selected.id, start, end }),
       });
       if (!res.ok) throw new Error();
       const data = await res.json();
       setDays(data.days ?? []);
-      if ("weekStart" in range) {
-        setMode("week");
-        setWeekStart(data.weekStart ?? range.weekStart);
-      } else {
-        setMode("month");
-        setWeekStart(null);
-        setMonth(data.month ?? range.month);
-      }
+      setRange({ start: data.start ?? start, end: data.end ?? end });
     } catch {
       setMonthError(true);
     } finally {
@@ -253,10 +227,9 @@ export default function EmployeeClient() {
     setDays(null);
     setPayslips(null);
     setLoadError(null);
-    setMonth(null);
+    setRange(null);
     setMonthError(false);
-    setMode("month");
-    setWeekStart(null);
+    setCalOpen(false);
     setTab("attendance");
   }
 
@@ -426,102 +399,78 @@ export default function EmployeeClient() {
 
             {tab === "attendance" && (
               <Card className="overflow-hidden">
-                <div className="px-4 pt-3 pb-2 flex justify-center">
-                  <div className="inline-flex gap-1 bg-slate-100 rounded-full p-1 text-xs">
-                    {(["month", "week"] as const).map((m) => (
+                <div className="px-4 py-2 flex flex-wrap items-center gap-2 border-b border-slate-200">
+                  <div className="flex items-center">
+                    <button
+                      onClick={() => {
+                        if (!range || !today || !earliestDate) return;
+                        const n = shiftRange(range.start, range.end, -1, today);
+                        loadRange(n.start < earliestDate ? earliestDate : n.start, n.end);
+                      }}
+                      disabled={monthLoading || !range || !earliestDate || range.start <= earliestDate}
+                      aria-label="Previous"
+                      className="rounded-md px-3 py-1 text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent"
+                    >
+                      ‹
+                    </button>
+                    <div className="relative">
                       <button
-                        key={m}
-                        disabled={monthLoading}
-                        onClick={() => {
-                          if (m === mode) return;
-                          if (m === "week" && currentWeek) loadRange({ weekStart: currentWeek });
-                          if (m === "month" && currentMonth) loadRange({ month: currentMonth });
-                        }}
-                        className={`rounded-full px-3 py-1 font-medium transition ${
-                          mode === m
-                            ? "bg-white text-slate-900 shadow-sm"
-                            : "text-slate-600 hover:text-slate-900"
-                        }`}
+                        onClick={() => setCalOpen((o) => !o)}
+                        disabled={!range || !today || !earliestDate}
+                        aria-expanded={calOpen}
+                        className="rounded-md border border-slate-300 bg-white px-3 py-1 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                       >
-                        {m === "month" ? "By month" : "By week"}
+                        📅 {range ? rangeLabel(range.start, range.end) : ""}
                       </button>
-                    ))}
+                      {calOpen && range && today && earliestDate && (
+                        <>
+                          <div className="fixed inset-0 z-10" onClick={() => setCalOpen(false)} />
+                          <div className="absolute left-0 top-full mt-1 z-20">
+                            <RangeCalendar
+                              start={range.start}
+                              end={range.end}
+                              today={today}
+                              earliestDate={earliestDate}
+                              onSelect={loadRange}
+                            />
+                          </div>
+                        </>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => {
+                        if (!range || !today) return;
+                        const n = shiftRange(range.start, range.end, 1, today);
+                        loadRange(n.start, n.end);
+                      }}
+                      disabled={monthLoading || !range || !today || range.end >= today}
+                      aria-label="Next"
+                      className="rounded-md px-3 py-1 text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent"
+                    >
+                      ›
+                    </button>
                   </div>
-                </div>
-                <div className="px-4 py-2 flex items-center justify-between border-b border-slate-200">
-                  <button
-                    onClick={() =>
-                      mode === "week"
-                        ? weekStart && loadRange({ weekStart: addDaysKey(weekStart, -7) })
-                        : month && loadRange({ month: shiftMonth(month, -1) })
-                    }
-                    disabled={
-                      monthLoading ||
-                      (mode === "week"
-                        ? !weekStart || !earliestWeek || weekStart <= earliestWeek
-                        : !month || !earliestMonth || month <= earliestMonth)
-                    }
-                    aria-label={mode === "week" ? "Previous week" : "Previous month"}
-                    className="rounded-md px-3 py-1 text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent"
-                  >
-                    ‹
-                  </button>
-                  <div className="flex items-center gap-2">
-                    {mode === "week" ? (
-                      <select
-                        value={weekStart ?? ""}
-                        onChange={(e) => loadRange({ weekStart: e.target.value })}
-                        disabled={!weekStart || monthLoading}
-                        aria-label="Select week"
-                        className="rounded-md border border-slate-300 bg-white px-2 py-1 text-sm font-medium text-slate-700 disabled:opacity-50"
-                      >
-                        {weekStart &&
-                          earliestWeek &&
-                          currentWeek &&
-                          weekOptions(earliestWeek, currentWeek).map((w) => (
-                            <option key={w} value={w}>
-                              {weekLabel(w)}
-                              {w === currentWeek ? " (this week)" : ""}
-                            </option>
-                          ))}
-                      </select>
-                    ) : (
-                      <select
-                        value={month ?? ""}
-                        onChange={(e) => loadRange({ month: e.target.value })}
-                        disabled={!month || monthLoading}
-                        aria-label="Select month"
-                        className="rounded-md border border-slate-300 bg-white px-2 py-1 text-sm font-medium text-slate-700 disabled:opacity-50"
-                      >
-                        {month &&
-                          earliestMonth &&
-                          currentMonth &&
-                          monthOptions(earliestMonth, currentMonth).map((m) => (
-                            <option key={m} value={m}>
-                              {monthLabel(m)}
-                            </option>
-                          ))}
-                      </select>
-                    )}
-                    {monthError && <span className="text-xs text-red-600">Could not load</span>}
+                  <div className="flex gap-1.5">
+                    {today &&
+                      [
+                        { label: "This week", start: mondayOf(today), end: today },
+                        { label: "This month", start: `${today.slice(0, 7)}-01`, end: today },
+                      ].map((p) => (
+                        <button
+                          key={p.label}
+                          onClick={() => loadRange(p.start, p.end)}
+                          disabled={monthLoading}
+                          className={`rounded-full px-3 py-1 text-xs font-medium transition ${
+                            range && range.start === p.start && range.end === p.end
+                              ? "bg-slate-900 text-white"
+                              : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                          }`}
+                        >
+                          {p.label}
+                        </button>
+                      ))}
                   </div>
-                  <button
-                    onClick={() =>
-                      mode === "week"
-                        ? weekStart && loadRange({ weekStart: addDaysKey(weekStart, 7) })
-                        : month && loadRange({ month: shiftMonth(month, 1) })
-                    }
-                    disabled={
-                      monthLoading ||
-                      (mode === "week"
-                        ? !weekStart || !currentWeek || weekStart >= currentWeek
-                        : !month || !currentMonth || month >= currentMonth)
-                    }
-                    aria-label={mode === "week" ? "Next week" : "Next month"}
-                    className="rounded-md px-3 py-1 text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent"
-                  >
-                    ›
-                  </button>
+                  {monthError && <span className="text-xs text-red-600">Could not load</span>}
                 </div>
                 <div className={`overflow-x-auto transition-opacity ${monthLoading ? "opacity-50" : ""}`}>
                   <table className="w-full text-sm">
@@ -540,7 +489,7 @@ export default function EmployeeClient() {
                       {(days ?? []).map((d, i, all) => {
                         // Days are newest-first, so a week boundary is where the
                         // previous row belongs to a different Mon-Sun week.
-                        const weekStarts = i > 0 && weekKey(all[i - 1].date) !== weekKey(d.date);
+                        const weekStarts = i > 0 && mondayOf(all[i - 1].date) !== mondayOf(d.date);
                         // Paid Leave / Unpaid Absence pay is fixed regardless of
                         // punches, so showing raw times next to that status would
                         // look contradictory.

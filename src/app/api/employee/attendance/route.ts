@@ -5,20 +5,15 @@ import { getSettings } from "@/lib/settings";
 import { computeDailyResults, localDateKey, TIMEZONE } from "@/lib/payroll";
 import { computeDayTimeline } from "@/lib/attendanceSlots";
 import { formatInTimeZone } from "date-fns-tz";
-import { endOfMonth, parseISO } from "date-fns";
 
-const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
 const DATE_RE = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
+// Keeps a hand-crafted request from asking for years of days at once.
+const MAX_RANGE_DAYS = 366;
 
 function addDaysKey(dateKey: string, n: number): string {
   const d = new Date(`${dateKey}T00:00:00.000Z`);
   d.setUTCDate(d.getUTCDate() + n);
   return d.toISOString().slice(0, 10);
-}
-
-function mondayOf(dateKey: string): string {
-  const dow = new Date(`${dateKey}T00:00:00.000Z`).getUTCDay();
-  return addDaysKey(dateKey, -((dow + 6) % 7));
 }
 
 export async function POST(request: Request) {
@@ -37,31 +32,15 @@ export async function POST(request: Request) {
 
   const settings = await getSettings();
   const today = formatInTimeZone(new Date(), TIMEZONE, "yyyy-MM-dd");
-  const currentMonth = today.slice(0, 7);
-  const requested = typeof body?.month === "string" && MONTH_RE.test(body.month) ? body.month : null;
-  const requestedWeek =
-    typeof body?.weekStart === "string" && DATE_RE.test(body.weekStart) ? body.weekStart : null;
-
-  let month: string;
-  let weekStart: string | null = null;
-  let startDate: string;
-  let endDate: string;
-  if (requestedWeek) {
-    // Payroll weeks run Mon-Sun and may straddle two months. Snap to the
-    // Monday, and clamp future weeks to the current one.
-    weekStart = mondayOf(requestedWeek);
-    if (weekStart > mondayOf(today)) weekStart = mondayOf(today);
-    startDate = weekStart;
-    const weekEnd = addDaysKey(weekStart, 6);
-    endDate = weekEnd < today ? weekEnd : today;
-    month = startDate.slice(0, 7);
-  } else {
-    // Future months have nothing to show, so clamp to the current one.
-    month = requested && requested <= currentMonth ? requested : currentMonth;
-    startDate = `${month}-01`;
-    const monthEnd = formatInTimeZone(endOfMonth(parseISO(startDate)), TIMEZONE, "yyyy-MM-dd");
-    endDate = monthEnd < today ? monthEnd : today;
-  }
+  // Any start/end pair (a week or month can straddle months). Defaults to the
+  // current month so far; nothing after today has data, so end clamps to today.
+  const reqStart = typeof body?.start === "string" && DATE_RE.test(body.start) ? body.start : null;
+  const reqEnd = typeof body?.end === "string" && DATE_RE.test(body.end) ? body.end : null;
+  const endDate = reqEnd && reqEnd < today ? reqEnd : today;
+  let startDate = reqStart ?? `${today.slice(0, 7)}-01`;
+  if (startDate > endDate) startDate = endDate;
+  const earliestAllowed = addDaysKey(endDate, -(MAX_RANGE_DAYS - 1));
+  if (startDate < earliestAllowed) startDate = earliestAllowed;
 
   const [punches, dayStatuses, shiftOverrides] = await Promise.all([
     prisma.punch.findMany({
@@ -110,12 +89,10 @@ export async function POST(request: Request) {
 
   return NextResponse.json({
     employeeName: matched.name,
-    month,
-    weekStart,
-    earliestMonth: earliestDate.slice(0, 7),
-    earliestWeekStart: mondayOf(earliestDate),
-    currentMonth,
-    currentWeekStart: mondayOf(today),
+    start: startDate,
+    end: endDate,
+    today,
+    earliestDate,
     days: days
       .slice()
       .reverse()
