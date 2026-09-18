@@ -3,7 +3,7 @@ import { addDays } from "date-fns";
 import { prisma } from "@/lib/prisma";
 import { localDateKey, TIMEZONE, pairPunches, nextWeeklyPeriod, type PunchType } from "@/lib/payroll";
 
-export type PresenceStatus = "OUT" | "WORKING" | "ON_BREAK";
+export type PresenceStatus = "OUT" | "WORKING" | "ON_BREAK" | "DONE";
 
 /** The local (Asia/Manila) calendar-day range containing `now`, as UTC instants. */
 export function getTodayRange(now: Date = new Date()): { dayStart: Date; dayEnd: Date } {
@@ -16,11 +16,14 @@ export function getTodayRange(now: Date = new Date()): { dayStart: Date; dayEnd:
 /**
  * An employee's current presence, derived from the type of their most
  * recent punch today. Scoped to today only -- someone who forgot to clock
- * out yesterday reads as OUT today, not stuck WORKING.
+ * out yesterday reads as OUT today, not stuck WORKING. A completed
+ * IN -> ... -> OUT cycle today reads as DONE, not OUT, so the day is
+ * locked and cannot be re-started until tomorrow.
  */
 export function derivePresenceStatus(lastPunchType: PunchType | null): PresenceStatus {
   if (lastPunchType === "BREAK_START") return "ON_BREAK";
   if (lastPunchType === "IN" || lastPunchType === "BREAK_END") return "WORKING";
+  if (lastPunchType === "OUT") return "DONE";
   return "OUT";
 }
 
@@ -29,12 +32,14 @@ export function derivePresenceStatus(lastPunchType: PunchType | null): PresenceS
  * Clocking out is not allowed directly from a break -- End Break must
  * happen first (matches Clockify, and guarantees a BREAK_END timestamp
  * always exists whenever a break happened, which the late-return-from-break
- * check in payroll.ts depends on).
+ * check in payroll.ts depends on). DONE allows nothing -- once an employee
+ * has timed out for the day, only an admin correction can reopen it.
  */
 export function getAllowedActions(status: PresenceStatus): PunchType[] {
   if (status === "OUT") return ["IN"];
   if (status === "WORKING") return ["BREAK_START", "OUT"];
-  return ["BREAK_END"];
+  if (status === "ON_BREAK") return ["BREAK_END"];
+  return [];
 }
 
 export function formatActivityTime(t: Date): string {

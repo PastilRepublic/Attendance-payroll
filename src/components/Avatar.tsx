@@ -1,9 +1,10 @@
-type PresenceStatus = "OUT" | "WORKING" | "ON_BREAK";
+type PresenceStatus = "OUT" | "WORKING" | "ON_BREAK" | "DONE";
 
 const PRESENCE_DOT_STYLES: Record<PresenceStatus, string> = {
   OUT: "",
   WORKING: "bg-green-500",
   ON_BREAK: "bg-amber-500",
+  DONE: "bg-sky-500",
 };
 
 const SIZE_CLASSES = {

@@ -23,7 +23,7 @@ type Screen =
   | "error";
 
 type PunchType = "IN" | "OUT" | "BREAK_START" | "BREAK_END";
-type PresenceStatus = "OUT" | "WORKING" | "ON_BREAK";
+type PresenceStatus = "OUT" | "WORKING" | "ON_BREAK" | "DONE";
 
 interface ActivityEntry {
   type: PunchType;
@@ -92,12 +92,14 @@ const STATUS_LABELS: Record<PresenceStatus, string> = {
   OUT: "Clocked out",
   WORKING: "Working",
   ON_BREAK: "On break",
+  DONE: "Shift complete",
 };
 
 const STATUS_PILL_STYLES: Record<PresenceStatus, string> = {
   OUT: "bg-slate-700 text-slate-300",
   WORKING: "bg-green-900/60 text-green-300",
   ON_BREAK: "bg-amber-900/60 text-amber-300",
+  DONE: "bg-sky-900/60 text-sky-300",
 };
 
 function formatMinutes(totalMinutes: number): string {
@@ -425,7 +427,9 @@ export default function KioskClient() {
       ? new Date(identifyData.activityLog[identifyData.activityLog.length - 1].timestamp)
       : null;
   const elapsedText =
-    identifyData && identifyData.status !== "OUT" && anchorTime
+    identifyData &&
+    (identifyData.status === "WORKING" || identifyData.status === "ON_BREAK") &&
+    anchorTime
       ? formatElapsed(nowTick - anchorTime.getTime())
       : null;
 
@@ -756,15 +760,21 @@ function ActionPanel({
       )}
 
       <div className="flex justify-center gap-3 mb-8">
-        {data.allowedActions.map((type) => (
-          <button
-            key={type}
-            onClick={() => onAction(type)}
-            className={`w-36 h-28 rounded-2xl text-lg font-bold flex items-center justify-center ${ACTION_BUTTON_STYLES[type]}`}
-          >
-            {ACTION_LABELS[type]}
-          </button>
-        ))}
+        {data.allowedActions.length === 0 ? (
+          <p className="text-sm text-slate-400 max-w-xs">
+            You&apos;ve completed your shift for today. See your admin if this is a mistake.
+          </p>
+        ) : (
+          data.allowedActions.map((type) => (
+            <button
+              key={type}
+              onClick={() => onAction(type)}
+              className={`w-36 h-28 rounded-2xl text-lg font-bold flex items-center justify-center ${ACTION_BUTTON_STYLES[type]}`}
+            >
+              {ACTION_LABELS[type]}
+            </button>
+          ))
+        )}
       </div>
 
       <div className="flex justify-center gap-8 mb-6 text-sm">

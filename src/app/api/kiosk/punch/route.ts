@@ -66,6 +66,15 @@ export async function POST(request: Request) {
   }
 
   if (!getAllowedActions(snapshotBefore.status).includes(type)) {
+    if (snapshotBefore.status === "DONE") {
+      return NextResponse.json(
+        {
+          error: "ALREADY_COMPLETED",
+          message: "You've already completed your shift for today. See your admin if this is a mistake.",
+        },
+        { status: 409 }
+      );
+    }
     const guard = GUARD_MESSAGES[type];
     return NextResponse.json(
       { error: guard.error, message: guard.message },
