@@ -26,3 +26,23 @@ export async function getRequirePhotoOnPunch(): Promise<boolean> {
   });
   return row.requirePhotoOnPunch;
 }
+
+export type OperationDay = "COOKING" | "JAR_FILLING";
+
+export async function getOperationDay(): Promise<OperationDay> {
+  const row = await prisma.settings.upsert({
+    where: { id: 1 },
+    update: {},
+    create: { id: 1 },
+  });
+  return row.operationDay;
+}
+
+export async function setOperationDay(value: OperationDay): Promise<OperationDay> {
+  const row = await prisma.settings.upsert({
+    where: { id: 1 },
+    update: { operationDay: value },
+    create: { id: 1, operationDay: value },
+  });
+  return row.operationDay;
+}

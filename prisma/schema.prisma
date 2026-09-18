@@ -231,16 +231,24 @@ model AuditLog {
 }
 
 model Settings {
-  id                    Int      @id @default(1)
-  otMultiplier          Decimal  @default(1.25) @db.Decimal(4, 2)
-  gracePeriodMinutes    Int      @default(10)
-  unpaidLunchMinutes    Int      @default(60)
-  regularHoursCapPerDay Decimal  @default(8) @db.Decimal(4, 2)
-  requirePhotoOnPunch   Boolean  @default(true)
-  shiftStartTime        String   @default("08:00")
-  shiftEndTime          String   @default("17:00")
-  payPeriodStartDay     Int      @default(1) // 1 = Monday (ISO weekday)
-  updatedAt             DateTime @updatedAt
+  id                    Int          @id @default(1)
+  otMultiplier          Decimal      @default(1.25) @db.Decimal(4, 2)
+  gracePeriodMinutes    Int          @default(10)
+  unpaidLunchMinutes    Int          @default(60)
+  regularHoursCapPerDay Decimal      @default(8) @db.Decimal(4, 2)
+  requirePhotoOnPunch   Boolean      @default(true)
+  shiftStartTime        String       @default("08:00")
+  shiftEndTime          String       @default("17:00")
+  payPeriodStartDay     Int          @default(1) // 1 = Monday (ISO weekday)
+  /** Which of the two daily operations the kiosk is showing today --
+   * manually toggled at the kiosk, persists until changed again. */
+  operationDay          OperationDay @default(COOKING)
+  updatedAt             DateTime     @updatedAt
+}
+
+enum OperationDay {
+  COOKING
+  JAR_FILLING
 }
 
 /** A one-off shift start/end time for a specific date (e.g. work started late

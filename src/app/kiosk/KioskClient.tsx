@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   enqueuePunch,
@@ -126,7 +127,12 @@ function formatElapsed(ms: number): string {
     .padStart(2, "0")}`;
 }
 
-export default function KioskClient() {
+export default function KioskClient({
+  initialEmployeeId = null,
+}: {
+  initialEmployeeId?: string | null;
+}) {
+  const router = useRouter();
   const [screen, setScreen] = useState<Screen>("home");
   const [pinMode, setPinMode] = useState(false);
   const [pin, setPin] = useState("");
@@ -210,6 +216,24 @@ export default function KioskClient() {
     setPin("");
     setPinMode(true);
   }, []);
+
+  // Arriving from the home page's "tap your name" list (?employee=<id>) jumps
+  // straight to the PIN pad for that employee, via its own one-shot fetch
+  // (independent of the polling employee list) so it only ever runs once.
+  // The URL is cleared right after so a later reset back to "home" doesn't
+  // re-trigger it.
+  useEffect(() => {
+    if (!initialEmployeeId) return;
+    fetch("/api/kiosk/employees")
+      .then((res) => (res.ok ? res.json() : Promise.reject()))
+      .then((data) => {
+        const list: EmployeeOption[] = Array.isArray(data.employees) ? data.employees : [];
+        const match = list.find((e) => e.id === initialEmployeeId);
+        if (match) chooseEmployee(match);
+      })
+      .catch(() => {})
+      .finally(() => router.replace("/kiosk"));
+  }, [initialEmployeeId, chooseEmployee, router]);
 
   const chooseAgain = useCallback(() => {
     setSelectedEmployee(null);
