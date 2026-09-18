@@ -118,6 +118,7 @@ model Employee {
   payslips              Payslip[]
   taskAssignments       TaskAssignment[]
   sanitationAssignments SanitationAssignment[]
+  lateDayActions        LateDayAction[]
 }
 
 model Device {
@@ -214,6 +215,24 @@ model PayslipAdjustment {
 
   taskAssignment TaskAssignment?
   sanitationAssignment SanitationAssignment?
+  lateDayAction        LateDayAction?
+}
+
+/** What an admin decided about a suggested late-arrival deduction for one
+ * employee on one day: applied to a payslip (payslipAdjustmentId set) or
+ * skipped (dismissed). A day with no row -- or a row whose adjustment was
+ * later removed -- is suggested again. */
+model LateDayAction {
+  id                  String             @id @default(cuid())
+  employeeId          String
+  employee            Employee           @relation(fields: [employeeId], references: [id])
+  date                DateTime           @db.Date
+  dismissed           Boolean            @default(false)
+  payslipAdjustmentId String?            @unique
+  payslipAdjustment   PayslipAdjustment? @relation(fields: [payslipAdjustmentId], references: [id])
+  createdAt           DateTime           @default(now())
+
+  @@unique([employeeId, date])
 }
 
 model AuditLog {

@@ -313,6 +313,19 @@ export function computePay(
   };
 }
 
+/** Suggested deduction for a late morning arrival, by minutes after shift
+ * start. Only a suggestion -- the admin can change the amount or skip it. The
+ * grace period already keeps very short delays from being flagged as late. */
+const LATE_DEDUCTION_TIERS: { minMinutes: number; amount: number }[] = [
+  { minMinutes: 60, amount: 100 },
+  { minMinutes: 30, amount: 50 },
+  { minMinutes: 10, amount: 20 },
+];
+
+export function suggestedLateDeduction(lateMinutes: number): number {
+  return LATE_DEDUCTION_TIERS.find((t) => lateMinutes >= t.minMinutes)?.amount ?? 0;
+}
+
 export function nextWeeklyPeriod(afterDate: Date): { start: string; end: string } {
   const zoned = toZonedTime(afterDate, TIMEZONE);
   const dayOfWeek = zoned.getDay(); // 0 = Sunday

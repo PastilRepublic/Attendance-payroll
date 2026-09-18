@@ -1,7 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { getOrRefreshDraftPayslip, adjustmentsTotal } from "@/lib/payrollService";
+import {
+  getOrRefreshDraftPayslip,
+  adjustmentsTotal,
+  getPeriodDailyResults,
+} from "@/lib/payrollService";
+import { suggestedLateDeduction } from "@/lib/payroll";
+import { getSettings } from "@/lib/settings";
 import {
   addAdjustment,
   removeAdjustment,
@@ -10,6 +16,8 @@ import {
   addTaskBonusToPayslip,
   addSanitationBonusToPayslip,
   dismissBonusSuggestion,
+  addLateDeductionToPayslip,
+  dismissLateSuggestion,
 } from "../actions";
 
 export default async function PayPeriodDetailPage({
@@ -25,6 +33,8 @@ export default async function PayPeriodDetailPage({
     where: { active: true },
     orderBy: { name: "asc" },
   });
+
+  const settings = await getSettings();
 
   const payslips = await Promise.all(
     employees.map(async (emp) => {
@@ -54,7 +64,31 @@ export default async function PayPeriodDetailPage({
         include: { procedure: true },
         orderBy: { date: "asc" },
       });
-      return { employee: emp, payslip, suggestedBonuses, suggestedCleaningBonuses };
+      const lateActions = await prisma.lateDayAction.findMany({
+        where: { employeeId: emp.id, date: { gte: period.startDate, lte: period.endDate } },
+      });
+      const handledLateDays = new Set(
+        lateActions
+          .filter((a) => a.dismissed || a.payslipAdjustmentId)
+          .map((a) => a.date.toISOString().slice(0, 10))
+      );
+      const suggestedLate = (await getPeriodDailyResults(emp.id, period, settings))
+        .filter(
+          (d) =>
+            d.isLate && suggestedLateDeduction(d.lateMinutes) > 0 && !handledLateDays.has(d.date)
+        )
+        .map((d) => ({
+          date: d.date,
+          lateMinutes: d.lateMinutes,
+          amount: suggestedLateDeduction(d.lateMinutes),
+        }));
+      return {
+        employee: emp,
+        payslip,
+        suggestedBonuses,
+        suggestedCleaningBonuses,
+        suggestedLate,
+      };
     })
   );
 
@@ -91,7 +125,7 @@ export default async function PayPeriodDetailPage({
       </div>
 
       <div className="space-y-4">
-        {payslips.map(({ employee, payslip, suggestedBonuses, suggestedCleaningBonuses }) => {
+        {payslips.map(({ employee, payslip, suggestedBonuses, suggestedCleaningBonuses, suggestedLate }) => {
           const adjTotal = adjustmentsTotal(payslip.adjustments);
           const total = Number(payslip.grossPay) + adjTotal;
 
@@ -270,6 +304,48 @@ export default async function PayPeriodDetailPage({
                           Skip
                         </button>
                       </form>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {payslip.status !== "FINALIZED" && suggestedLate.length > 0 && (
+                <div className="mb-2 rounded-md bg-red-50 border border-red-200 p-2">
+                  <p className="text-xs font-medium text-red-800 mb-1">
+                    Suggested deductions for late arrivals
+                  </p>
+                  {suggestedLate.map((l) => (
+                    <div key={l.date} className="flex items-center justify-between text-xs py-1">
+                      <span className="text-slate-700">
+                        Late {l.lateMinutes} min — {l.date}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <form action={addLateDeductionToPayslip} className="flex items-center gap-2">
+                          <input type="hidden" name="payslipId" value={payslip.id} />
+                          <input type="hidden" name="date" value={l.date} />
+                          <span className="text-slate-500">₱</span>
+                          <input
+                            name="amount"
+                            type="number"
+                            step="0.01"
+                            min="0.01"
+                            required
+                            defaultValue={l.amount.toFixed(2)}
+                            className="w-20 rounded-md border border-slate-300 px-2 py-1 text-xs"
+                          />
+                          <button className="rounded-md bg-red-600 text-white px-2 py-1 hover:bg-red-500">
+                            Deduct from payslip
+                          </button>
+                        </form>
+                        <form action={dismissLateSuggestion}>
+                          <input type="hidden" name="employeeId" value={employee.id} />
+                          <input type="hidden" name="date" value={l.date} />
+                          <input type="hidden" name="payPeriodId" value={period.id} />
+                          <button className="rounded-md border border-slate-300 bg-white text-slate-600 px-2 py-1 hover:bg-slate-50">
+                            Skip
+                          </button>
+                        </form>
                       </div>
                     </div>
                   ))}

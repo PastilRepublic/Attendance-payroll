@@ -7,7 +7,8 @@ import { prisma } from "@/lib/prisma";
 import { requireOwner } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
 import { nextWeeklyPeriod } from "@/lib/payroll";
-import { getOrRefreshDraftPayslip } from "@/lib/payrollService";
+import { getOrRefreshDraftPayslip, getPeriodDailyResults } from "@/lib/payrollService";
+import { getSettings } from "@/lib/settings";
 
 export async function createNextPayPeriod() {
   const admin = await requireOwner();
@@ -336,6 +337,114 @@ export async function dismissBonusSuggestion(formData: FormData) {
     action: "DISMISS_BONUS_SUGGESTION",
     targetTable: parsed.kind === "TASK" ? "TaskAssignment" : "SanitationAssignment",
     targetId: parsed.assignmentId,
+  });
+
+  revalidatePath(`/admin/payroll/${parsed.payPeriodId}`);
+}
+
+const lateDeductionSchema = z.object({
+  payslipId: z.string().min(1),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  // Prefilled with the tier amount; the admin can change it per approval.
+  amount: z.coerce.number().positive("Amount must be more than 0").max(100000),
+});
+
+export async function addLateDeductionToPayslip(formData: FormData) {
+  const admin = await requireOwner();
+  const parsed = lateDeductionSchema.parse({
+    payslipId: formData.get("payslipId"),
+    date: formData.get("date"),
+    amount: formData.get("amount"),
+  });
+
+  const payslip = await prisma.payslip.findUniqueOrThrow({
+    where: { id: parsed.payslipId },
+    include: { payPeriod: true },
+  });
+  if (payslip.status === "FINALIZED") {
+    throw new Error("This payslip is finalized. Unlock it first to make changes.");
+  }
+
+  const dateValue = new Date(`${parsed.date}T00:00:00.000Z`);
+  const existing = await prisma.lateDayAction.findUnique({
+    where: { employeeId_date: { employeeId: payslip.employeeId, date: dateValue } },
+  });
+  if (existing?.payslipAdjustmentId) {
+    throw new Error("This late deduction has already been added to a payslip.");
+  }
+
+  // Re-derive lateness server-side rather than trusting the submitted date.
+  const days = await getPeriodDailyResults(payslip.employeeId, payslip.payPeriod, await getSettings());
+  const day = days.find((d) => d.date === parsed.date);
+  if (!day || !day.isLate) {
+    throw new Error("That day isn't marked late in this pay period.");
+  }
+
+  const adjustment = await prisma.payslipAdjustment.create({
+    data: {
+      payslipId: parsed.payslipId,
+      label: "Late",
+      amount: -parsed.amount,
+      note: `Late ${day.lateMinutes} min — ${parsed.date}`,
+    },
+  });
+
+  await prisma.lateDayAction.upsert({
+    where: { employeeId_date: { employeeId: payslip.employeeId, date: dateValue } },
+    update: { dismissed: false, payslipAdjustmentId: adjustment.id },
+    create: {
+      employeeId: payslip.employeeId,
+      date: dateValue,
+      payslipAdjustmentId: adjustment.id,
+    },
+  });
+
+  await logAudit({
+    actorAdminId: admin.id,
+    action: "ADD_LATE_DEDUCTION_TO_PAYSLIP",
+    targetTable: "PayslipAdjustment",
+    targetId: adjustment.id,
+    after: { date: parsed.date, lateMinutes: day.lateMinutes, amount: -parsed.amount },
+  });
+
+  revalidatePath(`/admin/payroll/${payslip.payPeriodId}`);
+}
+
+const dismissLateSchema = z.object({
+  employeeId: z.string().min(1),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  payPeriodId: z.string().min(1),
+});
+
+/** Declines a suggested late deduction for one day. Nothing is added to any
+ * payslip; the late flag itself still shows in the employee's attendance. */
+export async function dismissLateSuggestion(formData: FormData) {
+  const admin = await requireOwner();
+  const parsed = dismissLateSchema.parse({
+    employeeId: formData.get("employeeId"),
+    date: formData.get("date"),
+    payPeriodId: formData.get("payPeriodId"),
+  });
+
+  const dateValue = new Date(`${parsed.date}T00:00:00.000Z`);
+  const existing = await prisma.lateDayAction.findUnique({
+    where: { employeeId_date: { employeeId: parsed.employeeId, date: dateValue } },
+  });
+  if (existing?.payslipAdjustmentId) {
+    throw new Error("This late deduction has already been added to a payslip.");
+  }
+
+  await prisma.lateDayAction.upsert({
+    where: { employeeId_date: { employeeId: parsed.employeeId, date: dateValue } },
+    update: { dismissed: true },
+    create: { employeeId: parsed.employeeId, date: dateValue, dismissed: true },
+  });
+
+  await logAudit({
+    actorAdminId: admin.id,
+    action: "DISMISS_LATE_SUGGESTION",
+    targetTable: "LateDayAction",
+    targetId: `${parsed.employeeId}:${parsed.date}`,
   });
 
   revalidatePath(`/admin/payroll/${parsed.payPeriodId}`);
