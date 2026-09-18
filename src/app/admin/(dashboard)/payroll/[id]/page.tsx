@@ -9,6 +9,7 @@ import {
   unlockPayslip,
   addTaskBonusToPayslip,
   addSanitationBonusToPayslip,
+  dismissBonusSuggestion,
 } from "../actions";
 
 export default async function PayPeriodDetailPage({
@@ -33,6 +34,7 @@ export default async function PayPeriodDetailPage({
           employeeId: emp.id,
           status: "DONE",
           bonusAmount: { not: null },
+          bonusDismissed: false,
           payslipAdjustmentId: null,
           date: { gte: period.startDate, lte: period.endDate },
         },
@@ -45,6 +47,7 @@ export default async function PayPeriodDetailPage({
           status: "DONE",
           inspectionResult: "PASS",
           payslipAdjustmentId: null,
+          bonusDismissed: false,
           procedure: { bonusAmount: { not: null } },
           date: { gte: period.startDate, lte: period.endDate },
         },
@@ -206,13 +209,23 @@ export default async function PayPeriodDetailPage({
                         {a.template.name} — {a.date.toISOString().slice(0, 10)} — ₱
                         {Number(a.bonusAmount).toFixed(2)}
                       </span>
-                      <form action={addTaskBonusToPayslip}>
-                        <input type="hidden" name="payslipId" value={payslip.id} />
-                        <input type="hidden" name="taskAssignmentId" value={a.id} />
-                        <button className="rounded-md bg-amber-600 text-white px-2 py-1 hover:bg-amber-500">
-                          Add to payslip
-                        </button>
-                      </form>
+                      <div className="flex items-center gap-2">
+                        <form action={addTaskBonusToPayslip}>
+                          <input type="hidden" name="payslipId" value={payslip.id} />
+                          <input type="hidden" name="taskAssignmentId" value={a.id} />
+                          <button className="rounded-md bg-amber-600 text-white px-2 py-1 hover:bg-amber-500">
+                            Add to payslip
+                          </button>
+                        </form>
+                        <form action={dismissBonusSuggestion}>
+                          <input type="hidden" name="kind" value="TASK" />
+                          <input type="hidden" name="assignmentId" value={a.id} />
+                          <input type="hidden" name="payPeriodId" value={period.id} />
+                          <button className="rounded-md border border-slate-300 bg-white text-slate-600 px-2 py-1 hover:bg-slate-50">
+                            Skip
+                          </button>
+                        </form>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -231,6 +244,7 @@ export default async function PayPeriodDetailPage({
                       <span className="text-slate-700">
                         {a.procedure.name} — {a.date.toISOString().slice(0, 10)}
                       </span>
+                      <div className="flex items-center gap-2">
                       <form action={addSanitationBonusToPayslip} className="flex items-center gap-2">
                         <input type="hidden" name="payslipId" value={payslip.id} />
                         <input type="hidden" name="sanitationAssignmentId" value={a.id} />
@@ -248,6 +262,15 @@ export default async function PayPeriodDetailPage({
                           Add to payslip
                         </button>
                       </form>
+                      <form action={dismissBonusSuggestion}>
+                        <input type="hidden" name="kind" value="SANITATION" />
+                        <input type="hidden" name="assignmentId" value={a.id} />
+                        <input type="hidden" name="payPeriodId" value={period.id} />
+                        <button className="rounded-md border border-slate-300 bg-white text-slate-600 px-2 py-1 hover:bg-slate-50">
+                          Skip
+                        </button>
+                      </form>
+                      </div>
                     </div>
                   ))}
                 </div>

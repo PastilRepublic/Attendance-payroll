@@ -290,3 +290,53 @@ export async function addSanitationBonusToPayslip(formData: FormData) {
 
   revalidatePath(`/admin/payroll/${payslip.payPeriodId}`);
 }
+
+const dismissBonusSchema = z.object({
+  kind: z.enum(["TASK", "SANITATION"]),
+  assignmentId: z.string().min(1),
+  payPeriodId: z.string().min(1),
+});
+
+/** Declines a suggested bonus so it stops showing on payroll. Nothing is
+ * added to any payslip; the completed duty/task itself is left untouched. */
+export async function dismissBonusSuggestion(formData: FormData) {
+  const admin = await requireOwner();
+  const parsed = dismissBonusSchema.parse({
+    kind: formData.get("kind"),
+    assignmentId: formData.get("assignmentId"),
+    payPeriodId: formData.get("payPeriodId"),
+  });
+
+  if (parsed.kind === "TASK") {
+    const assignment = await prisma.taskAssignment.findUniqueOrThrow({
+      where: { id: parsed.assignmentId },
+    });
+    if (assignment.payslipAdjustmentId) {
+      throw new Error("This bonus has already been added to a payslip.");
+    }
+    await prisma.taskAssignment.update({
+      where: { id: assignment.id },
+      data: { bonusDismissed: true },
+    });
+  } else {
+    const assignment = await prisma.sanitationAssignment.findUniqueOrThrow({
+      where: { id: parsed.assignmentId },
+    });
+    if (assignment.payslipAdjustmentId) {
+      throw new Error("This bonus has already been added to a payslip.");
+    }
+    await prisma.sanitationAssignment.update({
+      where: { id: assignment.id },
+      data: { bonusDismissed: true },
+    });
+  }
+
+  await logAudit({
+    actorAdminId: admin.id,
+    action: "DISMISS_BONUS_SUGGESTION",
+    targetTable: parsed.kind === "TASK" ? "TaskAssignment" : "SanitationAssignment",
+    targetId: parsed.assignmentId,
+  });
+
+  revalidatePath(`/admin/payroll/${parsed.payPeriodId}`);
+}
