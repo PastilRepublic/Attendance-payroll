@@ -563,11 +563,11 @@ function PinPad({
       ) : (
         <p className="text-xl font-semibold mb-4 text-slate-900">Enter your PIN</p>
       )}
-      <div className="flex gap-3 mb-5">
+      <div className="flex gap-2 mb-4">
         {Array.from({ length: 4 }).map((_, i) => (
           <div
             key={i}
-            className={`w-12 h-14 rounded-lg border-2 flex items-center justify-center text-2xl ${
+            className={`w-9 h-11 rounded-lg border-2 flex items-center justify-center text-lg ${
               i < pin.length ? "border-orange-500 bg-orange-50 text-orange-600" : "border-slate-300"
             }`}
           >
@@ -575,14 +575,14 @@ function PinPad({
           </div>
         ))}
       </div>
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-3 gap-3">
         {digits.map((d) => {
           if (d === "clear") {
             return (
               <button
                 key={d}
                 onClick={onClear}
-                className="w-24 h-24 rounded-full bg-slate-700 hover:bg-slate-600 text-white text-lg font-medium"
+                className="w-16 h-16 rounded-full bg-slate-700 hover:bg-slate-600 text-white text-sm font-medium"
               >
                 Clear
               </button>
@@ -593,7 +593,7 @@ function PinPad({
               <button
                 key={d}
                 onClick={onBackspace}
-                className="w-24 h-24 rounded-full bg-slate-700 hover:bg-slate-600 text-white text-lg font-medium"
+                className="w-16 h-16 rounded-full bg-slate-700 hover:bg-slate-600 text-white text-sm font-medium"
               >
                 ⌫
               </button>
@@ -603,7 +603,7 @@ function PinPad({
             <button
               key={d}
               onClick={() => onDigit(d)}
-              className="w-24 h-24 rounded-full bg-slate-800 hover:bg-slate-700 text-white text-3xl font-semibold"
+              className="w-16 h-16 rounded-full bg-slate-800 hover:bg-slate-700 text-white text-xl font-semibold"
             >
               {d}
             </button>
@@ -613,7 +613,7 @@ function PinPad({
       <button
         onClick={onSubmit}
         disabled={pin.length < 4}
-        className="mt-5 w-72 h-16 rounded-2xl bg-orange-500 hover:bg-orange-600 disabled:bg-slate-200 disabled:text-slate-400 text-white text-2xl font-semibold"
+        className="mt-4 w-52 h-11 rounded-2xl bg-orange-500 hover:bg-orange-600 disabled:bg-slate-200 disabled:text-slate-400 text-white text-lg font-semibold"
       >
         Enter
       </button>
