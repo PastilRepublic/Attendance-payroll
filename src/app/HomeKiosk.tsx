@@ -49,6 +49,17 @@ const PRESENCE_DOT_STYLES: Record<PresenceStatus, string> = {
   DONE: "bg-sky-500",
 };
 
+const SANITATION_VISIBLE_LIMIT = 4;
+
+const RISK_RANK: Record<RiskLevel, number> = { HIGH: 0, MEDIUM: 1, LOW: 2 };
+
+function sortSanitationTasks(tasks: SanitationTask[]): SanitationTask[] {
+  return [...tasks].sort((a, b) => {
+    if (a.status !== b.status) return a.status === "DONE" ? 1 : -1;
+    return RISK_RANK[a.riskLevel] - RISK_RANK[b.riskLevel];
+  });
+}
+
 const AVATAR_COLORS = [
   "bg-orange-100 text-orange-700",
   "bg-sky-100 text-sky-700",
@@ -265,32 +276,57 @@ export default function HomeKiosk() {
             {sanitationLoaded && !sanitationFailed && sanitationTasks.length === 0 && (
               <p className="text-xs text-slate-400">No sanitation duties scheduled today.</p>
             )}
-            {sanitationLoaded && !sanitationFailed && sanitationTasks.length > 0 && (
-              <>
-                <ul className="space-y-1.5">
-                  {sanitationTasks.map((task) => (
-                    <li key={task.id} className="flex items-center gap-2 text-sm">
-                      <RiskDot level={task.riskLevel} />
-                      <span
-                        className={`flex-1 truncate ${
-                          task.status === "DONE" ? "text-slate-400 line-through" : "text-slate-700"
-                        }`}
-                      >
-                        {task.name}
-                      </span>
-                      {task.inspectionResult && (
-                        <Badge status={task.inspectionResult === "PASS" ? "pass" : "fail"}>
-                          {task.inspectionResult === "PASS" ? "Passed" : "Failed"}
-                        </Badge>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-                <p className="text-xs text-slate-400 mt-2">
-                  {sanitationTasks.filter((t) => t.status === "DONE").length}/{sanitationTasks.length} done
-                </p>
-              </>
-            )}
+            {sanitationLoaded && !sanitationFailed && sanitationTasks.length > 0 && (() => {
+              const sorted = sortSanitationTasks(sanitationTasks);
+              const visible = sorted.slice(0, SANITATION_VISIBLE_LIMIT);
+              const hiddenCount = sorted.length - visible.length;
+              return (
+                <>
+                  <ul className="space-y-1.5">
+                    {visible.map((task) => {
+                      const needsAttention = task.status === "PENDING" && task.riskLevel === "HIGH";
+                      return (
+                        <li
+                          key={task.id}
+                          className={`flex items-center gap-2 text-sm rounded-md ${
+                            needsAttention ? "bg-red-50 px-1.5 py-1 -mx-1.5" : ""
+                          }`}
+                        >
+                          <RiskDot level={task.riskLevel} />
+                          <span
+                            className={`flex-1 truncate ${
+                              task.status === "DONE"
+                                ? "text-slate-400 line-through"
+                                : needsAttention
+                                  ? "text-red-700 font-medium"
+                                  : "text-slate-700"
+                            }`}
+                          >
+                            {task.name}
+                          </span>
+                          {task.inspectionResult && (
+                            <Badge status={task.inspectionResult === "PASS" ? "pass" : "fail"}>
+                              {task.inspectionResult === "PASS" ? "Passed" : "Failed"}
+                            </Badge>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  {hiddenCount > 0 && (
+                    <Link
+                      href="/sanitation"
+                      className="text-xs text-slate-400 hover:text-amber-600 hover:underline mt-1.5 inline-block"
+                    >
+                      +{hiddenCount} more
+                    </Link>
+                  )}
+                  <p className="text-xs text-slate-400 mt-2">
+                    {sanitationTasks.filter((t) => t.status === "DONE").length}/{sanitationTasks.length} done
+                  </p>
+                </>
+              );
+            })()}
             <Link href="/sanitation" className="text-xs text-amber-600 hover:underline mt-2 inline-block">
               View full board →
             </Link>
