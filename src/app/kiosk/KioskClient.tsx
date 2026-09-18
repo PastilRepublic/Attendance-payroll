@@ -412,7 +412,7 @@ export default function KioskClient({
 
   const handleDigit = (d: string) => {
     if (screen !== "home") return;
-    setPin((p) => (p.length >= 6 ? p : p + d));
+    setPin((p) => (p.length >= 4 ? p : p + d));
   };
   const handleBackspace = () => setPin((p) => p.slice(0, -1));
   const handleClear = () => setPin("");
@@ -568,17 +568,17 @@ function PinPad({
   const digits = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "clear", "0", "back"];
 
   return (
-    <div className="flex flex-col items-center">
+    <div className="flex flex-col items-center text-center">
       {employeeName ? (
         <>
-          <p className="text-2xl font-semibold mb-1 text-slate-900">Hi, {employeeName}</p>
-          <p className="text-base text-slate-500 mb-3">Enter your PIN</p>
+          <p className="text-xl font-semibold mb-1 text-slate-900">Hi, {employeeName}</p>
+          <p className="text-sm text-slate-500 mb-3">Enter your PIN</p>
         </>
       ) : (
-        <p className="text-3xl font-semibold mb-4 text-slate-900">Enter your PIN</p>
+        <p className="text-xl font-semibold mb-4 text-slate-900">Enter your PIN</p>
       )}
       <div className="flex gap-3 mb-5">
-        {Array.from({ length: 6 }).map((_, i) => (
+        {Array.from({ length: 4 }).map((_, i) => (
           <div
             key={i}
             className={`w-12 h-14 rounded-lg border-2 flex items-center justify-center text-2xl ${
@@ -596,7 +596,7 @@ function PinPad({
               <button
                 key={d}
                 onClick={onClear}
-                className="w-24 h-24 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-lg font-medium"
+                className="w-24 h-24 rounded-full bg-slate-700 hover:bg-slate-600 text-white text-lg font-medium"
               >
                 Clear
               </button>
@@ -607,7 +607,7 @@ function PinPad({
               <button
                 key={d}
                 onClick={onBackspace}
-                className="w-24 h-24 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-lg font-medium"
+                className="w-24 h-24 rounded-full bg-slate-700 hover:bg-slate-600 text-white text-lg font-medium"
               >
                 ⌫
               </button>
@@ -617,7 +617,7 @@ function PinPad({
             <button
               key={d}
               onClick={() => onDigit(d)}
-              className="w-24 h-24 rounded-2xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-900 text-3xl font-semibold shadow-sm"
+              className="w-24 h-24 rounded-full bg-slate-800 hover:bg-slate-700 text-white text-3xl font-semibold"
             >
               {d}
             </button>

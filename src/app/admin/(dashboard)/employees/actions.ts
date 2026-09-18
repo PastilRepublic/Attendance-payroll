@@ -31,7 +31,7 @@ const employeeSchema = z.object({
 
 const pinSchema = z
   .string()
-  .regex(/^\d{4,6}$/, "PIN must be 4-6 digits");
+  .regex(/^\d{4}$/, "PIN must be exactly 4 digits");
 
 const supervisorAccessSchema = z.object({
   email: z.string().trim().email("Valid email is required"),

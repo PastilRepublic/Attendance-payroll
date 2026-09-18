@@ -105,12 +105,13 @@ export default async function EditEmployeePage({
           <h2 className="text-sm font-semibold text-slate-900">Reset PIN</h2>
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">
-              New 4-6 digit PIN
+              New 4-digit PIN
             </label>
             <input
               name="pin"
               required
-              pattern="\d{4,6}"
+              pattern="\d{4}"
+              maxLength={4}
               inputMode="numeric"
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
             />

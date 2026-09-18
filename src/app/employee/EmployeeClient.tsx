@@ -132,7 +132,7 @@ export default function EmployeeClient() {
   }
 
   function handleDigit(d: string) {
-    if (checking || pin.length >= 6 || !selected) return;
+    if (checking || pin.length >= 4 || !selected) return;
     setPin(pin + d);
   }
 
@@ -212,7 +212,7 @@ export default function EmployeeClient() {
             </div>
 
             <div className="flex gap-3 mb-5">
-              {Array.from({ length: 6 }).map((_, i) => (
+              {Array.from({ length: 4 }).map((_, i) => (
                 <div
                   key={i}
                   className={`w-11 h-13 rounded-lg border-2 flex items-center justify-center text-2xl ${
