@@ -507,7 +507,10 @@ export default function KioskClient({
             doneIds={doneTaskIds}
             onComplete={completeTask}
             onUndo={undoTask}
-            onFinish={resetToIdle}
+            onFinish={() => {
+              resetToIdle();
+              router.push("/");
+            }}
           />
         )}
 
