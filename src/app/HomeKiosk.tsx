@@ -180,7 +180,7 @@ export default function HomeKiosk() {
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           <Link
             href="/employee"
-            className="inline-flex items-center gap-1.5 rounded-md px-2 sm:px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
+            className="inline-flex items-center gap-1.5 rounded-md bg-slate-900 text-white px-2 sm:px-3 py-1.5 text-sm font-medium hover:bg-slate-800 active:bg-slate-100 active:text-slate-700"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 shrink-0">
               <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.5 20.25a7.5 7.5 0 0 1 15 0" />
@@ -189,7 +189,7 @@ export default function HomeKiosk() {
           </Link>
           <Link
             href="/admin"
-            className="inline-flex items-center gap-1.5 rounded-md bg-slate-900 text-white px-2 sm:px-3 py-1.5 text-sm font-medium hover:bg-slate-800"
+            className="inline-flex items-center gap-1.5 rounded-md px-2 sm:px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 active:bg-slate-900 active:text-white"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 shrink-0">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 3 4.5 6v5.25c0 4.83 3.24 8.94 7.5 9.75 4.26-.81 7.5-4.92 7.5-9.75V6L12 3Z" />
