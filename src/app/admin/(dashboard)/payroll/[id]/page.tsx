@@ -100,10 +100,13 @@ export default async function PayPeriodDetailPage({
               }))
           : [];
       // A forgotten Time Out only counts the time up to their last punch, so
-      // point it out for everyone. Production days that also get the Half day
-      // suggestion above already carry the note, so skip those here.
+      // point it out for everyone. Production days that get the Half day
+      // suggestion above already carry the note (even once deducted or skipped),
+      // so skip those here.
       const today = localDateKey(new Date());
-      const earlyOutDates = new Set(earlyOutDays.map((d) => d.date));
+      const earlyOutDates = new Set(
+        emp.payBasis === "OPERATION_DAY" ? dailyResults.filter(isEarlyOutDay).map((d) => d.date) : []
+      );
       const noTimeOutDays = dailyResults
         .filter((d) => d.missingTimeOut && d.dayStatus === null && d.date < today && !earlyOutDates.has(d.date))
         .map((d) => d.date);
