@@ -456,6 +456,10 @@ describe("isEarlyOutDay", () => {
     expect(isEarlyOutDay(day([{ h: 8, type: "IN" }, { h: 12, type: "BREAK_START" }]))).toBe(true);
   });
 
+  it("does not flag a Time Out after 1 PM, even if before shift end", () => {
+    expect(isEarlyOutDay(day([{ h: 8, type: "IN" }, { h: 16, type: "OUT" }]))).toBe(false);
+  });
+
   it("does not flag a full day, a day with no work, or an absence day", () => {
     expect(isEarlyOutDay(day([{ h: 8, type: "IN" }, { h: 17, type: "OUT" }]))).toBe(false);
     expect(isEarlyOutDay(day([]))).toBe(false);

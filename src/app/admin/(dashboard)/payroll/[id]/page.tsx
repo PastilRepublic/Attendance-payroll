@@ -394,7 +394,7 @@ export default async function PayPeriodDetailPage({
               {payslip.status !== "FINALIZED" && earlyOutDays.length > 0 && (
                 <div className="mb-2 rounded-md bg-blue-50 border border-blue-200 p-2">
                   <p className="text-xs font-medium text-blue-800 mb-1">
-                    Left early / Half day — paid the full day rate. Enter the amount to deduct if it
+                    Half day — paid the full day rate. Enter the amount to deduct if it
                     was a half day, or Skip.
                   </p>
                   {earlyOutDays.map((d) => (

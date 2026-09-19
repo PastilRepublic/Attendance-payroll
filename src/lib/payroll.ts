@@ -65,10 +65,11 @@ export interface DailyResult {
   dayStatus: DayStatusType | null;
 }
 
-/** A worked day that ended early or never got a Time Out -- a candidate for a
- * "Half day" deduction on a Production (OPERATION_DAY) employee's payslip. */
+/** A half day (Time Out before 1 PM) or a day that never got a Time Out -- a
+ * candidate for a "Half day" deduction on a Production (OPERATION_DAY)
+ * employee's payslip. Matches the Half day badge on the attendance pages. */
 export function isEarlyOutDay(d: DailyResult): boolean {
-  return (d.isUndertime || d.missingTimeOut) && d.workedMinutes > 0 && d.dayStatus === null;
+  return (d.isHalfDay || d.missingTimeOut) && d.workedMinutes > 0 && d.dayStatus === null;
 }
 
 export interface PeriodResult {
