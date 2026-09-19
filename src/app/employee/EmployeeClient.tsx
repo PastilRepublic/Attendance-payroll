@@ -477,8 +477,8 @@ export default function EmployeeClient() {
                       <tr>
                         <th className="text-left px-4 py-2 font-medium">Date</th>
                         <th className="text-right px-4 py-2 font-medium">Time In</th>
-                        <th className="text-right px-4 py-2 font-medium">Start Break</th>
-                        <th className="text-right px-4 py-2 font-medium">End Break</th>
+                        <th className="text-right px-4 py-2 font-medium">Start Break/Lunch</th>
+                        <th className="text-right px-4 py-2 font-medium">End Break/Lunch</th>
                         <th className="text-right px-4 py-2 font-medium">Time Out</th>
                         <th className="text-right px-4 py-2 font-medium">Regular</th>
                         <th className="text-left px-4 py-2 font-medium">Notes</th>

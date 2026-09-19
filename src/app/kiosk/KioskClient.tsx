@@ -105,8 +105,8 @@ const CONFIRM_AUTO_RESET_MS = 3000;
 const ACTION_LABELS: Record<PunchType, string> = {
   IN: "Time In",
   OUT: "Time Out",
-  BREAK_START: "Start Break",
-  BREAK_END: "End Break",
+  BREAK_START: "Start Break/Lunch",
+  BREAK_END: "End Break/Lunch",
 };
 
 const ACTION_BUTTON_STYLES: Record<PunchType, string> = {

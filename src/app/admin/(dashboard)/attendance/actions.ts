@@ -121,7 +121,7 @@ export async function saveDayPunches(formData: FormData) {
   const entered = SLOT_TYPES.filter((s) => parsed[s.field] !== "");
   for (let i = 1; i < entered.length; i++) {
     if (parsed[entered[i].field] <= parsed[entered[i - 1].field]) {
-      throw new Error("Times must be in order: Time In, Start Break, End Break, Time Out.");
+      throw new Error("Times must be in order: Time In, Start Break/Lunch, End Break/Lunch, Time Out.");
     }
   }
 

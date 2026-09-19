@@ -70,7 +70,7 @@ export default async function SettingsPage() {
                 />
                 <p className="text-xs text-slate-500 mt-1">
                   Also the kiosk&apos;s Break allowance -- an employee who Starts Break and takes
-                  longer than this to End Break is flagged &quot;Late from break&quot;.
+                  longer than this to End Break/Lunch is flagged &quot;Late from break&quot;.
                 </p>
               </div>
               <div>

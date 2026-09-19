@@ -353,8 +353,8 @@ export default async function AttendancePage({
                 <tr>
                   <th className="px-2 py-2 font-medium">Date</th>
                   <th className="px-2 py-2 font-medium text-right">Time In</th>
-                  <th className="px-2 py-2 font-medium text-right">Start Break</th>
-                  <th className="px-2 py-2 font-medium text-right">End Break</th>
+                  <th className="px-2 py-2 font-medium text-right">Start Break/Lunch</th>
+                  <th className="px-2 py-2 font-medium text-right">End Break/Lunch</th>
                   <th className="px-2 py-2 font-medium text-right">Time Out</th>
                   <th className="px-2 py-2 font-medium text-right">Regular</th>
                   <th className="px-2 py-2 font-medium text-right">OT</th>
@@ -440,8 +440,8 @@ function TodayDashboard({ rows, refDate }: { rows: TodayRow[]; refDate: string }
             <tr>
               <th className="px-2 py-2 font-medium">Name</th>
               <th className="px-2 py-2 font-medium text-right">Time In</th>
-              <th className="px-2 py-2 font-medium text-right">Start Break</th>
-              <th className="px-2 py-2 font-medium text-right">End Break</th>
+              <th className="px-2 py-2 font-medium text-right">Start Break/Lunch</th>
+              <th className="px-2 py-2 font-medium text-right">End Break/Lunch</th>
               <th className="px-2 py-2 font-medium text-right">Time Out</th>
               <th className="px-2 py-2 font-medium">Status</th>
               <th className="px-2 py-2 font-medium"></th>
@@ -601,8 +601,8 @@ function ManageDayForm({
   const slots = pickDaySlots(punches);
   const fields = [
     { name: "timeIn", label: "Time In", punch: slots.timeIn },
-    { name: "breakStart", label: "Start Break", punch: slots.breakStart },
-    { name: "breakEnd", label: "End Break", punch: slots.breakEnd },
+    { name: "breakStart", label: "Start Break/Lunch", punch: slots.breakStart },
+    { name: "breakEnd", label: "End Break/Lunch", punch: slots.breakEnd },
     { name: "timeOut", label: "Time Out", punch: slots.timeOut },
   ] as const;
 
