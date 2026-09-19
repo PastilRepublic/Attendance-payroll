@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getRequirePhotoOnPunch, getOperationDay } from "@/lib/settings";
 import { TIMEZONE } from "@/lib/payroll";
 import { resolveEmployeeByPin } from "@/lib/kioskAuth";
-import { getKioskSnapshot } from "@/lib/kioskAttendance";
+import { getKioskSnapshot, countCoworkersStillIn } from "@/lib/kioskAttendance";
 import { ensureTodaysSanitationSchedule, scopeFilterFor } from "@/lib/sanitation";
 
 export async function POST(request: Request) {
@@ -61,6 +61,7 @@ export async function POST(request: Request) {
     activityLog: snapshot.activityLog,
     totals: snapshot.totals,
     requirePhoto: await getRequirePhotoOnPunch(),
+    coworkersStillIn: await countCoworkersStillIn(matched.id),
     pendingTasks: [
       ...pendingSanitation.map((s) => ({
         id: s.id,

@@ -43,6 +43,7 @@ interface IdentifyData {
   activityLog: ActivityEntry[];
   totals: Totals;
   requirePhoto: boolean;
+  coworkersStillIn?: { beforeBreak: number; beforeOut: number };
 }
 
 interface DayChecklistItem {
@@ -451,6 +452,7 @@ export default function KioskClient({
           activityLog: Array.isArray(data.activityLog) ? data.activityLog : [],
           totals: data.totals ?? { todayMinutes: 0, weekMinutes: 0 },
           requirePhoto: Boolean(data.requirePhoto),
+          coworkersStillIn: data.coworkersStillIn,
         });
         setChosenAction(null);
         setPendingTasks(Array.isArray(data.pendingTasks) ? data.pendingTasks : []);
@@ -532,6 +534,27 @@ export default function KioskClient({
     },
     [selectedEmployee, chosenAction, finishGate]
   );
+
+  // Whoever still has coworkers to come may leave duties pending as long as
+  // they signed off at least one they did; the last one through must clear
+  // the whole list.
+  let gateBlockReason: string | null = null;
+  if (gate) {
+    const gated = pendingTasks.filter((t) => t.timing === gate);
+    const allDone = gated.every((t) => doneTaskIds.has(t.id));
+    const others =
+      (gate === "PRE_COOKING"
+        ? identifyData?.coworkersStillIn?.beforeBreak
+        : identifyData?.coworkersStillIn?.beforeOut) ?? 0;
+    if (!allDone) {
+      if (others === 0) {
+        gateBlockReason = "You're the last one, so every item must be done before you can continue.";
+      } else if (!gated.some((t) => doneTaskIds.has(t.id))) {
+        gateBlockReason =
+          "Tick at least one item you did. Coworkers still on shift will finish the rest.";
+      }
+    }
+  }
 
   const cancelGate = useCallback(() => {
     setGate(null);
@@ -631,14 +654,14 @@ export default function KioskClient({
                 ? "Clean up before your break"
                 : "Clean up before you time out"
             }
-            subtitle={`Finish every item below to continue to ${ACTION_LABELS[chosenAction]}.`}
+            subtitle={`Tick the items you did to continue to ${ACTION_LABELS[chosenAction]}.`}
             tasks={pendingTasks.filter((t) => t.timing === gate)}
             progress={checklistProgress}
             doneIds={doneTaskIds}
             onComplete={completeTask}
             onUndo={undoTask}
             finishLabel={`Continue to ${ACTION_LABELS[chosenAction]}`}
-            requireAllDone
+            blockReason={gateBlockReason}
             onFinish={finishGate}
             onCancel={cancelGate}
             onOverride={() => setOverrideOpen(true)}
@@ -900,7 +923,7 @@ function TaskChecklist({
   onComplete,
   onUndo,
   finishLabel,
-  requireAllDone = false,
+  blockReason = null,
   onFinish,
   onCancel,
   onOverride,
@@ -913,13 +936,12 @@ function TaskChecklist({
   onComplete: (taskId: string, kind: "TASK" | "SANITATION") => void;
   onUndo: (taskId: string, kind: "TASK" | "SANITATION") => void;
   finishLabel: string;
-  requireAllDone?: boolean;
+  blockReason?: string | null;
   onFinish: () => void;
   onCancel?: () => void;
   onOverride?: () => void;
 }) {
-  const allDone = tasks.every((t) => doneIds.has(t.id));
-  const finishDisabled = requireAllDone && !allDone;
+  const finishDisabled = !!blockReason;
   return (
     <div className="text-center w-full max-w-md">
       <p className={`text-2xl font-semibold text-slate-900 ${subtitle ? "mb-2" : "mb-6"}`}>
@@ -978,7 +1000,8 @@ function TaskChecklist({
           {finishLabel}
         </button>
       </div>
-      {onOverride && !allDone && (
+      {blockReason && <p className="mt-4 text-sm text-amber-700">{blockReason}</p>}
+      {onOverride && blockReason && (
         <button
           onClick={onOverride}
           className="mt-5 text-sm text-slate-500 hover:text-slate-800 underline"

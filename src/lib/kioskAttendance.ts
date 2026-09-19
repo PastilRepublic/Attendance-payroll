@@ -44,6 +44,52 @@ export function getAllowedActions(status: PresenceStatus, breakUsedToday = false
   return [];
 }
 
+/**
+ * How many coworkers (active, non-supervisor, excluding `employeeId`) can
+ * still pick up cleaning duties, for the kiosk's cleaning gates: someone with
+ * coworkers still to come may leave duties pending, but the last one through
+ * may not. Still to come at Start Break/Lunch = working and hasn't used their
+ * break yet; at Time Out = working or on break.
+ */
+export async function countCoworkersStillIn(
+  employeeId: string
+): Promise<{ beforeBreak: number; beforeOut: number }> {
+  const { dayStart, dayEnd } = getTodayRange();
+  const [employees, todayPunches, supervisors] = await Promise.all([
+    prisma.employee.findMany({
+      where: { active: true, id: { not: employeeId } },
+      select: { id: true },
+    }),
+    prisma.punch.findMany({
+      where: { voided: false, timestamp: { gte: dayStart, lt: dayEnd } },
+      orderBy: { timestamp: "asc" },
+      select: { employeeId: true, type: true },
+    }),
+    prisma.adminUser.findMany({
+      where: { role: "SUPERVISOR", active: true, employeeId: { not: null } },
+      select: { employeeId: true },
+    }),
+  ]);
+
+  const supervisorIds = new Set(supervisors.map((s) => s.employeeId));
+  const lastPunch = new Map<string, PunchType>();
+  const usedBreak = new Set<string>();
+  for (const p of todayPunches) {
+    lastPunch.set(p.employeeId, p.type);
+    if (p.type === "BREAK_START") usedBreak.add(p.employeeId);
+  }
+
+  let beforeBreak = 0;
+  let beforeOut = 0;
+  for (const emp of employees) {
+    if (supervisorIds.has(emp.id)) continue;
+    const status = derivePresenceStatus(lastPunch.get(emp.id) ?? null);
+    if (status === "WORKING" || status === "ON_BREAK") beforeOut++;
+    if (status === "WORKING" && !usedBreak.has(emp.id)) beforeBreak++;
+  }
+  return { beforeBreak, beforeOut };
+}
+
 export function formatActivityTime(t: Date): string {
   return formatInTimeZone(t, TIMEZONE, "h:mm a");
 }
