@@ -675,13 +675,7 @@ export default function KioskClient({
                 ? "Clean up before your break"
                 : "Clean up before you time out"
             }
-            notice={
-              <>
-                <strong>Only tick what you actually did, and only if it is completely done.</strong>{" "}
-                For team jobs, don&apos;t tick it if it isn&apos;t finished yet. Example: sweeping the
-                floor is not enough if it still needs to be washed with detergent.
-              </>
-            }
+            notice={<strong>Only tick what you actually did, and only if it is completely done.</strong>}
             tasks={pendingTasks.filter((t) => t.timing === gate)}
             progress={checklistProgress}
             doneIds={doneTaskIds}
