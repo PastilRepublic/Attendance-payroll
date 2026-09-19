@@ -1,6 +1,7 @@
 export type BadgeStatus =
   | "late"
   | "undertime"
+  | "halfDay"
   | "lateFromBreak"
   | "onTime"
   | "notYetTimedIn"
@@ -23,6 +24,7 @@ export type BadgeStatus =
 const STATUS_STYLES: Record<BadgeStatus, { className: string; label: string }> = {
   late: { className: "bg-rose-100 text-rose-700", label: "Late" },
   undertime: { className: "bg-orange-100 text-orange-700", label: "Undertime" },
+  halfDay: { className: "bg-orange-100 text-orange-700", label: "Half day" },
   lateFromBreak: { className: "bg-amber-100 text-amber-700", label: "Late from break" },
   onTime: { className: "bg-green-100 text-green-700", label: "On time" },
   notYetTimedIn: { className: "bg-slate-100 text-slate-500", label: "Not yet timed in" },

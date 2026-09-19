@@ -101,6 +101,7 @@ interface TodayRow {
   timedIn: boolean;
   isLate: boolean;
   isUndertime: boolean;
+  isHalfDay: boolean;
   returnedLateFromBreak: boolean;
   /** Live presence, only set when refDate is actually today -- a past day's
    * last punch isn't a "current" status. */
@@ -223,6 +224,7 @@ export default async function AttendancePage({
         timedIn: empPunches.some((p) => p.type === "IN"),
         isLate: computed.isLate,
         isUndertime: computed.isUndertime,
+        isHalfDay: computed.isHalfDay,
         returnedLateFromBreak: computed.returnedLateFromBreak,
         presence: isToday ? derivePresenceStatus(lastPunchType) : undefined,
       };
@@ -407,7 +409,7 @@ export default async function AttendancePage({
                           {d.dayStatus === "PAID_LEAVE" && <Badge status="paidLeave" />}
                           {d.dayStatus === "UNPAID_ABSENCE" && <Badge status="unpaidAbsence">Absent</Badge>}
                           {d.isLate && <Badge status="late" />}
-                          {d.isUndertime && <Badge status="undertime" />}
+                          {d.isHalfDay ? <Badge status="halfDay" /> : d.isUndertime && <Badge status="undertime" />}
                           {d.returnedLateFromBreak && <Badge status="lateFromBreak" />}
                         </div>
                       </td>
@@ -449,7 +451,7 @@ function TodayDashboard({ rows, refDate }: { rows: TodayRow[]; refDate: string }
           </thead>
           <tbody>
             {rows.map((row) => {
-              const { employee, punches, dayStatus, timeline, timedIn, isLate, isUndertime, returnedLateFromBreak, presence } = row;
+              const { employee, punches, dayStatus, timeline, timedIn, isLate, isUndertime, isHalfDay, returnedLateFromBreak, presence } = row;
               const showTimes = dayStatus === "NORMAL";
               return (
                 <tr key={employee.id} className="border-t border-slate-100 align-top">
@@ -483,8 +485,9 @@ function TodayDashboard({ rows, refDate }: { rows: TodayRow[]; refDate: string }
                       {dayStatus === "UNPAID_ABSENCE" && <Badge status="unpaidAbsence">Absent</Badge>}
                       {dayStatus === "NORMAL" && !timedIn && <Badge status="notYetTimedIn" />}
                       {dayStatus === "NORMAL" && timedIn && isLate && <Badge status="late" />}
-                      {dayStatus === "NORMAL" && timedIn && isUndertime && <Badge status="undertime" />}
-                      {dayStatus === "NORMAL" && timedIn && !isLate && !isUndertime && <Badge status="onTime" />}
+                      {dayStatus === "NORMAL" && timedIn && isHalfDay && <Badge status="halfDay" />}
+                      {dayStatus === "NORMAL" && timedIn && !isHalfDay && isUndertime && <Badge status="undertime" />}
+                      {dayStatus === "NORMAL" && timedIn && !isLate && !isUndertime && !isHalfDay && <Badge status="onTime" />}
                       {dayStatus === "NORMAL" && returnedLateFromBreak && <Badge status="lateFromBreak" />}
                     </div>
                   </td>

@@ -103,6 +103,7 @@ export async function POST(request: Request) {
         overtimeHours: Math.round((d.overtimeMinutes / 60) * 100) / 100,
         isLate: d.isLate,
         isUndertime: d.isUndertime,
+        isHalfDay: d.isHalfDay,
         returnedLateFromBreak: d.returnedLateFromBreak,
         dayStatus: d.dayStatus,
       })),

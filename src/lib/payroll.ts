@@ -42,6 +42,9 @@ export interface PayrollSettings {
   shiftEndTime: string;
 }
 
+/** A Time Out before 1 PM (Asia/Manila) is a half day -- same cutoff the kiosk uses. */
+const HALF_DAY_CUTOFF_MINUTES = 13 * 60;
+
 export interface DailyResult {
   date: string;
   workedMinutes: number;
@@ -52,6 +55,9 @@ export interface DailyResult {
    * time-in came in; 0 when not late. */
   lateMinutes: number;
   isUndertime: boolean;
+  /** Timed out before 1 PM -- left without taking lunch (the kiosk's "Time Out
+   * Early"). A stronger flag than isUndertime, so it's shown instead of it. */
+  isHalfDay: boolean;
   returnedLateFromBreak: boolean;
   /** Timed in but never timed out -- e.g. started the lunch break and never
    * came back. Only the time up to the last punch counts as worked. */
@@ -235,6 +241,7 @@ export function computeDailyResults(
         isLate: false,
         lateMinutes: 0,
         isUndertime: false,
+        isHalfDay: false,
         returnedLateFromBreak: false,
         missingTimeOut: false,
         dayStatus,
@@ -249,6 +256,7 @@ export function computeDailyResults(
         isLate: false,
         lateMinutes: 0,
         isUndertime: false,
+        isHalfDay: false,
         returnedLateFromBreak: false,
         missingTimeOut: false,
         dayStatus,
@@ -288,6 +296,7 @@ export function computeDailyResults(
     const isUndertime = lastOut
       ? localMinutesOfDay(lastOut.timestamp) < shiftEndMinutes
       : false;
+    const isHalfDay = lastOut ? localMinutesOfDay(lastOut.timestamp) < HALF_DAY_CUTOFF_MINUTES : false;
 
     return {
       date,
@@ -297,6 +306,7 @@ export function computeDailyResults(
       isLate,
       lateMinutes,
       isUndertime,
+      isHalfDay,
       returnedLateFromBreak,
       missingTimeOut: Boolean(firstIn) && !lastOut,
       dayStatus,
