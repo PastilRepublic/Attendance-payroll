@@ -675,7 +675,14 @@ export default function KioskClient({
                 ? "Clean up before your break"
                 : "Clean up before you time out"
             }
-            notice={<strong>Only tick what you actually did, and only if it is completely done.</strong>}
+            notice={
+              <>
+                <strong>Only tick what you actually did, and only if it is completely done.</strong>
+                <span className="mt-2 block rounded-lg bg-red-600 px-3 py-2 text-center font-bold uppercase text-white">
+                  Don&apos;t tick if it is not finished yet
+                </span>
+              </>
+            }
             tasks={pendingTasks.filter((t) => t.timing === gate)}
             progress={checklistProgress}
             doneIds={doneTaskIds}
