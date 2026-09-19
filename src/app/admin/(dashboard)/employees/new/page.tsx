@@ -1,7 +1,8 @@
 import { formatInTimeZone } from "date-fns-tz";
-import { TIMEZONE, PAY_BASIS_LABELS, type PayBasis } from "@/lib/payroll";
+import { TIMEZONE } from "@/lib/payroll";
 import { createEmployee } from "../actions";
 import PasswordInput from "@/components/PasswordInput";
+import PayBasisFields from "@/components/PayBasisFields";
 import PhotoInput from "@/components/PhotoInput";
 import PageHeader from "@/components/PageHeader";
 import Card from "@/components/Card";
@@ -36,39 +37,11 @@ export default function NewEmployeePage() {
             className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
           />
         </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              Pay basis
-            </label>
-            <select
-              name="payBasis"
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-            >
-              {(Object.keys(PAY_BASIS_LABELS) as PayBasis[]).map((basis) => (
-                <option key={basis} value={basis}>
-                  {PAY_BASIS_LABELS[basis]}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              Pay rate (₱)
-            </label>
-            <input
-              name="payRate"
-              type="number"
-              step="0.01"
-              min="0"
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-            />
-          </div>
-        </div>
+        <PayBasisFields />
         <p className="text-xs text-slate-500 -mt-2">
           Hourly: per hour. Daily / Flat daily: per day. Flat daily pays the full rate for any day
-          worked, however early they leave. Production ignores this rate and uses the Cooking / Jar
-          Filling rates in Settings.
+          worked, however early they leave. Production doesn&apos;t use this rate; it uses the
+          Cooking / Jar Filling rates in Settings.
         </p>
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1">
