@@ -102,6 +102,8 @@ interface TodayRow {
   isLate: boolean;
   isUndertime: boolean;
   isHalfDay: boolean;
+  /** Timed in, never timed out, and the day is over (not today's live shift). */
+  noTimeOut: boolean;
   returnedLateFromBreak: boolean;
   /** Live presence, only set when refDate is actually today -- a past day's
    * last punch isn't a "current" status. */
@@ -225,6 +227,7 @@ export default async function AttendancePage({
         isLate: computed.isLate,
         isUndertime: computed.isUndertime,
         isHalfDay: computed.isHalfDay,
+        noTimeOut: computed.missingTimeOut && !isToday,
         returnedLateFromBreak: computed.returnedLateFromBreak,
         presence: isToday ? derivePresenceStatus(lastPunchType) : undefined,
       };
@@ -410,6 +413,7 @@ export default async function AttendancePage({
                           {d.dayStatus === "UNPAID_ABSENCE" && <Badge status="unpaidAbsence">Absent</Badge>}
                           {d.isLate && <Badge status="late" />}
                           {d.isHalfDay ? <Badge status="halfDay" /> : d.isUndertime && <Badge status="undertime" />}
+                          {d.missingTimeOut && d.date < todayManila() && <Badge status="noTimeOut" />}
                           {d.returnedLateFromBreak && <Badge status="lateFromBreak" />}
                         </div>
                       </td>
@@ -451,7 +455,7 @@ function TodayDashboard({ rows, refDate }: { rows: TodayRow[]; refDate: string }
           </thead>
           <tbody>
             {rows.map((row) => {
-              const { employee, punches, dayStatus, timeline, timedIn, isLate, isUndertime, isHalfDay, returnedLateFromBreak, presence } = row;
+              const { employee, punches, dayStatus, timeline, timedIn, isLate, isUndertime, isHalfDay, noTimeOut, returnedLateFromBreak, presence } = row;
               const showTimes = dayStatus === "NORMAL";
               return (
                 <tr key={employee.id} className="border-t border-slate-100 align-top">
@@ -487,7 +491,8 @@ function TodayDashboard({ rows, refDate }: { rows: TodayRow[]; refDate: string }
                       {dayStatus === "NORMAL" && timedIn && isLate && <Badge status="late" />}
                       {dayStatus === "NORMAL" && timedIn && isHalfDay && <Badge status="halfDay" />}
                       {dayStatus === "NORMAL" && timedIn && !isHalfDay && isUndertime && <Badge status="undertime" />}
-                      {dayStatus === "NORMAL" && timedIn && !isLate && !isUndertime && !isHalfDay && <Badge status="onTime" />}
+                      {dayStatus === "NORMAL" && timedIn && noTimeOut && <Badge status="noTimeOut" />}
+                      {dayStatus === "NORMAL" && timedIn && !isLate && !isUndertime && !isHalfDay && !noTimeOut && <Badge status="onTime" />}
                       {dayStatus === "NORMAL" && returnedLateFromBreak && <Badge status="lateFromBreak" />}
                     </div>
                   </td>

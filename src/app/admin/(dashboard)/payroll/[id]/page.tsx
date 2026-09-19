@@ -6,7 +6,7 @@ import {
   adjustmentsTotal,
   getPeriodDailyResults,
 } from "@/lib/payrollService";
-import { suggestedLateDeduction, isEarlyOutDay, type PayBreakdownLine } from "@/lib/payroll";
+import { suggestedLateDeduction, isEarlyOutDay, localDateKey, type PayBreakdownLine } from "@/lib/payroll";
 import { getSettings, getOperationDayOverrides } from "@/lib/settings";
 import { rotationDayForDate, resolveOperationDayForDate } from "@/lib/operationDay";
 import {
@@ -99,6 +99,14 @@ export default async function PayPeriodDetailPage({
                 hours: d.regularMinutes / 60,
               }))
           : [];
+      // A forgotten Time Out only counts the time up to their last punch, so
+      // point it out for everyone. Production days that also get the Half day
+      // suggestion above already carry the note, so skip those here.
+      const today = localDateKey(new Date());
+      const earlyOutDates = new Set(earlyOutDays.map((d) => d.date));
+      const noTimeOutDays = dailyResults
+        .filter((d) => d.missingTimeOut && d.dayStatus === null && d.date < today && !earlyOutDates.has(d.date))
+        .map((d) => d.date);
       // Worked on a day the rotation says is Off (Sunday) and nobody set the day
       // type: they're paid the Jar Filling rate unless it's set to Cooking.
       const offDaysWorked =
@@ -128,6 +136,7 @@ export default async function PayPeriodDetailPage({
         suggestedCleaningBonuses,
         suggestedLate,
         earlyOutDays,
+        noTimeOutDays,
         offDaysWorked,
       };
     })
@@ -230,7 +239,7 @@ export default async function PayPeriodDetailPage({
       )}
 
       <div className="space-y-4">
-        {payslips.map(({ employee, payslip, suggestedCleaningBonuses, suggestedLate, earlyOutDays }) => {
+        {payslips.map(({ employee, payslip, suggestedCleaningBonuses, suggestedLate, earlyOutDays, noTimeOutDays }) => {
           const adjTotal = adjustmentsTotal(payslip.adjustments);
           const total = Number(payslip.grossPay) + adjTotal;
           const breakdownLines =
@@ -388,6 +397,16 @@ export default async function PayPeriodDetailPage({
                       </div>
                     </div>
                   ))}
+                </div>
+              )}
+
+              {payslip.status !== "FINALIZED" && noTimeOutDays.length > 0 && (
+                <div className="mb-2 rounded-md bg-red-50 border border-red-200 p-2">
+                  <p className="text-xs font-medium text-red-800">
+                    No Time Out on {noTimeOutDays.join(", ")} — only the time up to their last punch
+                    is counted. If they did work the full day, fix it on the Attendance page before
+                    finalizing.
+                  </p>
                 </div>
               )}
 
