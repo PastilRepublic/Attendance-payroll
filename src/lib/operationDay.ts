@@ -6,9 +6,10 @@ export type OperationDay = "COOKING" | "JAR_FILLING";
 export type ResolvedOperationDay = OperationDay | "OFF";
 
 // Default weekly rotation when nobody has manually overridden a date's
-// operation day: alternates starting Monday, Sunday is a day off.
+// operation day: alternates starting Monday. Sunday is a normal working day
+// (the packing team works it) and counts as Jar Filling.
 const WEEKDAY_ROTATION: Record<string, ResolvedOperationDay> = {
-  Sunday: "OFF",
+  Sunday: "JAR_FILLING",
   Monday: "COOKING",
   Tuesday: "JAR_FILLING",
   Wednesday: "COOKING",
