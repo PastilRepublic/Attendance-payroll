@@ -3,7 +3,9 @@
 import { useState } from "react";
 import { PAY_BASIS_LABELS, type PayBasis } from "@/lib/payroll";
 
-const inputClass = "w-full rounded-md border border-slate-300 px-3 py-2 text-sm";
+const inputBase = "w-full rounded-md border px-3 py-2 text-sm";
+const inputClass = `${inputBase} border-slate-300`;
+const inputErrorClass = `${inputBase} border-red-500 bg-red-50`;
 
 /** Pay basis + pay rate pair. Production pay comes from the Cooking / Jar
  * Filling rates in Settings, so the per-employee rate is locked for it. */
@@ -15,7 +17,10 @@ export default function PayBasisFields({
   defaultPayRate?: number;
 }) {
   const [payBasis, setPayBasis] = useState<PayBasis>(defaultPayBasis ?? "HOURLY");
-  const [payRate, setPayRate] = useState(defaultPayRate === undefined ? "" : String(defaultPayRate));
+  // A stored 0 (Production has no rate of its own) starts blank, so switching
+  // to another pay basis makes it obvious that a rate still has to be entered.
+  const [payRate, setPayRate] = useState(defaultPayRate ? String(defaultPayRate) : "");
+  const [rateInvalid, setRateInvalid] = useState(false);
   const rateLocked = payBasis === "OPERATION_DAY";
 
   return (
@@ -25,7 +30,10 @@ export default function PayBasisFields({
         <select
           name="payBasis"
           value={payBasis}
-          onChange={(e) => setPayBasis(e.target.value as PayBasis)}
+          onChange={(e) => {
+            setPayBasis(e.target.value as PayBasis);
+            setRateInvalid(false);
+          }}
           className={inputClass}
         >
           {(Object.keys(PAY_BASIS_LABELS) as PayBasis[]).map((basis) => (
@@ -41,13 +49,22 @@ export default function PayBasisFields({
           name="payRate"
           type="number"
           step="0.01"
-          min="0"
+          min="0.01"
+          required={!rateLocked}
           disabled={rateLocked}
           value={rateLocked ? "" : payRate}
-          onChange={(e) => setPayRate(e.target.value)}
+          onChange={(e) => {
+            setPayRate(e.target.value);
+            setRateInvalid(false);
+          }}
+          onInvalid={() => setRateInvalid(true)}
           placeholder={rateLocked ? "Set in Settings" : undefined}
-          className={`${inputClass} disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed`}
+          aria-invalid={rateInvalid}
+          className={`${rateInvalid ? inputErrorClass : inputClass} disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed`}
         />
+        {rateInvalid && (
+          <p className="text-xs text-red-600 mt-1">Enter a pay rate greater than 0.</p>
+        )}
       </div>
     </div>
   );
