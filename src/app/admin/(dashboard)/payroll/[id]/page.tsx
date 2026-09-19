@@ -407,8 +407,8 @@ export default async function PayPeriodDetailPage({
                 <div className="mb-2 rounded-md bg-red-50 border border-red-200 p-2">
                   <p className="text-xs font-medium text-red-800">
                     No Time Out on {noTimeOutDays.join(", ")} — only the time up to their last punch
-                    is counted. If they did work the full day, fix it on the Attendance page before
-                    finalizing.
+                    is counted. Set their actual Time Out on the Attendance page (whether they
+                    worked the full day or went home early) before finalizing.
                   </p>
                 </div>
               )}
