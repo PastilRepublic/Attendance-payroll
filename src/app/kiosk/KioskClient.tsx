@@ -684,7 +684,7 @@ export default function KioskClient({
               </>
             }
             tasks={pendingTasks.filter((t) => t.timing === gate)}
-            progress={checklistProgress}
+            progress={[]}
             doneIds={doneTaskIds}
             onComplete={completeTask}
             onUndo={undoTask}
