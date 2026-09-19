@@ -547,9 +547,10 @@ export default function KioskClient({
     [selectedEmployee, chosenAction, finishGate]
   );
 
-  // Whoever still has coworkers to come may leave duties pending as long as
-  // they signed off at least one they did; the last one through must clear
-  // the whole list.
+  // Before Start Break/Lunch every duty must be cleared, so nobody gets to
+  // lunch first by ticking a single item. At Time Out, whoever still has
+  // coworkers to come may leave duties pending as long as they signed off at
+  // least one they did; the last one through must clear the whole list.
   let gateBlocked = false;
   let gateBlockReason: string | null = null;
   if (gate) {
@@ -560,7 +561,10 @@ export default function KioskClient({
         ? identifyData?.coworkersStillIn?.beforeBreak
         : identifyData?.coworkersStillIn?.beforeOut) ?? 0;
     if (!allDone) {
-      if (others === 0) {
+      if (gate === "PRE_COOKING") {
+        gateBlocked = true;
+        gateBlockReason = "Every item must be done before you can start your break.";
+      } else if (others === 0) {
         gateBlocked = true;
         gateBlockReason = "You're the last one, so every item must be done before you can continue.";
       } else if (!gated.some((t) => doneTaskIds.has(t.id))) {
