@@ -550,6 +550,7 @@ export default function KioskClient({
   // Whoever still has coworkers to come may leave duties pending as long as
   // they signed off at least one they did; the last one through must clear
   // the whole list.
+  let gateBlocked = false;
   let gateBlockReason: string | null = null;
   if (gate) {
     const gated = pendingTasks.filter((t) => t.timing === gate);
@@ -560,10 +561,10 @@ export default function KioskClient({
         : identifyData?.coworkersStillIn?.beforeOut) ?? 0;
     if (!allDone) {
       if (others === 0) {
+        gateBlocked = true;
         gateBlockReason = "You're the last one, so every item must be done before you can continue.";
       } else if (!gated.some((t) => doneTaskIds.has(t.id))) {
-        gateBlockReason =
-          "Tick at least one item you did. Coworkers still on shift will finish the rest.";
+        gateBlocked = true;
       }
     }
   }
@@ -613,7 +614,11 @@ export default function KioskClient({
         </div>
       </div>
 
-      <div className="flex-1 flex items-center justify-center px-4 py-4 overflow-y-auto">
+      <div
+        className={`flex-1 flex ${
+          screen === "tasks" ? "items-start" : "items-center"
+        } justify-center px-4 py-4 overflow-y-auto`}
+      >
         {screen === "home" && (
           <PinPad
             pin={pin}
@@ -666,13 +671,20 @@ export default function KioskClient({
                 ? "Clean up before your break"
                 : "Clean up before you time out"
             }
-            subtitle={`Tick the items you did to continue to ${ACTION_LABELS[chosenAction]}.`}
+            notice={
+              <>
+                <strong>Only tick what you actually did, and only if it is completely done.</strong>{" "}
+                For team jobs, don&apos;t tick it if it isn&apos;t finished yet. Example: sweeping the
+                floor is not enough if it still needs to be washed with detergent.
+              </>
+            }
             tasks={pendingTasks.filter((t) => t.timing === gate)}
             progress={checklistProgress}
             doneIds={doneTaskIds}
             onComplete={completeTask}
             onUndo={undoTask}
             finishLabel={`Continue to ${ACTION_LABELS[chosenAction]}`}
+            blocked={gateBlocked}
             blockReason={gateBlockReason}
             onFinish={finishGate}
             onCancel={cancelGate}
@@ -929,12 +941,14 @@ function ActionPanel({
 function TaskChecklist({
   title,
   subtitle,
+  notice,
   tasks,
   progress,
   doneIds,
   onComplete,
   onUndo,
   finishLabel,
+  blocked = false,
   blockReason = null,
   onFinish,
   onCancel,
@@ -942,24 +956,33 @@ function TaskChecklist({
 }: {
   title: string;
   subtitle?: string;
+  /** Prominent instruction shown above the list. */
+  notice?: React.ReactNode;
   tasks: PendingTask[];
   progress: { status: "PENDING" | "DONE"; inspectionResult: "PASS" | "FAIL" | null }[];
   doneIds: Set<string>;
   onComplete: (taskId: string, kind: "TASK" | "SANITATION") => void;
   onUndo: (taskId: string, kind: "TASK" | "SANITATION") => void;
   finishLabel: string;
+  /** Disables the finish button; blockReason is the optional explanation. */
+  blocked?: boolean;
   blockReason?: string | null;
   onFinish: () => void;
   onCancel?: () => void;
   onOverride?: () => void;
 }) {
-  const finishDisabled = !!blockReason;
+  const finishDisabled = blocked || !!blockReason;
   return (
     <div className="text-center w-full max-w-md">
       <p className={`text-2xl font-semibold text-slate-900 ${subtitle ? "mb-2" : "mb-6"}`}>
         {title}
       </p>
       {subtitle && <p className="text-sm text-slate-500 mb-6">{subtitle}</p>}
+      {notice && (
+        <p className="mb-5 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-base text-amber-900 text-left">
+          {notice}
+        </p>
+      )}
       {progress.length > 0 && (
         <div className="mb-5 rounded-xl border border-slate-200 bg-white px-5 py-4 text-left">
           <SanitationProgress tasks={progress} />
@@ -978,18 +1001,24 @@ function TaskChecklist({
                   : "bg-white border-slate-200 text-slate-900 hover:bg-slate-50"
               }`}
             >
-              <span>{t.name}</span>
+              <span className="flex items-center gap-4">
+                <span
+                  aria-hidden
+                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md border-2 text-xl font-bold ${
+                    done ? "border-green-600 bg-green-600 text-white" : "border-slate-400 bg-white text-transparent"
+                  }`}
+                >
+                  ✓
+                </span>
+                <span>{t.name}</span>
+              </span>
               <span className="flex items-center gap-3">
                 {t.bonusAmount ? (
                   <span className="text-sm text-amber-600">
                     +₱{t.bonusAmount.toFixed(2)}
                   </span>
                 ) : null}
-                {done && (
-                  <span className="flex items-center gap-1.5 text-sm">
-                    ✓ <span className="text-green-600/80">tap to undo</span>
-                  </span>
-                )}
+                {done && <span className="text-sm text-green-600/80">tap to undo</span>}
               </span>
             </button>
           );
@@ -1013,7 +1042,7 @@ function TaskChecklist({
         </button>
       </div>
       {blockReason && <p className="mt-4 text-sm text-amber-700">{blockReason}</p>}
-      {onOverride && blockReason && (
+      {onOverride && finishDisabled && (
         <button
           onClick={onOverride}
           className="mt-5 text-sm text-slate-500 hover:text-slate-800 underline"
