@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { resolveEmployeeByPin } from "@/lib/kioskAuth";
 import { getSettings } from "@/lib/settings";
-import { computeDailyResults, localDateKey, TIMEZONE } from "@/lib/payroll";
+import { computeDailyResults, earlyOutFlag, localDateKey, TIMEZONE } from "@/lib/payroll";
 import { computeDayTimeline } from "@/lib/attendanceSlots";
 import { formatInTimeZone } from "date-fns-tz";
 
@@ -31,6 +31,11 @@ export async function POST(request: Request) {
   }
 
   const settings = await getSettings();
+  const employeeRecord = await prisma.employee.findUnique({
+    where: { id: matched.id },
+    select: { payBasis: true },
+  });
+  const payBasis = employeeRecord?.payBasis ?? "HOURLY";
   const today = formatInTimeZone(new Date(), TIMEZONE, "yyyy-MM-dd");
   // Any start/end pair (a week or month can straddle months). Defaults to the
   // current month so far; nothing after today has data, so end clamps to today.
@@ -102,8 +107,7 @@ export async function POST(request: Request) {
         regularHours: Math.round((d.regularMinutes / 60) * 100) / 100,
         overtimeHours: Math.round((d.overtimeMinutes / 60) * 100) / 100,
         isLate: d.isLate,
-        isUndertime: d.isUndertime,
-        isHalfDay: d.isHalfDay,
+        earlyFlag: earlyOutFlag(d, payBasis),
         returnedLateFromBreak: d.returnedLateFromBreak,
         dayStatus: d.dayStatus,
       })),

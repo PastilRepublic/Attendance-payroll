@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { adjustmentsTotal, getPeriodDailyResults } from "@/lib/payrollService";
-import { TIMEZONE, PAY_BASIS_LABELS, type PayBreakdownLine } from "@/lib/payroll";
+import { TIMEZONE, PAY_BASIS_LABELS, earlyOutFlag, type PayBreakdownLine } from "@/lib/payroll";
 import { getSettings } from "@/lib/settings";
 import { formatInTimeZone } from "date-fns-tz";
 import PrintButton from "./PrintButton";
@@ -28,8 +28,9 @@ export default async function PayslipPrintPage({
       if (d.dayStatus === "PAID_LEAVE") flags.push("Paid leave");
       if (d.isLate) flags.push(`Late (${d.lateMinutes} min)`);
       if (d.returnedLateFromBreak) flags.push("Late back from break");
-      if (d.isHalfDay) flags.push("Half day");
-      else if (d.isUndertime) flags.push("Left early");
+      const early = earlyOutFlag(d, payslip.employee.payBasis);
+      if (early === "halfDay") flags.push("Half day");
+      else if (early) flags.push("Left early");
       return { date: d.date, flags };
     })
     .filter((d) => d.flags.length > 0);

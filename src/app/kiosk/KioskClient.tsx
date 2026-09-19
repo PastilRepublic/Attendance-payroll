@@ -43,6 +43,7 @@ interface IdentifyData {
   activityLog: ActivityEntry[];
   totals: Totals;
   requirePhoto: boolean;
+  exemptFromHalfDay: boolean;
   coworkersStillIn?: { beforeBreak: number; beforeOut: number };
 }
 
@@ -90,8 +91,9 @@ const isUngated = (t: PendingTask) => !t.timing || t.timing === "ANYTIME";
  * Time Out offered next to Start Break, before ~1 PM, means going home without
  * taking lunch -- a half day -- so the kiosk asks them to confirm first.
  */
-function isHalfDayOut(type: PunchType, allowedActions: PunchType[]): boolean {
-  if (type !== "OUT" || !allowedActions.includes("BREAK_START")) return false;
+function isHalfDayOut(type: PunchType, data: IdentifyData): boolean {
+  if (data.exemptFromHalfDay) return false;
+  if (type !== "OUT" || !data.allowedActions.includes("BREAK_START")) return false;
   const hour = Number(
     new Intl.DateTimeFormat("en-US", { hour: "numeric", hourCycle: "h23", timeZone: "Asia/Manila" }).format(
       new Date()
@@ -461,6 +463,7 @@ export default function KioskClient({
           activityLog: Array.isArray(data.activityLog) ? data.activityLog : [],
           totals: data.totals ?? { todayMinutes: 0, weekMinutes: 0 },
           requirePhoto: Boolean(data.requirePhoto),
+          exemptFromHalfDay: Boolean(data.exemptFromHalfDay),
           coworkersStillIn: data.coworkersStillIn,
         });
         setChosenAction(null);
@@ -885,11 +888,11 @@ function ActionPanel({
             <button
               key={type}
               onClick={() =>
-                isHalfDayOut(type, data.allowedActions) ? setConfirmingLeave(true) : onAction(type)
+                isHalfDayOut(type, data) ? setConfirmingLeave(true) : onAction(type)
               }
               className={`w-36 h-28 rounded-2xl text-lg font-bold text-white flex items-center justify-center ${ACTION_BUTTON_STYLES[type]}`}
             >
-              {isHalfDayOut(type, data.allowedActions) ? "Time Out Early" : ACTION_LABELS[type]}
+              {isHalfDayOut(type, data) ? "Time Out Early" : ACTION_LABELS[type]}
             </button>
           ))
         )}

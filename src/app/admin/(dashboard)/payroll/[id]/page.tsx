@@ -140,6 +140,7 @@ export default async function PayPeriodDetailPage({
         suggestedLate,
         earlyOutDays,
         noTimeOutDays,
+        paidFullDay: emp.payBasis === "FLAT_DAILY",
         offDaysWorked,
       };
     })
@@ -242,7 +243,7 @@ export default async function PayPeriodDetailPage({
       )}
 
       <div className="space-y-4">
-        {payslips.map(({ employee, payslip, suggestedCleaningBonuses, suggestedLate, earlyOutDays, noTimeOutDays }) => {
+        {payslips.map(({ employee, payslip, suggestedCleaningBonuses, suggestedLate, earlyOutDays, noTimeOutDays, paidFullDay }) => {
           const adjTotal = adjustmentsTotal(payslip.adjustments);
           const total = Number(payslip.grossPay) + adjTotal;
           const breakdownLines =
@@ -406,9 +407,9 @@ export default async function PayPeriodDetailPage({
               {payslip.status !== "FINALIZED" && noTimeOutDays.length > 0 && (
                 <div className="mb-2 rounded-md bg-red-50 border border-red-200 p-2">
                   <p className="text-xs font-medium text-red-800">
-                    No Time Out on {noTimeOutDays.join(", ")} — only the time up to their last punch
-                    is counted. Set their actual Time Out on the Attendance page (whether they
-                    worked the full day or went home early) before finalizing.
+                    {paidFullDay
+                      ? `No Time Out on ${noTimeOutDays.join(", ")} — paid the full day rate. Set their actual Time Out on the Attendance page if you want the record complete.`
+                      : `No Time Out on ${noTimeOutDays.join(", ")} — only the time up to their last punch is counted. Set their actual Time Out on the Attendance page (whether they worked the full day or went home early) before finalizing.`}
                   </p>
                 </div>
               )}

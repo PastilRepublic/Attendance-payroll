@@ -5,6 +5,7 @@ import {
   computePay,
   computeDayBasedPay,
   isEarlyOutDay,
+  earlyOutFlag,
   localDateKey,
   type PayrollSettings,
   type OperationPayRates,
@@ -464,6 +465,15 @@ describe("isEarlyOutDay", () => {
     expect(isEarlyOutDay(day([{ h: 8, type: "IN" }, { h: 17, type: "OUT" }]))).toBe(false);
     expect(isEarlyOutDay(day([]))).toBe(false);
     expect(isEarlyOutDay(day([{ h: 8, type: "IN" }, { h: 12, type: "OUT" }], "UNPAID_ABSENCE"))).toBe(false);
+  });
+});
+
+describe("earlyOutFlag", () => {
+  it("labels by pay basis: packing never gets Half day or Undertime", () => {
+    expect(earlyOutFlag({ isHalfDay: true, isUndertime: true }, "OPERATION_DAY")).toBe("halfDay");
+    expect(earlyOutFlag({ isHalfDay: false, isUndertime: true }, "HOURLY")).toBe("undertime");
+    expect(earlyOutFlag({ isHalfDay: true, isUndertime: true }, "FLAT_DAILY")).toBe("leftEarly");
+    expect(earlyOutFlag({ isHalfDay: false, isUndertime: false }, "FLAT_DAILY")).toBe(null);
   });
 });
 

@@ -68,6 +68,8 @@ export async function POST(request: Request) {
     allowedActions: snapshot.allowedActions,
     activityLog: snapshot.activityLog,
     totals: snapshot.totals,
+    // Packing (flat daily) can go home whenever they're done, so no half-day prompt.
+    exemptFromHalfDay: employeeRecord?.payBasis === "FLAT_DAILY",
     requirePhoto: await getRequirePhotoOnPunch(),
     coworkersStillIn: await countCoworkersStillIn(matched.id),
     pendingTasks: [

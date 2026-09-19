@@ -20,8 +20,7 @@ interface AttendanceDay {
   regularHours: number;
   overtimeHours: number;
   isLate: boolean;
-  isUndertime: boolean;
-  isHalfDay: boolean;
+  earlyFlag: "halfDay" | "undertime" | "leftEarly" | null;
   returnedLateFromBreak: boolean;
   dayStatus: "PAID_LEAVE" | "UNPAID_ABSENCE" | null;
 }
@@ -529,7 +528,7 @@ export default function EmployeeClient() {
                               {d.dayStatus === "PAID_LEAVE" && <Badge status="paidLeave" />}
                               {d.dayStatus === "UNPAID_ABSENCE" && <Badge status="unpaidAbsence" />}
                               {d.isLate && <Badge status="late" />}
-                              {d.isHalfDay ? <Badge status="halfDay" /> : d.isUndertime && <Badge status="undertime" />}
+                              {d.earlyFlag && <Badge status={d.earlyFlag} />}
                               {d.returnedLateFromBreak && <Badge status="lateFromBreak" />}
                             </div>
                           </td>

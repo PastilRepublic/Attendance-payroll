@@ -65,6 +65,22 @@ export interface DailyResult {
   dayStatus: DayStatusType | null;
 }
 
+export type EarlyOutFlag = "halfDay" | "undertime" | "leftEarly" | null;
+
+/**
+ * How a day that ended early is labelled. Flat daily (packing) staff go home
+ * whenever the packing is done and are paid the full day either way, so it's
+ * a neutral "Left early" for them -- never a half day or undertime.
+ */
+export function earlyOutFlag(
+  d: Pick<DailyResult, "isHalfDay" | "isUndertime">,
+  payBasis: PayBasis
+): EarlyOutFlag {
+  if (payBasis === "FLAT_DAILY") return d.isUndertime ? "leftEarly" : null;
+  if (d.isHalfDay) return "halfDay";
+  return d.isUndertime ? "undertime" : null;
+}
+
 /** A half day (Time Out before 1 PM) or a day that never got a Time Out -- a
  * candidate for a "Half day" deduction on a Production (OPERATION_DAY)
  * employee's payslip. Matches the Half day badge on the attendance pages. */

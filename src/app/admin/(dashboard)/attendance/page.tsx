@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
-import { computeDailyResults, localDateKey } from "@/lib/payroll";
+import { computeDailyResults, earlyOutFlag, localDateKey, type EarlyOutFlag } from "@/lib/payroll";
 import { computeDayTimeline, pickDaySlots } from "@/lib/attendanceSlots";
 import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
 import { TIMEZONE } from "@/lib/payroll";
@@ -100,8 +100,7 @@ interface TodayRow {
   timeline: ReturnType<typeof computeDayTimeline>;
   timedIn: boolean;
   isLate: boolean;
-  isUndertime: boolean;
-  isHalfDay: boolean;
+  earlyFlag: EarlyOutFlag;
   /** Timed in, never timed out, and the day is over (not today's live shift). */
   noTimeOut: boolean;
   returnedLateFromBreak: boolean;
@@ -225,8 +224,7 @@ export default async function AttendancePage({
         timeline: computeDayTimeline(empPunches),
         timedIn: empPunches.some((p) => p.type === "IN"),
         isLate: computed.isLate,
-        isUndertime: computed.isUndertime,
-        isHalfDay: computed.isHalfDay,
+        earlyFlag: earlyOutFlag(computed, emp.payBasis),
         noTimeOut: computed.missingTimeOut && !isToday,
         returnedLateFromBreak: computed.returnedLateFromBreak,
         presence: isToday ? derivePresenceStatus(lastPunchType) : undefined,
@@ -369,6 +367,7 @@ export default async function AttendancePage({
               </thead>
               <tbody>
                 {days.map((d) => {
+                  const earlyFlag = (day: typeof d) => earlyOutFlag(day, selectedEmployee?.payBasis ?? "HOURLY");
                   const dayPunches = punchesByDay.get(d.date) ?? [];
                   const timeline = computeDayTimeline(dayPunches);
                   const dayStatus = statusByDay.get(d.date) ?? "NORMAL";
@@ -412,7 +411,7 @@ export default async function AttendancePage({
                           {d.dayStatus === "PAID_LEAVE" && <Badge status="paidLeave" />}
                           {d.dayStatus === "UNPAID_ABSENCE" && <Badge status="unpaidAbsence">Absent</Badge>}
                           {d.isLate && <Badge status="late" />}
-                          {d.isHalfDay ? <Badge status="halfDay" /> : d.isUndertime && <Badge status="undertime" />}
+                          {earlyFlag(d) && <Badge status={earlyFlag(d)!} />}
                           {d.missingTimeOut && d.date < todayManila() && <Badge status="noTimeOut" />}
                           {d.returnedLateFromBreak && <Badge status="lateFromBreak" />}
                         </div>
@@ -455,7 +454,7 @@ function TodayDashboard({ rows, refDate }: { rows: TodayRow[]; refDate: string }
           </thead>
           <tbody>
             {rows.map((row) => {
-              const { employee, punches, dayStatus, timeline, timedIn, isLate, isUndertime, isHalfDay, noTimeOut, returnedLateFromBreak, presence } = row;
+              const { employee, punches, dayStatus, timeline, timedIn, isLate, earlyFlag, noTimeOut, returnedLateFromBreak, presence } = row;
               const showTimes = dayStatus === "NORMAL";
               return (
                 <tr key={employee.id} className="border-t border-slate-100 align-top">
@@ -489,10 +488,9 @@ function TodayDashboard({ rows, refDate }: { rows: TodayRow[]; refDate: string }
                       {dayStatus === "UNPAID_ABSENCE" && <Badge status="unpaidAbsence">Absent</Badge>}
                       {dayStatus === "NORMAL" && !timedIn && <Badge status="notYetTimedIn" />}
                       {dayStatus === "NORMAL" && timedIn && isLate && <Badge status="late" />}
-                      {dayStatus === "NORMAL" && timedIn && isHalfDay && <Badge status="halfDay" />}
-                      {dayStatus === "NORMAL" && timedIn && !isHalfDay && isUndertime && <Badge status="undertime" />}
+                      {dayStatus === "NORMAL" && timedIn && earlyFlag && <Badge status={earlyFlag} />}
                       {dayStatus === "NORMAL" && timedIn && noTimeOut && <Badge status="noTimeOut" />}
-                      {dayStatus === "NORMAL" && timedIn && !isLate && !isUndertime && !isHalfDay && !noTimeOut && <Badge status="onTime" />}
+                      {dayStatus === "NORMAL" && timedIn && !isLate && !earlyFlag && !noTimeOut && <Badge status="onTime" />}
                       {dayStatus === "NORMAL" && returnedLateFromBreak && <Badge status="lateFromBreak" />}
                     </div>
                   </td>
