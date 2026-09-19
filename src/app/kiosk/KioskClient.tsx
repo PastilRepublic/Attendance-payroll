@@ -848,7 +848,7 @@ function ActionPanel({
                 }}
                 className="flex-1 rounded-xl bg-slate-700 py-3 font-semibold text-white"
               >
-                Yes, time out
+                Yes, time out early
               </button>
             </div>
           </div>
@@ -880,7 +880,7 @@ function ActionPanel({
               }
               className={`w-36 h-28 rounded-2xl text-lg font-bold text-white flex items-center justify-center ${ACTION_BUTTON_STYLES[type]}`}
             >
-              {ACTION_LABELS[type]}
+              {isHalfDayOut(type, data.allowedActions) ? "Time Out Early" : ACTION_LABELS[type]}
             </button>
           ))
         )}
