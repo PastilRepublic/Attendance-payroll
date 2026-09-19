@@ -848,7 +848,7 @@ function ActionPanel({
                 }}
                 className="flex-1 rounded-xl bg-slate-700 py-3 font-semibold text-white"
               >
-                Yes, time out early
+                Yes, time out
               </button>
             </div>
           </div>
