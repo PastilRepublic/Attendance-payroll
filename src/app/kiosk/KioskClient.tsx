@@ -391,6 +391,13 @@ export default function KioskClient({
     [refreshCounts, scheduleReset, selectedEmployee]
   );
 
+  // Needs an OK tap so the employee can't miss it and wonder if it went through.
+  const showServerError = useCallback(() => {
+    setErrorMessage("Something went wrong. Please try again.");
+    setErrorNeedsAck(true);
+    setScreen("error");
+  }, []);
+
   const submitPunch = useCallback(
     async (pinToSubmit: string, type: PunchType | null, photoDataUrl?: string) => {
       setScreen("submitting");
@@ -424,13 +431,15 @@ export default function KioskClient({
           setErrorNeedsAck(true);
           setScreen("error");
         } else {
-          queueOffline(pinToSubmit, type, photoDataUrl);
+          // The server answered but failed: not a connection problem, so don't
+          // queue a punch that may already have been recorded.
+          showServerError();
         }
       } catch {
         queueOffline(pinToSubmit, type, photoDataUrl);
       }
     },
-    [queueOffline, finishAfterConfirm, scheduleReset, selectedEmployee]
+    [queueOffline, finishAfterConfirm, scheduleReset, selectedEmployee, showServerError]
   );
 
   const handleSubmitPin = useCallback(async () => {
@@ -464,12 +473,12 @@ export default function KioskClient({
         setScreen("error");
         scheduleReset();
       } else {
-        queueOffline(pin, null);
+        showServerError();
       }
     } catch {
       queueOffline(pin, null);
     }
-  }, [pin, queueOffline, scheduleReset, selectedEmployee]);
+  }, [pin, queueOffline, scheduleReset, selectedEmployee, showServerError]);
 
   const proceedWithAction = useCallback(
     (type: PunchType) => {
