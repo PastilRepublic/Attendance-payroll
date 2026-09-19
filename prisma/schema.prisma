@@ -85,6 +85,9 @@ model AdminUser {
   name         String
   email        String    @unique
   passwordHash String
+  /** Optional 6-digit PIN that signs in on its own (no email/password). Unique
+   * across admins -- enforced in code, since only the hash is stored. */
+  pinHash      String?
   role         AdminRole @default(OWNER)
   /** True unless access has been revoked -- kept rather than deleted, since
    * audit log entries and other history reference this account. */
@@ -300,7 +303,12 @@ model Settings {
    * Filling day. Half days are handled by an admin "Half day" deduction. */
   cookingDayRate           Decimal      @default(400) @db.Decimal(10, 2)
   jarFillingDayRate        Decimal      @default(350) @db.Decimal(10, 2)
-  updatedAt                DateTime     @updatedAt
+  /** PIN-only admin login can't tell which account is being guessed at, so the
+   * throttle is global: consecutive wrong PINs, and the time PIN login is
+   * locked until once too many pile up. Email + password login is unaffected. */
+  adminPinFailures         Int          @default(0)
+  adminPinLockedUntil      DateTime?
+  updatedAt               DateTime     @updatedAt
 }
 
 /** The operation day that was actually in effect on a given date, recorded

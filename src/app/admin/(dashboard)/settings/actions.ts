@@ -6,7 +6,8 @@ import { prisma } from "@/lib/prisma";
 import { signOut } from "@/lib/auth";
 import { requireAdmin } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
-import { hashPassword, verifyPassword } from "@/lib/pin";
+import { hashPassword, hashPin, verifyPassword } from "@/lib/pin";
+import { ADMIN_PIN_MESSAGE, ADMIN_PIN_PATTERN, assertAdminPinIsUnique } from "@/lib/adminPin";
 
 const operationalSettingsSchema = z.object({
   requirePhotoOnPunch: z.coerce.boolean(),
@@ -116,4 +117,34 @@ export async function changePassword(formData: FormData) {
   });
 
   await signOut({ redirectTo: "/admin/login" });
+}
+
+/** Sets (or, with a blank PIN, removes) the signed-in admin's PIN-only login. */
+export async function setAdminPin(formData: FormData) {
+  const user = await requireAdmin();
+
+  const currentPassword = z.string().min(1, "Current password is required").parse(formData.get("currentPassword"));
+  const admin = await prisma.adminUser.findUniqueOrThrow({ where: { id: user.id } });
+  if (!(await verifyPassword(currentPassword, admin.passwordHash))) {
+    throw new Error("Current password is incorrect");
+  }
+
+  const pin = String(formData.get("pin") ?? "").trim();
+  let pinHash: string | null = null;
+  if (pin) {
+    if (!ADMIN_PIN_PATTERN.test(pin)) throw new Error(ADMIN_PIN_MESSAGE);
+    await assertAdminPinIsUnique(pin, admin.id);
+    pinHash = await hashPin(pin);
+  }
+
+  await prisma.adminUser.update({ where: { id: admin.id }, data: { pinHash } });
+
+  await logAudit({
+    actorAdminId: admin.id,
+    action: pinHash ? "SET_ADMIN_PIN" : "REMOVE_ADMIN_PIN",
+    targetTable: "AdminUser",
+    targetId: admin.id,
+  });
+
+  revalidatePath("/admin/settings");
 }

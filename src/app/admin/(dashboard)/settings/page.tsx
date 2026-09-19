@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
-import { updateSettings, changePassword } from "./actions";
+import { updateSettings, changePassword, setAdminPin } from "./actions";
 import PasswordInput from "@/components/PasswordInput";
 import PageHeader from "@/components/PageHeader";
 import Card from "@/components/Card";
@@ -17,6 +17,11 @@ export default async function SettingsPage() {
     update: {},
     create: { id: 1 },
   });
+
+  const me = session?.user?.id
+    ? await prisma.adminUser.findUnique({ where: { id: session.user.id }, select: { pinHash: true } })
+    : null;
+  const hasPin = !!me?.pinHash;
 
   return (
     <div className="max-w-xl">
@@ -186,6 +191,36 @@ export default async function SettingsPage() {
           You&apos;ll be signed out after changing your password and need to log in again.
         </p>
         <Button type="submit" variant="secondary" className="w-full">Change Password</Button>
+      </form>
+      </Card>
+
+      <Card className="p-6 mt-6">
+      <form action={setAdminPin} className="space-y-4">
+        <h2 className="text-sm font-semibold text-slate-900">Admin PIN login</h2>
+        <p className="text-xs text-slate-500">
+          {hasPin
+            ? "A PIN is set for your account: you can sign in with just the PIN from the login page. Enter a new PIN to change it, or leave it blank to remove it."
+            : "Set a 6-digit PIN to sign in with just the PIN, without typing your email and password."}{" "}
+          Five wrong PINs in a row lock PIN login for 15 minutes.
+        </p>
+        <PasswordInput
+          name="pin"
+          label={hasPin ? "New PIN (blank to remove)" : "PIN"}
+          autoComplete="off"
+          required={false}
+          inputMode="numeric"
+          pattern="\d{6}"
+          maxLength={6}
+          placeholder="6 digits"
+        />
+        <PasswordInput
+          name="currentPassword"
+          label="Current password"
+          autoComplete="current-password"
+        />
+        <Button type="submit" variant="secondary" className="w-full">
+          {hasPin ? "Update or Remove PIN" : "Set PIN"}
+        </Button>
       </form>
       </Card>
     </div>

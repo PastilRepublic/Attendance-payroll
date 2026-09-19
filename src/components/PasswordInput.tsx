@@ -8,6 +8,9 @@ export default function PasswordInput({
   autoComplete,
   required = true,
   minLength,
+  maxLength,
+  pattern,
+  inputMode,
   placeholder,
   helperText,
 }: {
@@ -16,6 +19,9 @@ export default function PasswordInput({
   autoComplete?: string;
   required?: boolean;
   minLength?: number;
+  maxLength?: number;
+  pattern?: string;
+  inputMode?: "numeric";
   placeholder?: string;
   helperText?: string;
 }) {
@@ -30,6 +36,9 @@ export default function PasswordInput({
           name={name}
           required={required}
           minLength={minLength}
+          maxLength={maxLength}
+          pattern={pattern}
+          inputMode={inputMode}
           placeholder={placeholder}
           autoComplete={autoComplete}
           className="w-full rounded-md border border-slate-300 px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-slate-500"
