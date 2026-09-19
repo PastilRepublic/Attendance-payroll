@@ -34,13 +34,21 @@ export async function POST(request: Request) {
   });
   const isActiveSupervisor = supervisorAccount?.role === "SUPERVISOR" && supervisorAccount.active;
 
+  // Packing team (flat daily rate) isn't part of the cooking / jar filling
+  // cleanup, so they never get the checklist -- Time In/Out works as normal.
+  const employeeRecord = await prisma.employee.findUnique({
+    where: { id: matched.id },
+    select: { payBasis: true },
+  });
+  const skipsChecklist = isActiveSupervisor || employeeRecord?.payBasis === "FLAT_DAILY";
+
   const today = formatInTimeZone(new Date(), TIMEZONE, "yyyy-MM-dd");
-  if (!isActiveSupervisor) {
+  if (!skipsChecklist) {
     await ensureTodaysSanitationSchedule();
   }
   const operationDay = await getOperationDay();
   // Bonus tasks are no longer shown at the kiosk -- only cleaning duties.
-  const pendingSanitation = isActiveSupervisor
+  const pendingSanitation = skipsChecklist
     ? []
     : await prisma.sanitationAssignment.findMany({
         where: {
