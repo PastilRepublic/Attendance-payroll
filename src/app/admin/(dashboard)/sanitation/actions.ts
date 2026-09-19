@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/authz";
+import { requireAdmin, requireOwner } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
 
 // Blank means no bonus. Stored as a number so it can also clear an existing one.
@@ -237,6 +237,40 @@ export async function passAllSanitationAssignments(formData: FormData) {
       after: { result: "PASS", count: waiting.length, ids: waiting.map((a) => a.id) },
     });
   }
+
+  revalidatePath("/admin/sanitation");
+  revalidatePath("/sanitation");
+}
+
+/**
+ * Sets every duty on a date back to Pending -- clears who did it, when, and any
+ * inspection. Owner-only since it erases sign-offs. Duties whose bonus already
+ * went onto a payslip are left alone so a paid bonus never loses its duty.
+ */
+export async function resetSanitationDay(formData: FormData) {
+  const admin = await requireOwner();
+  const { date } = passAllSchema.parse({ date: formData.get("date") });
+
+  const result = await prisma.sanitationAssignment.updateMany({
+    where: { date: new Date(`${date}T00:00:00.000Z`), payslipAdjustmentId: null },
+    data: {
+      status: "PENDING",
+      completedAt: null,
+      employeeId: null,
+      inspectedByAdminId: null,
+      inspectedAt: null,
+      inspectionResult: null,
+      inspectionNote: null,
+    },
+  });
+
+  await logAudit({
+    actorAdminId: admin.id,
+    action: "RESET_SANITATION_DAY",
+    targetTable: "SanitationAssignment",
+    targetId: date,
+    after: { count: result.count },
+  });
 
   revalidatePath("/admin/sanitation");
   revalidatePath("/sanitation");

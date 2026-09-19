@@ -8,7 +8,10 @@ import {
   deleteSanitationAssignment,
   inspectSanitationAssignment,
   passAllSanitationAssignments,
+  resetSanitationDay,
 } from "./actions";
+import { auth } from "@/lib/auth";
+import ConfirmSubmitButton from "@/components/ConfirmSubmitButton";
 import PageHeader from "@/components/PageHeader";
 import Card from "@/components/Card";
 import Badge from "@/components/Badge";
@@ -38,6 +41,7 @@ export default async function SanitationPage({
   searchParams: Promise<{ date?: string }>;
 }) {
   const params = await searchParams;
+  const isOwner = (await auth())?.user?.role === "OWNER";
   const date = params.date ?? todayManila();
   if (date === todayManila()) {
     await ensureTodaysSanitationSchedule();
@@ -61,6 +65,7 @@ export default async function SanitationPage({
   ]);
 
   const doneCount = assignments.filter((a) => a.status === "DONE").length;
+  const hasProgress = assignments.some((a) => a.status !== "PENDING" || a.inspectionResult);
   const pendingChecks = assignments.filter((a) => a.status === "DONE" && !a.inspectionResult).length;
   const totalInspected = passCount + failCount;
   const complianceRate = totalInspected > 0 ? Math.round((passCount / totalInspected) * 100) : null;
@@ -264,6 +269,18 @@ export default async function SanitationPage({
               >
                 Pass all ({pendingChecks} waiting)
               </button>
+            </form>
+          )}
+          {isOwner && hasProgress && (
+            <form action={resetSanitationDay}>
+              <input type="hidden" name="date" value={date} />
+              <ConfirmSubmitButton
+                message={`Reset the cleaning checklist for ${date}? Every duty goes back to Pending and its sign-off and inspection are cleared.`}
+                title="Sets every duty on this date back to Pending"
+                className="rounded-md border border-red-300 text-red-700 hover:bg-red-50 text-xs font-medium px-3 py-1.5"
+              >
+                Reset this day
+              </ConfirmSubmitButton>
             </form>
           )}
           <form method="get" className="flex items-center gap-2">
