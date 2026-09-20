@@ -13,16 +13,19 @@ const TONES = {
     waiting: "text-amber-400",
     failed: "text-red-400",
     track: "bg-slate-700",
+    dots: false,
   },
-  // Kiosk: soft orange tint (the brand accent).
+  // Kiosk: soft orange tint (the brand accent) with neutral slate words -- the status colors
+  // ride on small dots, so nothing colored is written on the tint.
   light: {
     card: "border border-orange-200 bg-orange-50 text-slate-900",
-    label: "text-orange-800",
-    total: "text-orange-400",
-    verified: "text-green-700",
-    waiting: "text-amber-700",
-    failed: "text-red-700",
+    label: "text-slate-600",
+    total: "text-slate-400",
+    verified: "text-slate-700",
+    waiting: "text-slate-700",
+    failed: "text-slate-700",
     track: "bg-white",
+    dots: true,
   },
 } as const;
 
@@ -60,9 +63,20 @@ export default function SanitationProgressCard({
           </p>
         </div>
         <div className={`text-right font-medium ${compact ? "text-xs leading-5" : "text-sm leading-6"}`}>
-          <p className={c.verified}>{verified} verified</p>
-          <p className={c.waiting}>{waiting} waiting</p>
-          {failed > 0 && <p className={c.failed}>{failed} failed</p>}
+          <p className={`flex items-center justify-end gap-1.5 ${c.verified}`}>
+            {c.dots && <span className="h-2 w-2 rounded-full bg-green-500" />}
+            {verified} verified
+          </p>
+          <p className={`flex items-center justify-end gap-1.5 ${c.waiting}`}>
+            {c.dots && <span className="h-2 w-2 rounded-full bg-amber-500" />}
+            {waiting} waiting
+          </p>
+          {failed > 0 && (
+            <p className={`flex items-center justify-end gap-1.5 ${c.failed}`}>
+              {c.dots && <span className="h-2 w-2 rounded-full bg-red-500" />}
+              {failed} failed
+            </p>
+          )}
         </div>
       </div>
       <div
