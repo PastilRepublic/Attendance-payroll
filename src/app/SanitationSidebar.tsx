@@ -3,6 +3,7 @@
 import { useState } from "react";
 import SanitationProgressCard from "@/components/SanitationProgressCard";
 import Badge from "@/components/Badge";
+import { REMINDER_TONES } from "@/components/SanitationReminderCard";
 import {
   TIMING_DESCRIPTIONS,
   TIMING_LABELS,
@@ -124,32 +125,28 @@ function GroupCard({
 }
 
 function ReminderNote({ upcoming }: { upcoming: SidebarUpcoming }) {
-  const active = upcoming.phase !== "later";
+  const tone = REMINDER_TONES[upcoming.schedule];
   const count = upcoming.tasks.length;
   return (
-    <div
-      className={`mb-2 rounded-2xl border px-3 py-2.5 ${
-        active ? "border-amber-300 bg-amber-50" : "border-slate-200 bg-white"
-      }`}
-    >
+    <div className={`mb-2 rounded-2xl border px-3 py-2.5 ${tone.card}`}>
       <div className="flex flex-wrap items-center gap-1.5">
-        <p className="text-sm font-bold text-slate-900">
+        <p className={`text-sm font-bold ${tone.title}`}>
           {upcoming.schedule === "WEEKLY" ? "Weekly" : "Monthly"} cleaning
         </p>
         <span
           className={`rounded-full border px-1.5 py-px text-[10px] font-semibold ${
-            active ? "border-amber-400 text-amber-800" : "border-slate-300 text-slate-600"
+            upcoming.phase === "later" ? tone.badgeLater : tone.badgeOpen
           }`}
         >
           {PHASE_BADGES[upcoming.phase]}
         </span>
       </div>
-      <p className="mt-1 text-xs text-slate-700">
+      <p className={`mt-1 text-xs ${tone.body}`}>
         {count === 0
           ? "No tasks set up yet."
           : `${count} ${count === 1 ? "task" : "tasks"} due ${formatDateKey(upcoming.dueDate, "EEE, MMM d")}`}
       </p>
-      <p className={`text-[11px] font-medium ${active ? "text-amber-800" : "text-slate-500"}`}>
+      <p className={`text-[11px] font-medium ${tone.footer}`}>
         Reminder: {formatDateKey(upcoming.reminderDate, "EEE, MMM d")}
       </p>
     </div>
