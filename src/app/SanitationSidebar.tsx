@@ -86,7 +86,7 @@ function ClipboardIcon() {
   );
 }
 
-/** One "Before lunch" / "Anytime" / "After production" card holding its duties. */
+/** One "Before lunch" / "Anytime" / "End of shift" card holding its duties. */
 function GroupCard({
   timing,
   tasks,
