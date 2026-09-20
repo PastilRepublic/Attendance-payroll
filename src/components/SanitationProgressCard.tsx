@@ -3,17 +3,43 @@ interface ProgressTask {
   inspectionResult: "PASS" | "FAIL" | null;
 }
 
+const TONES = {
+  // Admin: the dark card.
+  dark: {
+    card: "bg-slate-900 text-white",
+    label: "text-slate-400",
+    total: "text-slate-400",
+    verified: "text-green-400",
+    waiting: "text-amber-400",
+    failed: "text-red-400",
+    track: "bg-slate-700",
+  },
+  // Kiosk: light card with a slate border, like the rest of the kiosk cards.
+  light: {
+    card: "border border-slate-200 bg-slate-50 text-slate-900",
+    label: "text-slate-500",
+    total: "text-slate-400",
+    verified: "text-green-600",
+    waiting: "text-amber-600",
+    failed: "text-red-600",
+    track: "bg-slate-200",
+  },
+} as const;
+
 /**
- * The dark "Checklist progress" card: done out of total, with what a
- * supervisor has verified, what is still waiting for inspection and what
- * failed, and a bar showing the same split. `compact` is the kiosk sidebar size.
+ * The "Checklist progress" card: done out of total, with what a supervisor
+ * has verified, what is still waiting for inspection and what failed, and a
+ * bar showing the same split. `compact` is the kiosk sidebar size; `tone`
+ * picks the dark (admin) or light (kiosk) look.
  */
 export default function SanitationProgressCard({
   tasks,
   compact = false,
+  tone = "dark",
 }: {
   tasks: ProgressTask[];
   compact?: boolean;
+  tone?: keyof typeof TONES;
 }) {
   const total = tasks.length;
   const done = tasks.filter((t) => t.status === "DONE").length;
@@ -21,21 +47,22 @@ export default function SanitationProgressCard({
   const failed = tasks.filter((t) => t.inspectionResult === "FAIL").length;
   const waiting = tasks.filter((t) => t.status === "DONE" && t.inspectionResult === null).length;
   const pct = (n: number) => (total === 0 ? 0 : (n / total) * 100);
+  const c = TONES[tone];
 
   return (
-    <div className={`bg-slate-900 text-white ${compact ? "rounded-2xl px-4 py-3" : "rounded-3xl px-6 py-5"}`}>
+    <div className={`${c.card} ${compact ? "rounded-2xl px-4 py-3" : "rounded-3xl px-6 py-5"}`}>
       <div className="flex items-end justify-between gap-3">
         <div>
-          <p className={`text-slate-400 ${compact ? "text-xs" : "text-sm"}`}>Checklist progress</p>
+          <p className={`${c.label} ${compact ? "text-xs" : "text-sm"}`}>Checklist progress</p>
           <p className={`mt-1 font-bold tabular-nums ${compact ? "text-2xl" : "text-4xl"}`}>
             {done}
-            <span className={`font-semibold text-slate-400 ${compact ? "text-base" : "text-xl"}`}>/{total}</span>
+            <span className={`font-semibold ${c.total} ${compact ? "text-base" : "text-xl"}`}>/{total}</span>
           </p>
         </div>
         <div className={`text-right font-medium ${compact ? "text-xs leading-5" : "text-sm leading-6"}`}>
-          <p className="text-green-400">{verified} verified</p>
-          <p className="text-amber-400">{waiting} waiting</p>
-          {failed > 0 && <p className="text-red-400">{failed} failed</p>}
+          <p className={c.verified}>{verified} verified</p>
+          <p className={c.waiting}>{waiting} waiting</p>
+          {failed > 0 && <p className={c.failed}>{failed} failed</p>}
         </div>
       </div>
       <div
@@ -44,7 +71,7 @@ export default function SanitationProgressCard({
         aria-valuemin={0}
         aria-valuemax={total}
         aria-valuenow={done}
-        className={`flex w-full overflow-hidden rounded-full bg-slate-700 ${compact ? "mt-3 h-2" : "mt-4 h-2.5"}`}
+        className={`flex w-full overflow-hidden rounded-full ${c.track} ${compact ? "mt-3 h-2" : "mt-4 h-2.5"}`}
       >
         <div className="bg-green-500 transition-all" style={{ width: `${pct(verified)}%` }} />
         <div className="bg-amber-500 transition-all" style={{ width: `${pct(waiting)}%` }} />
