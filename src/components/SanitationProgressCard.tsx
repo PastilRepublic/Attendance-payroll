@@ -23,7 +23,7 @@ export default function SanitationProgressCard({
   const pct = (n: number) => (total === 0 ? 0 : (n / total) * 100);
 
   return (
-    <div className={`bg-slate-950 text-white ${compact ? "rounded-2xl px-4 py-3" : "rounded-3xl px-6 py-5"}`}>
+    <div className={`bg-slate-900 text-white ${compact ? "rounded-2xl px-4 py-3" : "rounded-3xl px-6 py-5"}`}>
       <div className="flex items-end justify-between gap-3">
         <div>
           <p className={`text-slate-400 ${compact ? "text-xs" : "text-sm"}`}>Checklist progress</p>
@@ -44,7 +44,7 @@ export default function SanitationProgressCard({
         aria-valuemin={0}
         aria-valuemax={total}
         aria-valuenow={done}
-        className={`flex w-full overflow-hidden rounded-full bg-slate-800 ${compact ? "mt-3 h-2" : "mt-4 h-2.5"}`}
+        className={`flex w-full overflow-hidden rounded-full bg-slate-700 ${compact ? "mt-3 h-2" : "mt-4 h-2.5"}`}
       >
         <div className="bg-emerald-400 transition-all" style={{ width: `${pct(verified)}%` }} />
         <div className="bg-amber-400 transition-all" style={{ width: `${pct(waiting)}%` }} />

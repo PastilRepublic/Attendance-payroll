@@ -582,15 +582,15 @@ function ChemicalGuideCard({ guide, isOwner }: { guide: ChemicalGuide; isOwner: 
 
   if (guide.confirmed) {
     return (
-      <section className="rounded-3xl border border-emerald-200 bg-emerald-50 p-6 sm:p-8">
-        <h2 className="text-xl font-bold text-emerald-950">Chemical guide</h2>
-        <p className="mt-1 text-base text-emerald-900">
+      <section className="rounded-3xl border border-slate-200 bg-slate-50 p-6 sm:p-8">
+        <h2 className="text-xl font-bold text-slate-900">Chemical guide</h2>
+        <p className="mt-1 text-base text-slate-700">
           {[guide.product, guide.strength, guide.dilution].filter(Boolean).join(" · ")}
         </p>
-        <p className="mt-1 text-sm text-emerald-800/80">Shown to employees on the kiosk checklist.</p>
+        <p className="mt-1 text-sm text-slate-500">Shown to employees on the kiosk checklist.</p>
         {isOwner && (
           <details className="mt-3">
-            <summary className="cursor-pointer text-sm font-semibold text-emerald-900">Edit guide</summary>
+            <summary className="cursor-pointer text-sm font-semibold text-slate-700">Edit guide</summary>
             {form}
           </details>
         )}
