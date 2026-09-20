@@ -59,13 +59,13 @@ function TabButton({
       onClick={onClick}
       aria-pressed={active}
       className={`flex flex-1 items-center justify-center gap-1 rounded-xl px-1 py-2 text-[11px] font-semibold transition-colors ${
-        active ? "bg-slate-900 text-white" : "text-slate-800 hover:bg-slate-100"
+        active ? "bg-accent-800 text-white" : "text-slate-800 hover:bg-accent-50"
       }`}
     >
       {label}
       <span
         className={`rounded-full px-1.5 py-px text-[10px] ${
-          active ? "bg-white text-slate-900" : "bg-slate-100 text-slate-700"
+          active ? "bg-white text-accent-900" : "bg-accent-50 text-accent-800"
         }`}
       >
         {count}

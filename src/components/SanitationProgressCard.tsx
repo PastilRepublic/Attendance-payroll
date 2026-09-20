@@ -14,11 +14,11 @@ const TONES = {
     failed: "text-red-400",
     track: "bg-slate-700",
   },
-  // Kiosk: soft orange tint (the brand accent) so it stands out from the white kiosk cards.
+  // Kiosk: soft tint of the teal-blue accent.
   light: {
-    card: "border border-orange-200 bg-orange-50 text-slate-900",
-    label: "text-orange-800",
-    total: "text-orange-400",
+    card: "border border-accent-200 bg-accent-50 text-slate-900",
+    label: "text-accent-800",
+    total: "text-accent-700",
     verified: "text-green-700",
     waiting: "text-amber-700",
     failed: "text-red-700",
