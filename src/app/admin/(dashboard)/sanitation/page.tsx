@@ -80,18 +80,12 @@ export default async function SanitationPage({
 
   const [operationDay, settings] = await Promise.all([getOperationDay(), getSanitationSettings()]);
 
-  const [procedures, assignments, recentSignoffs, upcoming] = await Promise.all([
+  const [procedures, assignments, upcoming] = await Promise.all([
     prisma.sanitationProcedure.findMany({ orderBy: { name: "asc" } }),
     prisma.sanitationAssignment.findMany({
       where: { date: new Date(`${date}T00:00:00.000Z`) },
       include: { procedure: true, employee: true },
       orderBy: { createdAt: "asc" },
-    }),
-    prisma.sanitationAssignment.findMany({
-      where: { status: "DONE", employeeId: { not: null } },
-      include: { procedure: true, employee: true },
-      orderBy: { completedAt: "desc" },
-      take: 15,
     }),
     getUpcomingSanitation(today, operationDay, settings),
   ]);
@@ -114,10 +108,166 @@ export default async function SanitationPage({
 
   return (
     <div>
-      <PageHeader title="Sanitation" description="Cleaning tasks, the daily checklist, and inspection sign-offs." />
+      <PageHeader title="Sanitation" description="The daily checklist and inspections, plus the cleaning tasks and settings." />
 
       <div className="space-y-6">
         {assignments.length > 0 && <SanitationProgressCard tasks={assignments} />}
+
+        <div>
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+          <h2 className="text-sm font-semibold text-slate-700">Checklist log</h2>
+          <div className="flex flex-wrap items-center gap-3">
+            {pendingChecks > 0 && (
+              <form action={passAllSanitationAssignments}>
+                <input type="hidden" name="date" value={date} />
+                <button
+                  className="rounded-md bg-green-600 hover:bg-green-500 text-white text-xs font-medium px-3 py-1.5"
+                  title="Passes every duty that is done and waiting for inspection"
+                >
+                  Pass all ({pendingChecks} waiting)
+                </button>
+              </form>
+            )}
+            {isOwner && hasProgress && (
+              <form action={resetSanitationDay}>
+                <input type="hidden" name="date" value={date} />
+                <ConfirmSubmitButton
+                  message={`Reset the cleaning checklist for ${date}? Every duty goes back to Pending and its sign-off and inspection are cleared.`}
+                  title="Sets every duty on this date back to Pending"
+                  className="rounded-md border border-red-300 text-red-700 hover:bg-red-50 text-xs font-medium px-3 py-1.5"
+                >
+                  Reset this day
+                </ConfirmSubmitButton>
+              </form>
+            )}
+            <form method="get" className="flex items-center gap-2">
+              <input
+                type="date"
+                name="date"
+                defaultValue={date}
+                className="rounded-full border border-slate-300 px-3 py-1.5 text-sm"
+              />
+              <Button size="sm">Go</Button>
+            </form>
+          </div>
+        </div>
+
+        <Card padded>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm mb-4">
+              <thead className="text-slate-500 text-left">
+                <tr>
+                  <th className="py-1 pr-2 font-normal">Employee</th>
+                  <th className="py-1 pr-2 font-normal">Procedure</th>
+                  <th className="py-1 pr-2 font-normal">Status</th>
+                  <th className="py-1 pr-2 font-normal">Inspection</th>
+                  <th className="py-1 font-normal"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedAssignments.map((a) => (
+                  <tr key={a.id} className="border-t border-slate-100 align-top">
+                    <td className="py-1.5 pr-2">
+                      {a.employee ? (
+                        <>
+                          {a.employee.name}
+                          {a.completedAt && (
+                            <span className="text-slate-400 text-xs block">
+                              {formatInTimeZone(a.completedAt, TIMEZONE, "h:mm a")}
+                            </span>
+                          )}
+                        </>
+                      ) : (
+                        <span className="text-slate-400 italic">Unassigned — team</span>
+                      )}
+                    </td>
+                    <td className="py-1.5 pr-2">
+                      <span className="inline-flex items-center gap-1.5">
+                        <RiskDot level={a.procedure.riskLevel} />
+                        {a.procedure.name}
+                      </span>
+                      <span className="block text-xs text-slate-400">
+                        {TIMING_LABELS[a.procedure.timing]}
+                        {a.procedure.schedule !== "DAILY" && ` · ${SCHEDULE_LABELS[a.procedure.schedule]}`}
+                      </span>
+                    </td>
+                    <td className="py-1.5 pr-2">
+                      <Badge status={a.status === "DONE" ? "done" : "pendingTask"} />
+                      {a.photoUrl && (
+                        <a
+                          href={`/api/admin/punch-photo/${a.photoUrl}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="mt-1 block text-xs text-amber-700 hover:underline"
+                        >
+                          View photo proof
+                        </a>
+                      )}
+                    </td>
+                    <td className="py-1.5 pr-2 relative">
+                      {a.inspectionResult ? (
+                        <div>
+                          <Badge status={a.inspectionResult === "PASS" ? "pass" : "fail"}>
+                            {a.inspectionResult === "PASS" ? "Passed" : "Failed"}
+                          </Badge>
+                          {a.inspectionNote && (
+                            <p className="text-xs text-slate-400 mt-1">{a.inspectionNote}</p>
+                          )}
+                        </div>
+                      ) : a.status === "DONE" ? (
+                        <InspectForm assignmentId={a.id} />
+                      ) : (
+                        <span className="text-slate-300 text-xs">Not done yet</span>
+                      )}
+                    </td>
+                    <td className="py-1.5 text-right">
+                      {!a.inspectionResult && (
+                        <form action={deleteSanitationAssignment}>
+                          <input type="hidden" name="assignmentId" value={a.id} />
+                          <button className="text-red-600 hover:underline text-xs">Remove</button>
+                        </form>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+                {assignments.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="py-4 text-center text-slate-400">
+                      No assignments for this date.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <form
+            action={assignSanitation}
+            className="flex flex-wrap items-end gap-3 border-t border-slate-100 pt-4"
+          >
+            <input type="hidden" name="date" value={date} />
+            <div>
+              <label className="block text-xs text-slate-500 mb-1">Procedure</label>
+              <select
+                name="procedureId"
+                required
+                className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+              >
+                <option value="">Select...</option>
+                {activeProcedures.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <Button>Assign</Button>
+            <p className="text-xs text-slate-400 w-full">
+              No need to pick who — any active employee can claim and complete this at the kiosk.
+            </p>
+          </form>
+        </Card>
+        </div>
 
         <CleaningSettingsCard
           today={today}
@@ -237,205 +387,6 @@ export default async function SanitationPage({
           )}
         </section>
       </div>
-
-      <div className="flex flex-wrap items-center justify-between gap-2 mb-3 mt-8">
-        <h2 className="text-sm font-semibold text-slate-700">Checklist log</h2>
-        <div className="flex flex-wrap items-center gap-3">
-          {pendingChecks > 0 && (
-            <form action={passAllSanitationAssignments}>
-              <input type="hidden" name="date" value={date} />
-              <button
-                className="rounded-md bg-green-600 hover:bg-green-500 text-white text-xs font-medium px-3 py-1.5"
-                title="Passes every duty that is done and waiting for inspection"
-              >
-                Pass all ({pendingChecks} waiting)
-              </button>
-            </form>
-          )}
-          {isOwner && hasProgress && (
-            <form action={resetSanitationDay}>
-              <input type="hidden" name="date" value={date} />
-              <ConfirmSubmitButton
-                message={`Reset the cleaning checklist for ${date}? Every duty goes back to Pending and its sign-off and inspection are cleared.`}
-                title="Sets every duty on this date back to Pending"
-                className="rounded-md border border-red-300 text-red-700 hover:bg-red-50 text-xs font-medium px-3 py-1.5"
-              >
-                Reset this day
-              </ConfirmSubmitButton>
-            </form>
-          )}
-          <form method="get" className="flex items-center gap-2">
-            <input
-              type="date"
-              name="date"
-              defaultValue={date}
-              className="rounded-full border border-slate-300 px-3 py-1.5 text-sm"
-            />
-            <Button size="sm">Go</Button>
-          </form>
-        </div>
-      </div>
-
-      <Card padded>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm mb-4">
-            <thead className="text-slate-500 text-left">
-              <tr>
-                <th className="py-1 pr-2 font-normal">Employee</th>
-                <th className="py-1 pr-2 font-normal">Procedure</th>
-                <th className="py-1 pr-2 font-normal">Status</th>
-                <th className="py-1 pr-2 font-normal">Inspection</th>
-                <th className="py-1 font-normal"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {sortedAssignments.map((a) => (
-                <tr key={a.id} className="border-t border-slate-100 align-top">
-                  <td className="py-1.5 pr-2">
-                    {a.employee ? (
-                      <>
-                        {a.employee.name}
-                        {a.completedAt && (
-                          <span className="text-slate-400 text-xs block">
-                            {formatInTimeZone(a.completedAt, TIMEZONE, "h:mm a")}
-                          </span>
-                        )}
-                      </>
-                    ) : (
-                      <span className="text-slate-400 italic">Unassigned — team</span>
-                    )}
-                  </td>
-                  <td className="py-1.5 pr-2">
-                    <span className="inline-flex items-center gap-1.5">
-                      <RiskDot level={a.procedure.riskLevel} />
-                      {a.procedure.name}
-                    </span>
-                    <span className="block text-xs text-slate-400">
-                      {TIMING_LABELS[a.procedure.timing]}
-                      {a.procedure.schedule !== "DAILY" && ` · ${SCHEDULE_LABELS[a.procedure.schedule]}`}
-                    </span>
-                  </td>
-                  <td className="py-1.5 pr-2">
-                    <Badge status={a.status === "DONE" ? "done" : "pendingTask"} />
-                    {a.photoUrl && (
-                      <a
-                        href={`/api/admin/punch-photo/${a.photoUrl}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="mt-1 block text-xs text-amber-700 hover:underline"
-                      >
-                        View photo proof
-                      </a>
-                    )}
-                  </td>
-                  <td className="py-1.5 pr-2 relative">
-                    {a.inspectionResult ? (
-                      <div>
-                        <Badge status={a.inspectionResult === "PASS" ? "pass" : "fail"}>
-                          {a.inspectionResult === "PASS" ? "Passed" : "Failed"}
-                        </Badge>
-                        {a.inspectionNote && (
-                          <p className="text-xs text-slate-400 mt-1">{a.inspectionNote}</p>
-                        )}
-                      </div>
-                    ) : a.status === "DONE" ? (
-                      <InspectForm assignmentId={a.id} />
-                    ) : (
-                      <span className="text-slate-300 text-xs">Not done yet</span>
-                    )}
-                  </td>
-                  <td className="py-1.5 text-right">
-                    {!a.inspectionResult && (
-                      <form action={deleteSanitationAssignment}>
-                        <input type="hidden" name="assignmentId" value={a.id} />
-                        <button className="text-red-600 hover:underline text-xs">Remove</button>
-                      </form>
-                    )}
-                  </td>
-                </tr>
-              ))}
-              {assignments.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="py-4 text-center text-slate-400">
-                    No assignments for this date.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        <form
-          action={assignSanitation}
-          className="flex flex-wrap items-end gap-3 border-t border-slate-100 pt-4"
-        >
-          <input type="hidden" name="date" value={date} />
-          <div>
-            <label className="block text-xs text-slate-500 mb-1">Procedure</label>
-            <select
-              name="procedureId"
-              required
-              className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
-            >
-              <option value="">Select...</option>
-              {activeProcedures.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <Button>Assign</Button>
-          <p className="text-xs text-slate-400 w-full">
-            No need to pick who — any active employee can claim and complete this at the kiosk.
-          </p>
-        </form>
-      </Card>
-
-      <Card padded className="mt-6">
-        <h2 className="text-sm font-semibold text-slate-700 mb-3">Recent Sign-offs</h2>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="text-slate-500 text-left">
-              <tr>
-                <th className="py-1 pr-2 font-normal">Date</th>
-                <th className="py-1 pr-2 font-normal">Procedure</th>
-                <th className="py-1 font-normal">Signed off by</th>
-              </tr>
-            </thead>
-            <tbody>
-              {recentSignoffs.map((a) => (
-                <tr key={a.id} className="border-t border-slate-100">
-                  <td className="py-1.5 pr-2 text-slate-500">
-                    {formatInTimeZone(a.date, TIMEZONE, "yyyy-MM-dd")}
-                  </td>
-                  <td className="py-1.5 pr-2">
-                    <span className="inline-flex items-center gap-1.5">
-                      <RiskDot level={a.procedure.riskLevel} />
-                      {a.procedure.name}
-                    </span>
-                  </td>
-                  <td className="py-1.5 text-slate-700">
-                    {a.employee?.name}
-                    {a.completedAt && (
-                      <span className="text-slate-400 text-xs ml-1.5">
-                        {formatInTimeZone(a.completedAt, TIMEZONE, "h:mm a")}
-                      </span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-              {recentSignoffs.length === 0 && (
-                <tr>
-                  <td colSpan={3} className="py-4 text-center text-slate-400">
-                    No completed sanitation duties yet.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </Card>
     </div>
   );
 }
