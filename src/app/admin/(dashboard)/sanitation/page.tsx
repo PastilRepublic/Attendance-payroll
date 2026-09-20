@@ -79,7 +79,7 @@ export default async function SanitationPage({
 
   const [operationDay, settings] = await Promise.all([getOperationDay(), getSanitationSettings()]);
 
-  const [procedures, assignments, recentSignoffs, passCount, failCount, upcoming] = await Promise.all([
+  const [procedures, assignments, recentSignoffs, upcoming] = await Promise.all([
     prisma.sanitationProcedure.findMany({ orderBy: { name: "asc" } }),
     prisma.sanitationAssignment.findMany({
       where: { date: new Date(`${date}T00:00:00.000Z`) },
@@ -92,8 +92,6 @@ export default async function SanitationPage({
       orderBy: { completedAt: "desc" },
       take: 15,
     }),
-    prisma.sanitationAssignment.count({ where: { inspectionResult: "PASS" } }),
-    prisma.sanitationAssignment.count({ where: { inspectionResult: "FAIL" } }),
     getUpcomingSanitation(today, operationDay, settings),
   ]);
 
@@ -110,56 +108,21 @@ export default async function SanitationPage({
   const sortedAssignments = [...assignments].sort(
     (a, b) => TIMING_RANK[a.procedure.timing] - TIMING_RANK[b.procedure.timing]
   );
-  const doneCount = assignments.filter((a) => a.status === "DONE").length;
   const hasProgress = assignments.some((a) => a.status !== "PENDING" || a.inspectionResult);
   const pendingChecks = assignments.filter((a) => a.status === "DONE" && !a.inspectionResult).length;
-  const totalInspected = passCount + failCount;
-  const complianceRate = totalInspected > 0 ? Math.round((passCount / totalInspected) * 100) : null;
 
   return (
     <div>
       <PageHeader title="Sanitation" description="Cleaning tasks, the daily checklist, and inspection sign-offs." />
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
-        <Card padded>
-          <p className="text-xs text-slate-400 mb-1">Compliance rate</p>
-          <p className="text-lg font-semibold text-slate-900">
-            {complianceRate === null ? (
-              <span className="text-slate-400 text-sm font-normal">No inspections yet</span>
-            ) : (
-              <>
-                <span
-                  className={`inline-block w-2 h-2 rounded-full mr-2 ${
-                    complianceRate >= 90 ? "bg-green-500" : complianceRate >= 70 ? "bg-amber-500" : "bg-red-500"
-                  }`}
-                />
-                {complianceRate}%
-              </>
-            )}
-          </p>
-        </Card>
-        <Card padded>
-          <p className="text-xs text-slate-400 mb-1">Duties logged today</p>
-          <p className="text-lg font-semibold text-slate-900">
-            {doneCount} / {assignments.length} Done
-          </p>
-        </Card>
-        <Card padded>
-          <p className="text-xs text-slate-400 mb-1">Pending checks</p>
-          <p className={`text-lg font-semibold ${pendingChecks > 0 ? "text-amber-600" : "text-slate-900"}`}>
-            {pendingChecks} {pendingChecks === 1 ? "duty" : "duties"} awaiting inspection
-          </p>
-        </Card>
-      </div>
-
       <div className="space-y-6">
+        {assignments.length > 0 && <SanitationProgressCard tasks={assignments} />}
+
         <CleaningSettingsCard
           today={today}
           settings={settings}
           monthlyDueDate={upcoming.monthly.dueDate}
         />
-
-        {assignments.length > 0 && <SanitationProgressCard tasks={assignments} />}
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <SanitationReminderCard
