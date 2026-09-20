@@ -12,11 +12,13 @@ type PresenceStatus = "OUT" | "WORKING" | "ON_BREAK" | "DONE";
 type OperationDay = "COOKING" | "JAR_FILLING";
 type ResolvedOperationDay = OperationDay | "OFF";
 type RiskLevel = "LOW" | "MEDIUM" | "HIGH";
+type SanitationTiming = "PRE_COOKING" | "POST_COOKING" | "ANYTIME";
 
 interface SanitationTask {
   id: string;
   name: string;
   riskLevel: RiskLevel;
+  timing: SanitationTiming;
   status: "PENDING" | "DONE";
   employeeName: string | null;
   inspectionResult: "PASS" | "FAIL" | null;
@@ -59,13 +61,11 @@ const PRESENCE_LABELS: Record<PresenceStatus, string> = {
   OUT: "Not in",
 };
 
-const RISK_RANK: Record<RiskLevel, number> = { HIGH: 0, MEDIUM: 1, LOW: 2 };
+// Before-lunch duties first, then anytime, then the ones done at Time Out.
+const TIMING_RANK: Record<SanitationTiming, number> = { PRE_COOKING: 0, ANYTIME: 1, POST_COOKING: 2 };
 
 function sortSanitationTasks(tasks: SanitationTask[]): SanitationTask[] {
-  return [...tasks].sort((a, b) => {
-    if (a.status !== b.status) return a.status === "DONE" ? 1 : -1;
-    return RISK_RANK[a.riskLevel] - RISK_RANK[b.riskLevel];
-  });
+  return [...tasks].sort((a, b) => TIMING_RANK[a.timing] - TIMING_RANK[b.timing]);
 }
 
 const AVATAR_COLORS = [
@@ -351,34 +351,22 @@ export default function HomeKiosk() {
                     <SanitationProgress tasks={sanitationTasks} />
                   </div>
                   <ul className="space-y-1.5">
-                    {sorted.map((task) => {
-                      const needsAttention = task.status === "PENDING" && task.riskLevel === "HIGH";
-                      return (
-                        <li
-                          key={task.id}
-                          className={`flex items-center gap-2 text-sm rounded-md ${
-                            needsAttention ? "bg-red-50 px-1.5 py-1 -mx-1.5" : ""
+                    {sorted.map((task) => (
+                      <li key={task.id} className="flex items-center gap-2 text-sm">
+                        <span
+                          className={`flex-1 truncate ${
+                            task.status === "DONE" ? "text-slate-400 line-through" : "text-slate-700"
                           }`}
                         >
-                          <span
-                            className={`flex-1 truncate ${
-                              task.status === "DONE"
-                                ? "text-slate-400 line-through"
-                                : needsAttention
-                                  ? "text-red-700 font-medium"
-                                  : "text-slate-700"
-                            }`}
-                          >
-                            {task.name}
-                          </span>
-                          {task.inspectionResult && (
-                            <Badge status={task.inspectionResult === "PASS" ? "pass" : "fail"}>
-                              {task.inspectionResult === "PASS" ? "Passed" : "Failed"}
-                            </Badge>
-                          )}
-                        </li>
-                      );
-                    })}
+                          {task.name}
+                        </span>
+                        {task.inspectionResult && (
+                          <Badge status={task.inspectionResult === "PASS" ? "pass" : "fail"}>
+                            {task.inspectionResult === "PASS" ? "Passed" : "Failed"}
+                          </Badge>
+                        )}
+                      </li>
+                    ))}
                   </ul>
                 </>
               );

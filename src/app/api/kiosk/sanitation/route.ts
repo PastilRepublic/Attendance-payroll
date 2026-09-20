@@ -21,6 +21,7 @@ export async function GET() {
     id: a.id,
     name: a.procedure.name,
     riskLevel: a.procedure.riskLevel,
+    timing: a.procedure.timing,
     status: a.status,
     employeeName: a.employee?.name ?? null,
     inspectionResult: a.inspectionResult,
