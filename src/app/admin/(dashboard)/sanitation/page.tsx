@@ -162,16 +162,46 @@ export default async function SanitationPage({
             </TaskDialog>
           </div>
 
-          <ul className="mt-6 space-y-4">
-            {activeProcedures.map((p) => (
-              <TaskCard key={p.id} procedure={p} />
-            ))}
-            {activeProcedures.length === 0 && (
-              <li className="rounded-3xl border border-dashed border-slate-300 px-6 py-10 text-center text-slate-400">
-                No tasks yet — add one to start the checklist.
-              </li>
-            )}
-          </ul>
+          {activeProcedures.length === 0 ? (
+            <p className="mt-6 rounded-3xl border border-dashed border-slate-300 px-6 py-10 text-center text-slate-400">
+              No tasks yet — add one to start the checklist.
+            </p>
+          ) : (
+            // Collapsed by default so a long task list doesn't push the rest of the page down.
+            <details className="group mt-6 rounded-2xl border border-slate-300 bg-slate-50">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 [&::-webkit-details-marker]:hidden">
+                <span className="min-w-0">
+                  <span className="text-base font-bold text-slate-900">
+                    <span className="group-open:hidden">Show tasks</span>
+                    <span className="hidden group-open:inline">Hide tasks</span>
+                  </span>
+                  <span className="ml-2 text-sm text-slate-500">
+                    {activeProcedures.length} active
+                    {(["DAILY", "WEEKLY", "MONTHLY"] as const)
+                      .map((sched) => [sched, activeProcedures.filter((p) => p.schedule === sched).length] as const)
+                      .filter(([, n]) => n > 0)
+                      .map(([sched, n]) => ` · ${n} ${SCHEDULE_LABELS[sched].toLowerCase()}`)
+                      .join("")}
+                  </span>
+                </span>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  className="h-5 w-5 shrink-0 text-slate-500 transition-transform group-open:rotate-180"
+                  aria-hidden
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m6 9 6 6 6-6" />
+                </svg>
+              </summary>
+              <ul className="space-y-4 px-4 pb-4">
+                {activeProcedures.map((p) => (
+                  <TaskCard key={p.id} procedure={p} />
+                ))}
+              </ul>
+            </details>
+          )}
 
           {inactiveProcedures.length > 0 && (
             <details className="mt-6 rounded-2xl border border-slate-200 bg-slate-50">
