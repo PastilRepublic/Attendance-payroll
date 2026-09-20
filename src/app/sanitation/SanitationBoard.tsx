@@ -112,7 +112,7 @@ export default function SanitationBoard({
 
   return (
     <div className="space-y-5">
-      {tasks.length > 0 && <SanitationProgressCard tasks={tasks} />}
+      {tasks.length > 0 && <SanitationProgressCard tasks={tasks} tone="light" />}
 
       <div className="flex gap-1 rounded-3xl border border-slate-200 bg-white p-2 shadow-sm">
         <TabButton label="Today" count={tasks.length} active={tab === "today"} onClick={() => setTab("today")} />

@@ -168,7 +168,7 @@ export default function SanitationSidebar({ data }: { data: SidebarData }) {
     <div>
       {data.tasks.length > 0 && (
         <div className="mb-3">
-          <SanitationProgressCard tasks={data.tasks} compact />
+          <SanitationProgressCard tasks={data.tasks} compact tone="light" />
         </div>
       )}
 
