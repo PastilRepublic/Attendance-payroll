@@ -5,33 +5,11 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { formatInTimeZone } from "date-fns-tz";
 import { TIMEZONE } from "@/lib/payroll";
-import Badge from "@/components/Badge";
-import SanitationProgress from "@/components/SanitationProgress";
-import { TIMING_RANK } from "@/lib/sanitationLabels";
-import { formatDateKey } from "@/lib/sanitationSchedule";
+import SanitationSidebar, { type SidebarData } from "./SanitationSidebar";
 
 type PresenceStatus = "OUT" | "WORKING" | "ON_BREAK" | "DONE";
 type OperationDay = "COOKING" | "JAR_FILLING";
 type ResolvedOperationDay = OperationDay | "OFF";
-type RiskLevel = "LOW" | "MEDIUM" | "HIGH";
-type SanitationTiming = "PRE_COOKING" | "POST_COOKING" | "ANYTIME";
-
-interface UpcomingReminder {
-  schedule: "WEEKLY" | "MONTHLY";
-  dueDate: string;
-  phase: "due-today" | "coming-up" | "later";
-  tasks: unknown[];
-}
-
-interface SanitationTask {
-  id: string;
-  name: string;
-  riskLevel: RiskLevel;
-  timing: SanitationTiming;
-  status: "PENDING" | "DONE";
-  employeeName: string | null;
-  inspectionResult: "PASS" | "FAIL" | null;
-}
 
 interface EmployeeOption {
   id: string;
@@ -69,10 +47,6 @@ const PRESENCE_LABELS: Record<PresenceStatus, string> = {
   DONE: "Timed out",
   OUT: "Not in",
 };
-
-function sortSanitationTasks(tasks: SanitationTask[]): SanitationTask[] {
-  return [...tasks].sort((a, b) => TIMING_RANK[a.timing] - TIMING_RANK[b.timing]);
-}
 
 const AVATAR_COLORS = [
   "bg-orange-100 text-orange-700",
@@ -141,8 +115,7 @@ export default function HomeKiosk() {
   const router = useRouter();
   const [employees, setEmployees] = useState<EmployeeOption[]>([]);
   const [employeesFailed, setEmployeesFailed] = useState(false);
-  const [sanitationTasks, setSanitationTasks] = useState<SanitationTask[]>([]);
-  const [reminders, setReminders] = useState<UpcomingReminder[]>([]);
+  const [sanitation, setSanitation] = useState<SidebarData | null>(null);
   const [sanitationFailed, setSanitationFailed] = useState(false);
   const [sanitationLoaded, setSanitationLoaded] = useState(false);
   // Which of the two nav links is "on" -- the home page is employee-facing,
@@ -183,13 +156,12 @@ export default function HomeKiosk() {
     fetch("/api/kiosk/sanitation")
       .then((res) => (res.ok ? res.json() : Promise.reject()))
       .then((data) => {
-        setSanitationTasks(Array.isArray(data.tasks) ? data.tasks : []);
-        // Weekly / monthly reminders only show once their 2-day window opens.
-        setReminders(
-          [data.upcoming?.weekly, data.upcoming?.monthly].filter(
-            (r): r is UpcomingReminder => Boolean(r) && r.phase !== "later" && r.tasks.length > 0
-          )
-        );
+        setSanitation({
+          tasks: Array.isArray(data.tasks) ? data.tasks : [],
+          weekly: data.upcoming.weekly,
+          monthly: data.upcoming.monthly,
+          chemicalGuide: data.chemicalGuide ?? null,
+        });
         setSanitationFailed(false);
       })
       .catch(() => setSanitationFailed(true))
@@ -337,7 +309,7 @@ export default function HomeKiosk() {
       </header>
 
       <div className="flex-1 flex flex-col lg:flex-row min-h-0">
-        <aside className="lg:w-64 shrink-0 border-b lg:border-b-0 lg:border-r border-slate-200 flex flex-col items-center justify-start gap-4 p-4 lg:p-6 text-center">
+        <aside className="lg:w-64 shrink-0 lg:overflow-y-auto border-b lg:border-b-0 lg:border-r border-slate-200 flex flex-col items-center justify-start gap-4 p-4 lg:p-6 text-center">
           <div className="w-full">
             <p className="text-sm text-slate-500">{dateLabel}</p>
             <p className="text-2xl lg:text-3xl font-semibold text-slate-900 tabular-nums">{timeLabel}</p>
@@ -353,54 +325,7 @@ export default function HomeKiosk() {
             {sanitationLoaded && sanitationFailed && (
               <p className="text-xs text-red-500">Could not load sanitation tasks.</p>
             )}
-            {sanitationLoaded && !sanitationFailed && sanitationTasks.length === 0 && (
-              <p className="text-xs text-slate-400">No sanitation duties scheduled today.</p>
-            )}
-            {sanitationLoaded && !sanitationFailed && sanitationTasks.length > 0 && (() => {
-              const sorted = sortSanitationTasks(sanitationTasks);
-              return (
-                <>
-                  <div className="mb-3">
-                    <SanitationProgress tasks={sanitationTasks} />
-                  </div>
-                  <ul className="space-y-1.5">
-                    {sorted.map((task) => (
-                      <li key={task.id} className="flex items-center gap-2 text-sm">
-                        <span
-                          className={`flex-1 truncate ${
-                            task.status === "DONE" ? "text-slate-400 line-through" : "text-slate-700"
-                          }`}
-                        >
-                          {task.name}
-                        </span>
-                        {task.inspectionResult && (
-                          <Badge status={task.inspectionResult === "PASS" ? "pass" : "fail"}>
-                            {task.inspectionResult === "PASS" ? "Passed" : "Failed"}
-                          </Badge>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              );
-            })()}
-            {sanitationLoaded &&
-              !sanitationFailed &&
-              reminders.map((r) => (
-                <p
-                  key={r.schedule}
-                  className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs text-amber-900"
-                >
-                  <span className="font-semibold">
-                    {r.schedule === "WEEKLY" ? "Weekly" : "Monthly"} cleaning
-                    {r.phase === "due-today" ? " today" : ""}
-                  </span>
-                  {r.phase === "due-today" ? "" : ` · ${formatDateKey(r.dueDate, "EEE, MMM d")}`}
-                  <span className="block text-amber-800/80">
-                    {r.tasks.length} {r.tasks.length === 1 ? "task" : "tasks"}
-                  </span>
-                </p>
-              ))}
+            {sanitationLoaded && !sanitationFailed && sanitation && <SanitationSidebar data={sanitation} />}
             <Link href="/sanitation" className="text-xs text-amber-600 hover:underline mt-2 inline-block">
               View full board →
             </Link>
