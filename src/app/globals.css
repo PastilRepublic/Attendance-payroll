@@ -6,6 +6,20 @@
   color-scheme: light;
 }
 
+/* Accent: the teal-blue used for primary actions and highlights (Add task, Save,
+   the monthly reminder, the checklist icons). Change the shade here to retint them all. */
+@theme {
+  --color-accent-50: #ecfeff;
+  --color-accent-100: #cffafe;
+  --color-accent-200: #a5f3fc;
+  --color-accent-300: #67e8f9;
+  --color-accent-500: #06b6d4;
+  --color-accent-700: #0e7490;
+  --color-accent-800: #155e75;
+  --color-accent-900: #164e63;
+  --color-accent-950: #083344;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

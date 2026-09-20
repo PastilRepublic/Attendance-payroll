@@ -7,7 +7,7 @@ const PHASE_BADGES: Record<ReminderPhase, string> = {
 };
 
 /**
- * Weekly reminders are amber, monthly ones the brand orange -- always tinted,
+ * Weekly reminders are amber, monthly ones the teal-blue accent -- always tinted,
  * so they read as reminders whether or not the 2-day window has opened yet.
  * The phase badge is what says how close it is (filled once it has opened).
  */
@@ -22,13 +22,13 @@ export const REMINDER_TONES = {
     badgeLater: "border-amber-400 text-amber-800",
   },
   MONTHLY: {
-    card: "border-orange-200 bg-orange-50",
-    icon: "bg-orange-100 text-orange-700",
-    title: "text-orange-950",
-    body: "text-orange-900",
-    footer: "text-orange-800",
-    badgeOpen: "border-orange-500 bg-orange-200 text-orange-900",
-    badgeLater: "border-orange-400 text-orange-800",
+    card: "border-accent-200 bg-accent-50",
+    icon: "bg-accent-100 text-accent-800",
+    title: "text-accent-950",
+    body: "text-accent-900",
+    footer: "text-accent-800",
+    badgeOpen: "border-accent-500 bg-accent-100 text-accent-900",
+    badgeLater: "border-accent-300 text-accent-800",
   },
 } as const;
 

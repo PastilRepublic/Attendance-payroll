@@ -133,7 +133,7 @@ export default function SanitationBoard({
             return (
               <section key={timing} className="rounded-3xl border border-slate-300 bg-white p-5">
                 <div className="flex items-start gap-4">
-                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-amber-50 text-amber-700">
+                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-accent-50 text-accent-800">
                     <ClipboardIcon />
                   </span>
                   <div>
@@ -178,7 +178,7 @@ export default function SanitationBoard({
             return (
               <section key={timing} className="rounded-3xl border border-slate-300 bg-white p-5">
                 <div className="flex items-start gap-4">
-                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-amber-50 text-amber-700">
+                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-accent-50 text-accent-800">
                     <ClipboardIcon />
                   </span>
                   <div>

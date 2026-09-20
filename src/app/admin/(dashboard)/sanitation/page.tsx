@@ -192,7 +192,7 @@ export default async function SanitationPage({
                   <span aria-hidden className="text-xl leading-none">+</span> Add task
                 </>
               }
-              triggerClassName="inline-flex items-center gap-2 rounded-full bg-slate-900 px-6 py-3 text-base font-semibold text-white hover:bg-slate-800"
+              triggerClassName="inline-flex items-center gap-2 rounded-full bg-accent-800 px-6 py-3 text-base font-semibold text-white hover:bg-accent-900"
             >
               <TaskForm action={createProcedure} submitLabel="Add task" />
             </TaskDialog>
@@ -513,7 +513,7 @@ function CleaningSettingsCard({
           </label>
           <span
             className={`rounded-full px-3 py-1 text-sm font-semibold ${
-              overrideInMonth ? "bg-slate-200 text-slate-700" : "bg-amber-100 text-amber-800"
+              overrideInMonth ? "bg-slate-200 text-slate-700" : "bg-accent-100 text-accent-900"
             }`}
           >
             {overrideInMonth ? "Custom date" : `Last ${weekdayName} default`}
@@ -680,7 +680,7 @@ function TaskForm({
       />
       <div className="flex items-center justify-end gap-3 pt-2">
         <DialogCancelButton className="rounded-full border border-slate-300 bg-slate-100 px-6 py-3 text-base font-semibold text-slate-800 hover:bg-slate-200" />
-        <button className="rounded-full bg-slate-900 px-6 py-3 text-base font-semibold text-white hover:bg-slate-800">
+        <button className="rounded-full bg-accent-800 px-6 py-3 text-base font-semibold text-white hover:bg-accent-900">
           {submitLabel}
         </button>
       </div>
