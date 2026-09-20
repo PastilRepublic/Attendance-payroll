@@ -97,7 +97,7 @@ function GroupCard({
   return (
     <section className="mb-2 rounded-2xl border border-slate-300 bg-white p-3">
       <div className="flex items-start gap-2">
-        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-accent-50 text-accent-800">
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-amber-700">
           <ClipboardIcon />
         </span>
         <div className="min-w-0">
