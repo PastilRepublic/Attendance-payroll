@@ -50,7 +50,7 @@ function ClipboardIcon() {
 
 function TaskStatus({ task }: { task: BoardTask }) {
   if (task.inspectionResult === "PASS") {
-    return <p className="mt-2 text-sm font-semibold text-emerald-700">Verified</p>;
+    return <p className="mt-2 text-sm font-semibold text-green-700">Verified</p>;
   }
   if (task.inspectionResult === "FAIL") {
     return <p className="mt-2 text-sm font-semibold text-red-600">Failed inspection — needs redoing</p>;

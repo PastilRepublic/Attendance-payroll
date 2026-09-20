@@ -33,9 +33,9 @@ export default function SanitationProgressCard({
           </p>
         </div>
         <div className={`text-right font-medium ${compact ? "text-xs leading-5" : "text-sm leading-6"}`}>
-          <p className="text-emerald-300">{verified} verified</p>
-          <p className="text-amber-300">{waiting} waiting</p>
-          {failed > 0 && <p className="text-red-300">{failed} failed</p>}
+          <p className="text-green-400">{verified} verified</p>
+          <p className="text-amber-400">{waiting} waiting</p>
+          {failed > 0 && <p className="text-red-400">{failed} failed</p>}
         </div>
       </div>
       <div
@@ -46,9 +46,9 @@ export default function SanitationProgressCard({
         aria-valuenow={done}
         className={`flex w-full overflow-hidden rounded-full bg-slate-700 ${compact ? "mt-3 h-2" : "mt-4 h-2.5"}`}
       >
-        <div className="bg-emerald-400 transition-all" style={{ width: `${pct(verified)}%` }} />
-        <div className="bg-amber-400 transition-all" style={{ width: `${pct(waiting)}%` }} />
-        <div className="bg-red-400 transition-all" style={{ width: `${pct(failed)}%` }} />
+        <div className="bg-green-500 transition-all" style={{ width: `${pct(verified)}%` }} />
+        <div className="bg-amber-500 transition-all" style={{ width: `${pct(waiting)}%` }} />
+        <div className="bg-red-500 transition-all" style={{ width: `${pct(failed)}%` }} />
       </div>
     </div>
   );
