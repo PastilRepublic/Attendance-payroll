@@ -13,7 +13,7 @@ export const TIMING_RANK: Record<SanitationTimingKey, number> = {
 export const TIMING_LABELS: Record<SanitationTimingKey, string> = {
   PRE_COOKING: "Before lunch",
   ANYTIME: "Anytime",
-  POST_COOKING: "At Time Out",
+  POST_COOKING: "After production",
 };
 
 export const TIMING_DESCRIPTIONS: Record<SanitationTimingKey, string> = {

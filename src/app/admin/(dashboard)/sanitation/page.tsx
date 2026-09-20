@@ -716,7 +716,7 @@ function TaskForm({
           <select name="timing" defaultValue={procedure?.timing ?? "ANYTIME"} className={FIELD_CLASS}>
             <option value="PRE_COOKING">Before lunch (must finish to start break)</option>
             <option value="ANYTIME">Anytime (shown after any punch)</option>
-            <option value="POST_COOKING">At Time Out (must finish to time out)</option>
+            <option value="POST_COOKING">After production (must finish to time out)</option>
           </select>
         </div>
       </div>
