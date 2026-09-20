@@ -19,7 +19,7 @@ export const TIMING_LABELS: Record<SanitationTimingKey, string> = {
 export const TIMING_DESCRIPTIONS: Record<SanitationTimingKey, string> = {
   PRE_COOKING: "Finish these so the area is ready for cooking after lunch.",
   ANYTIME: "Do these whenever there is time during the shift.",
-  POST_COOKING: "Finish these before you go home.",
+  POST_COOKING: "Finish these before you time out.",
 };
 
 export const SCHEDULE_LABELS: Record<SanitationScheduleKey, string> = {
