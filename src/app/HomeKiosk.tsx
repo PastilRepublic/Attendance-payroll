@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { formatInTimeZone } from "date-fns-tz";
 import { TIMEZONE } from "@/lib/payroll";
-import RiskDot from "@/components/RiskDot";
 import Badge from "@/components/Badge";
 import SanitationProgress from "@/components/SanitationProgress";
 
@@ -361,7 +360,6 @@ export default function HomeKiosk() {
                             needsAttention ? "bg-red-50 px-1.5 py-1 -mx-1.5" : ""
                           }`}
                         >
-                          <RiskDot level={task.riskLevel} />
                           <span
                             className={`flex-1 truncate ${
                               task.status === "DONE"
