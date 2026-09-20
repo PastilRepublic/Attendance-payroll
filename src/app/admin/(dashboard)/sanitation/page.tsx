@@ -48,6 +48,7 @@ import AutoSubmitDate from "./AutoSubmitDate";
 import AutoSubmitSelect from "./AutoSubmitSelect";
 import ProductionDayFields from "./ProductionDayFields";
 import TaskDialog, { DialogCancelButton } from "./TaskDialog";
+import TaskListFilter from "./TaskListFilter";
 
 const SCOPE_LABELS: Record<"COOKING" | "JAR_FILLING" | "BOTH", string> = {
   COOKING: "Cooking",
@@ -195,11 +196,18 @@ export default async function SanitationPage({
                   <path strokeLinecap="round" strokeLinejoin="round" d="m6 9 6 6 6-6" />
                 </svg>
               </summary>
-              <ul className="space-y-4 px-4 pb-4">
+              <TaskListFilter
+                counts={{
+                  ALL: activeProcedures.length,
+                  DAILY: activeProcedures.filter((p) => p.schedule === "DAILY").length,
+                  WEEKLY: activeProcedures.filter((p) => p.schedule === "WEEKLY").length,
+                  MONTHLY: activeProcedures.filter((p) => p.schedule === "MONTHLY").length,
+                }}
+              >
                 {activeProcedures.map((p) => (
                   <TaskCard key={p.id} procedure={p} />
                 ))}
-              </ul>
+              </TaskListFilter>
             </details>
           )}
 
@@ -545,7 +553,7 @@ function CleaningSettingsCard({
 
 function TaskCard({ procedure }: { procedure: Procedure }) {
   return (
-    <li className="rounded-3xl border border-slate-300 p-6">
+    <li data-schedule={procedure.schedule} className="rounded-3xl border border-slate-300 bg-white p-6">
       <div className="flex flex-wrap items-center gap-2">
         <h3 className="text-xl font-bold text-slate-900">{procedure.name}</h3>
         <span className="rounded-full border border-slate-300 px-3 py-0.5 text-sm font-medium text-slate-700">
