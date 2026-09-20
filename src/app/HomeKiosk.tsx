@@ -308,14 +308,16 @@ export default function HomeKiosk() {
         </div>
       </header>
 
-      <div className="flex-1 flex flex-col lg:flex-row min-h-0">
-        <aside className="lg:w-64 shrink-0 lg:overflow-y-auto border-b lg:border-b-0 lg:border-r border-slate-200 flex flex-col items-center justify-start gap-4 p-4 lg:p-6 text-center">
-          <div className="w-full">
+      {/* Phones: one scrolling column -- date/time, operation, names, sanitation (aside and
+          main go `contents` so their children can be ordered). lg+: sidebar + main as before. */}
+      <div className="flex-1 flex flex-col lg:flex-row min-h-0 max-lg:overflow-y-auto">
+        <aside className="max-lg:contents lg:w-64 shrink-0 lg:overflow-y-auto lg:border-r border-slate-200 flex flex-col items-center justify-start gap-4 lg:p-6 text-center">
+          <div className="w-full max-lg:order-1 max-lg:px-4 max-lg:py-3 max-lg:border-b max-lg:border-slate-200">
             <p className="text-sm text-slate-500">{dateLabel}</p>
             <p className="text-2xl lg:text-3xl font-semibold text-slate-900 tabular-nums">{timeLabel}</p>
           </div>
 
-          <div className="w-full text-left border-t border-slate-100 pt-4">
+          <div className="w-full text-left border-t border-slate-100 pt-4 max-lg:order-4 max-lg:px-4 max-lg:pb-6">
             <p className="text-[11px] font-semibold tracking-widest text-slate-400 mb-2">
               TODAY&apos;S SANITATION
             </p>
@@ -332,7 +334,7 @@ export default function HomeKiosk() {
           </div>
         </aside>
 
-        <main className="flex-1 flex flex-col min-h-0">
+        <main className="max-lg:contents flex-1 flex flex-col min-h-0">
           {operationDay && (
             <>
               {/* Kiosk-size (lg+) view: original stacked eyebrow + headline + toggle */}
@@ -347,7 +349,7 @@ export default function HomeKiosk() {
               </div>
 
               {/* Smaller screens: original compact single-row version */}
-              <div className="lg:hidden flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-200">
+              <div className="lg:hidden max-lg:order-2 flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-200">
                 <span className={`text-sm font-semibold ${OPERATION_TEXT_STYLES[operationDay]}`}>
                   {OPERATION_LABELS[operationDay]}
                 </span>
@@ -356,7 +358,7 @@ export default function HomeKiosk() {
             </>
           )}
 
-          <div className="flex-1 overflow-y-auto px-4 lg:px-6 py-6">
+          <div className="max-lg:order-3 lg:flex-1 lg:overflow-y-auto px-4 lg:px-6 py-6">
             <div className="max-w-xl mx-auto">
               <div className="border border-slate-200 rounded-xl overflow-hidden divide-y divide-slate-100">
                 <p className="px-4 py-2.5 text-center text-sm font-medium text-slate-500 bg-slate-50">
