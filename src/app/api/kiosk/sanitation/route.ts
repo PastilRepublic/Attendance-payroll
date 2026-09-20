@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import {
-  chemicalGuideText,
   ensureTodaysSanitationSchedule,
   getSanitationSettings,
   getUpcomingSanitation,
@@ -42,6 +41,5 @@ export async function GET() {
     doneCount: tasks.filter((t) => t.status === "DONE").length,
     totalCount: tasks.length,
     upcoming,
-    chemicalGuide: chemicalGuideText(settings.chemicalGuide),
   });
 }

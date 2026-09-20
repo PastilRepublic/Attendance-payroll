@@ -160,7 +160,6 @@ export default function HomeKiosk() {
           tasks: Array.isArray(data.tasks) ? data.tasks : [],
           weekly: data.upcoming.weekly,
           monthly: data.upcoming.monthly,
-          chemicalGuide: data.chemicalGuide ?? null,
         });
         setSanitationFailed(false);
       })

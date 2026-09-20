@@ -208,51 +208,6 @@ export async function setMonthlyCleaningDate(formData: FormData) {
   revalidateSanitation();
 }
 
-const chemicalGuideSchema = z.object({
-  product: z.string().trim().min(1, "Product is required"),
-  strength: z.string().trim(),
-  dilution: z.string().trim(),
-});
-
-/**
- * Owner-only. The guide counts as confirmed only once both the product strength and the
- * approved dilution are filled in -- until then employees are told to follow the label.
- */
-export async function updateChemicalGuide(formData: FormData) {
-  const admin = await requireOwner();
-  const parsed = chemicalGuideSchema.parse({
-    product: formData.get("product"),
-    strength: formData.get("strength") ?? "",
-    dilution: formData.get("dilution") ?? "",
-  });
-  const confirmed = parsed.strength !== "" && parsed.dilution !== "";
-
-  const before = await prisma.settings.findUnique({ where: { id: 1 } });
-  const data = {
-    chemicalProduct: parsed.product,
-    chemicalStrength: parsed.strength,
-    chemicalDilution: parsed.dilution,
-    // Keep the original confirmation time when just re-saving a confirmed guide.
-    chemicalGuideConfirmedAt: confirmed ? (before?.chemicalGuideConfirmedAt ?? new Date()) : null,
-  };
-  await prisma.settings.upsert({ where: { id: 1 }, update: data, create: { id: 1, ...data } });
-
-  await logAudit({
-    actorAdminId: admin.id,
-    action: "UPDATE_CHEMICAL_GUIDE",
-    targetTable: "Settings",
-    targetId: "1",
-    before: {
-      product: before?.chemicalProduct,
-      strength: before?.chemicalStrength,
-      dilution: before?.chemicalDilution,
-    },
-    after: { ...parsed, confirmed },
-  });
-
-  revalidateSanitation();
-}
-
 const assignSanitationSchema = z.object({
   procedureId: z.string().min(1),
   date: z.string().min(1),

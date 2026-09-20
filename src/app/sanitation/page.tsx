@@ -3,7 +3,6 @@ import { prisma } from "@/lib/prisma";
 import { formatInTimeZone } from "date-fns-tz";
 import { TIMEZONE } from "@/lib/payroll";
 import {
-  chemicalGuideText,
   ensureTodaysSanitationSchedule,
   getSanitationSettings,
   getUpcomingSanitation,
@@ -72,7 +71,6 @@ export default async function SanitationBoardPage() {
             tasks={tasks}
             weekly={upcoming.weekly}
             monthly={upcoming.monthly}
-            chemicalGuide={chemicalGuideText(settings.chemicalGuide)}
           />
         </div>
       </div>

@@ -46,8 +46,6 @@ interface IdentifyData {
   exemptFromHalfDay: boolean;
   /** "Supervisor unavailable" is on -- ticking a cleaning duty needs a photo. */
   sanitationPhotoRequired?: boolean;
-  /** Owner-confirmed sanitizer + dilution, shown on the checklist; null until confirmed. */
-  chemicalGuide?: string | null;
   coworkersStillIn?: { beforeBreak: number; beforeOut: number };
 }
 
@@ -709,7 +707,6 @@ export default function KioskClient({
                 </span>
               </>
             }
-            chemicalGuide={identifyData?.chemicalGuide}
             tasks={pendingTasks.filter((t) => t.timing === gate)}
             progress={[]}
             doneIds={doneTaskIds}
@@ -752,7 +749,6 @@ export default function KioskClient({
         {screen === "tasks" && !gate && (
           <TaskChecklist
             title="Your tasks today"
-            chemicalGuide={identifyData?.chemicalGuide}
             tasks={pendingTasks.filter(isUngated)}
             progress={checklistProgress}
             doneIds={doneTaskIds}
@@ -993,7 +989,6 @@ function TaskChecklist({
   title,
   subtitle,
   notice,
-  chemicalGuide,
   tasks,
   progress,
   doneIds,
@@ -1010,8 +1005,6 @@ function TaskChecklist({
   subtitle?: string;
   /** Prominent instruction shown above the list. */
   notice?: React.ReactNode;
-  /** Owner-confirmed sanitizer and dilution; nothing is shown until it's confirmed. */
-  chemicalGuide?: string | null;
   tasks: PendingTask[];
   progress: { status: "PENDING" | "DONE"; inspectionResult: "PASS" | "FAIL" | null }[];
   doneIds: Set<string>;
@@ -1035,11 +1028,6 @@ function TaskChecklist({
       {notice && (
         <p className="mb-5 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-base text-amber-900 text-left">
           {notice}
-        </p>
-      )}
-      {chemicalGuide && (
-        <p className="mb-5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-left text-base text-slate-700">
-          <span className="font-semibold">Chemical guide:</span> {chemicalGuide}
         </p>
       )}
       {progress.length > 0 && (

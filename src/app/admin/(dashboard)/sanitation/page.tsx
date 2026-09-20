@@ -12,7 +12,6 @@ import {
   setProcedureActive,
   setSanitationPhotoRequired,
   setWeeklyCleaningDay,
-  updateChemicalGuide,
   updateProcedure,
 } from "./actions";
 import { auth } from "@/lib/auth";
@@ -29,7 +28,6 @@ import {
   getSanitationSettings,
   getUpcomingSanitation,
   todayManila,
-  type ChemicalGuide,
 } from "@/lib/sanitation";
 import { getOperationDay } from "@/lib/settings";
 import {
@@ -178,8 +176,6 @@ export default async function SanitationPage({
             phase={upcoming.monthly.phase}
           />
         </div>
-
-        <ChemicalGuideCard guide={settings.chemicalGuide} isOwner={isOwner} />
 
         <section className="rounded-3xl border border-slate-300 bg-white p-6 sm:p-8">
           <h2 className="text-2xl font-bold tracking-tight text-slate-900">Sanitation tasks</h2>
@@ -547,83 +543,6 @@ function CleaningSettingsCard({
   );
 }
 
-function ChemicalGuideCard({ guide, isOwner }: { guide: ChemicalGuide; isOwner: boolean }) {
-  const form = isOwner && (
-    <form action={updateChemicalGuide} className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-      <div>
-        <label className="mb-1 block text-sm font-semibold">Product</label>
-        <input name="product" required defaultValue={guide.product} className={FIELD_CLASS} />
-      </div>
-      <div>
-        <label className="mb-1 block text-sm font-semibold">Product strength</label>
-        <input
-          name="strength"
-          defaultValue={guide.strength}
-          placeholder="e.g. 5% sodium hypochlorite"
-          className={FIELD_CLASS}
-        />
-      </div>
-      <div>
-        <label className="mb-1 block text-sm font-semibold">Food-area dilution</label>
-        <input
-          name="dilution"
-          defaultValue={guide.dilution}
-          placeholder="e.g. 1 tbsp per 1 L water"
-          className={FIELD_CLASS}
-        />
-      </div>
-      <div className="sm:col-span-3">
-        <button className="rounded-full bg-slate-900 px-6 py-2.5 text-sm font-semibold text-white hover:bg-slate-800">
-          {guide.confirmed ? "Save chemical guide" : "Confirm chemical guide"}
-        </button>
-      </div>
-    </form>
-  );
-
-  if (guide.confirmed) {
-    return (
-      <section className="rounded-3xl border border-slate-200 bg-slate-50 p-6 sm:p-8">
-        <h2 className="text-xl font-bold text-slate-900">Chemical guide</h2>
-        <p className="mt-1 text-base text-slate-700">
-          {[guide.product, guide.strength, guide.dilution].filter(Boolean).join(" · ")}
-        </p>
-        <p className="mt-1 text-sm text-slate-500">Shown to employees on the kiosk checklist.</p>
-        {isOwner && (
-          <details className="mt-3">
-            <summary className="cursor-pointer text-sm font-semibold text-slate-700">Edit guide</summary>
-            {form}
-          </details>
-        )}
-      </section>
-    );
-  }
-
-  return (
-    <section className="rounded-3xl border border-amber-300 bg-amber-50 p-6 sm:p-8">
-      <div className="flex items-center gap-3">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-7 w-7 shrink-0 text-amber-700" aria-hidden>
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M12 9v4m0 4h.01M10.3 3.9 2.4 17.6A2 2 0 0 0 4.1 20.6h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"
-          />
-        </svg>
-        <h2 className="text-xl font-bold text-amber-950">Chemical guide needs confirmation</h2>
-      </div>
-      <p className="mt-3 text-base text-amber-900">
-        You use {guide.product}, but the exact product strength and approved food-area dilution are not
-        recorded yet. Employees should follow the product label and your current written SOP. Do not
-        display or guess a dilution until the label is confirmed.
-      </p>
-      {isOwner ? (
-        form
-      ) : (
-        <p className="mt-3 text-sm font-medium text-amber-800">Ask the owner to record and confirm the guide.</p>
-      )}
-    </section>
-  );
-}
-
 function TaskCard({ procedure }: { procedure: Procedure }) {
   return (
     <li className="rounded-3xl border border-slate-300 p-6">
@@ -727,7 +646,7 @@ function TaskForm({
             name="chemicals"
             required
             defaultValue={procedure?.chemicals}
-            placeholder="Zonrox, per the chemical guide"
+            placeholder="Zonrox"
             className={FIELD_CLASS}
           />
         </div>

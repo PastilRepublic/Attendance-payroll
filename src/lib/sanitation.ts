@@ -26,21 +26,12 @@ export function scopeFilterFor(
   return operationDay === "OFF" ? "BOTH" : { in: ["BOTH", operationDay] };
 }
 
-export interface ChemicalGuide {
-  product: string;
-  strength: string;
-  dilution: string;
-  /** True once an owner has saved the strength and dilution -- only then is the guide shown to employees. */
-  confirmed: boolean;
-}
-
 export interface SanitationSettings {
   photoRequired: boolean;
   /** ISO weekday (1-7) weekly duties fall on. */
   weeklyDay: number;
   /** The owner's pick for the month's cleaning date, or null for the last weekly-day of the month. */
   monthlyOverride: string | null;
-  chemicalGuide: ChemicalGuide;
 }
 
 export async function getSanitationSettings(): Promise<SanitationSettings> {
@@ -49,12 +40,6 @@ export async function getSanitationSettings(): Promise<SanitationSettings> {
     photoRequired: row.sanitationPhotoRequired,
     weeklyDay: row.weeklyCleaningDay,
     monthlyOverride: row.monthlyCleaningDate ? row.monthlyCleaningDate.toISOString().slice(0, 10) : null,
-    chemicalGuide: {
-      product: row.chemicalProduct,
-      strength: row.chemicalStrength,
-      dilution: row.chemicalDilution,
-      confirmed: row.chemicalGuideConfirmedAt !== null,
-    },
   };
 }
 
@@ -147,10 +132,4 @@ export async function getUpcomingSanitation(
     weekly: build("WEEKLY", nextWeeklyDate(todayKey, settings.weeklyDay)),
     monthly: build("MONTHLY", nextMonthlyDate(todayKey, settings.weeklyDay, settings.monthlyOverride)),
   };
-}
-
-/** One line for the chemical guide, e.g. "Zonrox · 5% · 1 tbsp per litre" -- null until an owner confirms it. */
-export function chemicalGuideText(guide: ChemicalGuide): string | null {
-  if (!guide.confirmed) return null;
-  return [guide.product, guide.strength, guide.dilution].filter(Boolean).join(" · ");
 }

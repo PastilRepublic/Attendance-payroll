@@ -31,7 +31,6 @@ export interface SidebarData {
   tasks: SidebarTask[];
   weekly: SidebarUpcoming;
   monthly: SidebarUpcoming;
-  chemicalGuide: string | null;
 }
 
 type Tab = "today" | "weekly" | "monthly";
@@ -178,12 +177,6 @@ export default function SanitationSidebar({ data }: { data: SidebarData }) {
         <TabButton label="Weekly" count={data.weekly.tasks.length} active={tab === "weekly"} onClick={() => setTab("weekly")} />
         <TabButton label="Monthly" count={data.monthly.tasks.length} active={tab === "monthly"} onClick={() => setTab("monthly")} />
       </div>
-
-      {data.chemicalGuide && (
-        <p className="mb-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
-          <span className="font-semibold">Chemical guide:</span> {data.chemicalGuide}
-        </p>
-      )}
 
       {tab === "today" ? (
         data.tasks.length === 0 ? (

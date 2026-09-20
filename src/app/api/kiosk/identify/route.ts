@@ -6,7 +6,6 @@ import { TIMEZONE } from "@/lib/payroll";
 import { resolveEmployeeByPin } from "@/lib/kioskAuth";
 import { getKioskSnapshot, countCoworkersStillIn } from "@/lib/kioskAttendance";
 import {
-  chemicalGuideText,
   ensureTodaysSanitationSchedule,
   getSanitationSettings,
   scopeFilterFor,
@@ -78,7 +77,6 @@ export async function POST(request: Request) {
     exemptFromHalfDay: employeeRecord?.payBasis === "FLAT_DAILY",
     requirePhoto: await getRequirePhotoOnPunch(),
     sanitationPhotoRequired: sanitationSettings.photoRequired,
-    chemicalGuide: chemicalGuideText(sanitationSettings.chemicalGuide),
     coworkersStillIn: await countCoworkersStillIn(matched.id),
     pendingTasks: [
       ...pendingSanitation.map((s) => ({

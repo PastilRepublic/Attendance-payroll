@@ -102,12 +102,10 @@ export default function SanitationBoard({
   tasks,
   weekly,
   monthly,
-  chemicalGuide,
 }: {
   tasks: BoardTask[];
   weekly: BoardUpcoming;
   monthly: BoardUpcoming;
-  chemicalGuide: string | null;
 }) {
   const [tab, setTab] = useState<Tab>("today");
   const upcoming = tab === "weekly" ? weekly : monthly;
@@ -121,13 +119,6 @@ export default function SanitationBoard({
         <TabButton label="Weekly" count={weekly.tasks.length} active={tab === "weekly"} onClick={() => setTab("weekly")} />
         <TabButton label="Monthly" count={monthly.tasks.length} active={tab === "monthly"} onClick={() => setTab("monthly")} />
       </div>
-
-      {chemicalGuide && (
-        <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4">
-          <p className="text-sm font-semibold text-slate-500">Chemical guide</p>
-          <p className="mt-1 text-base text-slate-900">{chemicalGuide}</p>
-        </div>
-      )}
 
       {tab === "today" && (
         <>
