@@ -44,6 +44,7 @@ import {
   TIMING_RANK,
   type SanitationScheduleKey,
 } from "@/lib/sanitationLabels";
+import AutoSubmitDate from "./AutoSubmitDate";
 import AutoSubmitSelect from "./AutoSubmitSelect";
 import ProductionDayFields from "./ProductionDayFields";
 import TaskDialog, { DialogCancelButton } from "./TaskDialog";
@@ -452,7 +453,11 @@ function CleaningSettingsCard({
   const monthPrefix = monthlyDueDate.slice(0, 7);
   const overrideInMonth = settings.monthlyOverride?.startsWith(monthPrefix) ? settings.monthlyOverride : null;
   const defaultMonthly = monthlyCleaningDateFor(monthlyDueDate, settings.weeklyDay, null);
-  const monthOptions = datesInMonth(monthlyDueDate).filter((d) => d >= today || d === overrideInMonth);
+  const monthDates = datesInMonth(monthlyDueDate);
+  // The calendar only offers days of the month still to come.
+  const minDate = today > monthDates[0] ? today : monthDates[0];
+  const maxDate = monthDates[monthDates.length - 1];
+  const pickedDate = overrideInMonth ?? defaultMonthly;
   const on = settings.photoRequired;
 
   return (
@@ -506,7 +511,7 @@ function CleaningSettingsCard({
         </AutoSubmitSelect>
       </form>
 
-      <form action={setMonthlyCleaningDate} className="mt-6 rounded-2xl border border-slate-300 bg-slate-50 p-5">
+      <div className="mt-6 rounded-2xl border border-slate-300 bg-slate-50 p-5">
         <div className="mb-3 flex items-center justify-between gap-3">
           <label htmlFor="monthlyDate" className="text-lg font-bold text-slate-900">
             Monthly cleaning date
@@ -519,26 +524,28 @@ function CleaningSettingsCard({
             {overrideInMonth ? "Custom date" : `Last ${weekdayName} default`}
           </span>
         </div>
-        <AutoSubmitSelect
-          name="monthlyDate"
-          defaultValue={overrideInMonth ?? ""}
-          className="w-full rounded-2xl border border-slate-300 bg-slate-100 px-5 py-3.5 text-lg text-slate-900"
-        >
-          <option value="">
-            {formatDateKey(defaultMonthly, "MM/dd/yyyy")} (default — last {weekdayName})
-          </option>
-          {monthOptions
-            .filter((d) => d !== defaultMonthly)
-            .map((d) => (
-              <option key={d} value={d}>
-                {formatDateKey(d, "MM/dd/yyyy")} ({formatDateKey(d, "EEE")})
-              </option>
-            ))}
-        </AutoSubmitSelect>
+        <form action={setMonthlyCleaningDate}>
+          <AutoSubmitDate
+            key={pickedDate}
+            name="monthlyDate"
+            defaultValue={pickedDate}
+            min={minDate}
+            max={maxDate}
+            className="w-full cursor-pointer rounded-2xl border border-slate-300 bg-slate-100 px-5 py-3.5 text-lg text-slate-900"
+          />
+        </form>
+        {overrideInMonth && (
+          <form action={setMonthlyCleaningDate} className="mt-2">
+            <input type="hidden" name="monthlyDate" value="" />
+            <button className="text-sm font-semibold text-accent-800 hover:underline">
+              Use the default (last {weekdayName}, {formatDateKey(defaultMonthly, "MMM d")})
+            </button>
+          </form>
+        )}
         <p className="mt-3 text-base text-slate-600">
           Reminder: {formatDateKey(reminderDateFor(monthlyDueDate), "EEEE, MMM d")}
         </p>
-      </form>
+      </div>
     </section>
   );
 }

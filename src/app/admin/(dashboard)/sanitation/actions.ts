@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAdmin, requireOwner } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
 import { SCHEDULE_LABELS } from "@/lib/sanitationLabels";
+import { monthlyCleaningDateFor } from "@/lib/sanitationSchedule";
 
 // Everything that shows sanitation data, so a change here is visible right away.
 function revalidateSanitation() {
@@ -189,7 +190,10 @@ export async function setMonthlyCleaningDate(formData: FormData) {
     .string()
     .regex(/^(\d{4}-\d{2}-\d{2})?$/)
     .parse(formData.get("monthlyDate") ?? "");
-  const monthlyDate = raw ? new Date(`${raw}T00:00:00.000Z`) : null;
+  // Picking the month's default date (the last cleaning weekday) is the same as no override.
+  const settings = await prisma.settings.findUnique({ where: { id: 1 } });
+  const isDefault = raw !== "" && monthlyCleaningDateFor(raw, settings?.weeklyCleaningDay ?? 6, null) === raw;
+  const monthlyDate = raw && !isDefault ? new Date(`${raw}T00:00:00.000Z`) : null;
 
   await prisma.settings.upsert({
     where: { id: 1 },
@@ -202,7 +206,7 @@ export async function setMonthlyCleaningDate(formData: FormData) {
     action: "SET_MONTHLY_CLEANING_DATE",
     targetTable: "Settings",
     targetId: "1",
-    after: { monthlyDate: raw || null },
+    after: { monthlyDate: monthlyDate ? raw : null },
   });
 
   revalidateSanitation();

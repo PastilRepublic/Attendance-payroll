@@ -7,7 +7,7 @@ const PHASE_BADGES: Record<ReminderPhase, string> = {
 };
 
 /**
- * Weekly reminders are amber, monthly ones the teal-blue accent -- always tinted,
+ * Weekly reminders are amber, monthly ones the blue accent -- always tinted,
  * so they read as reminders whether or not the 2-day window has opened yet.
  * The phase badge is what says how close it is (filled once it has opened).
  */
