@@ -247,7 +247,7 @@ export default async function SanitationPage({
             <form action={passAllSanitationAssignments}>
               <input type="hidden" name="date" value={date} />
               <button
-                className="rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium px-3 py-1.5"
+                className="rounded-md bg-green-600 hover:bg-green-500 text-white text-xs font-medium px-3 py-1.5"
                 title="Passes every duty that is done and waiting for inspection"
               >
                 Pass all ({pendingChecks} waiting)

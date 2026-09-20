@@ -35,14 +35,14 @@ export default function SanitationProgress({ tasks }: { tasks: SanitationProgres
         aria-valuenow={done}
         className="flex h-2.5 w-full overflow-hidden rounded-full bg-slate-200"
       >
-        <div className="bg-emerald-500 transition-all" style={{ width: `${pct(verified)}%` }} />
+        <div className="bg-green-500 transition-all" style={{ width: `${pct(verified)}%` }} />
         <div className="bg-amber-400 transition-all" style={{ width: `${pct(waiting)}%` }} />
         <div className="bg-red-500 transition-all" style={{ width: `${pct(failed)}%` }} />
       </div>
 
       <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-600">
         <span className="inline-flex items-center gap-1.5">
-          <span className="h-2 w-2 rounded-full bg-emerald-500" />
+          <span className="h-2 w-2 rounded-full bg-green-500" />
           {allVerified ? "All verified" : `${verified} verified`}
         </span>
         <span className="inline-flex items-center gap-1.5">
