@@ -1,12 +1,19 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { ensureTodaysSanitationSchedule, scopeFilterFor, todayManila } from "@/lib/sanitation";
+import {
+  chemicalGuideText,
+  ensureTodaysSanitationSchedule,
+  getSanitationSettings,
+  getUpcomingSanitation,
+  scopeFilterFor,
+  todayManila,
+} from "@/lib/sanitation";
 import { getOperationDay } from "@/lib/settings";
 
 export async function GET() {
   await ensureTodaysSanitationSchedule();
   const date = todayManila();
-  const operationDay = await getOperationDay();
+  const [operationDay, settings] = await Promise.all([getOperationDay(), getSanitationSettings()]);
 
   const assignments = await prisma.sanitationAssignment.findMany({
     where: {
@@ -22,14 +29,19 @@ export async function GET() {
     name: a.procedure.name,
     riskLevel: a.procedure.riskLevel,
     timing: a.procedure.timing,
+    schedule: a.procedure.schedule,
     status: a.status,
     employeeName: a.employee?.name ?? null,
     inspectionResult: a.inspectionResult,
   }));
 
+  const upcoming = await getUpcomingSanitation(date, operationDay, settings);
+
   return NextResponse.json({
     tasks,
     doneCount: tasks.filter((t) => t.status === "DONE").length,
     totalCount: tasks.length,
+    upcoming,
+    chemicalGuide: chemicalGuideText(settings.chemicalGuide),
   });
 }

@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyPin } from "@/lib/pin";
 import { resolveEmployeeByPin } from "@/lib/kioskAuth";
+import { getSanitationSettings } from "@/lib/sanitation";
+import { savePunchPhoto } from "@/lib/storage";
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
@@ -10,6 +12,7 @@ export async function POST(request: Request) {
   const taskAssignmentId =
     typeof body?.taskAssignmentId === "string" ? body.taskAssignmentId : null;
   const kind = body?.kind === "SANITATION" ? "SANITATION" : "TASK";
+  const photo = body?.photo;
 
   if (!pin || !taskAssignmentId) {
     return NextResponse.json({ error: "PIN and taskAssignmentId are required" }, { status: 400 });
@@ -32,9 +35,22 @@ export async function POST(request: Request) {
     if (!matched) {
       return NextResponse.json({ error: "PIN not recognized" }, { status: 401 });
     }
+    // "Supervisor unavailable" -- nobody is around to check the work, so a
+    // photo has to come with the tick.
+    let photoUrl: string | undefined;
+    if ((await getSanitationSettings()).photoRequired) {
+      if (typeof photo !== "string" || !photo) {
+        return NextResponse.json({ error: "Photo proof is required" }, { status: 400 });
+      }
+      try {
+        photoUrl = await savePunchPhoto(`sanitation-${taskAssignmentId}`, photo);
+      } catch {
+        return NextResponse.json({ error: "Could not save the photo" }, { status: 400 });
+      }
+    }
     await prisma.sanitationAssignment.update({
       where: { id: taskAssignmentId },
-      data: { employeeId: matched.id, status: "DONE", completedAt: new Date() },
+      data: { employeeId: matched.id, status: "DONE", completedAt: new Date(), photoUrl },
     });
     return NextResponse.json({ ok: true });
   }

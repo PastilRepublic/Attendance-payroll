@@ -5,7 +5,12 @@ import { getRequirePhotoOnPunch, getOperationDay } from "@/lib/settings";
 import { TIMEZONE } from "@/lib/payroll";
 import { resolveEmployeeByPin } from "@/lib/kioskAuth";
 import { getKioskSnapshot, countCoworkersStillIn } from "@/lib/kioskAttendance";
-import { ensureTodaysSanitationSchedule, scopeFilterFor } from "@/lib/sanitation";
+import {
+  chemicalGuideText,
+  ensureTodaysSanitationSchedule,
+  getSanitationSettings,
+  scopeFilterFor,
+} from "@/lib/sanitation";
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
@@ -47,6 +52,7 @@ export async function POST(request: Request) {
     await ensureTodaysSanitationSchedule();
   }
   const operationDay = await getOperationDay();
+  const sanitationSettings = await getSanitationSettings();
   // Bonus tasks are no longer shown at the kiosk -- only cleaning duties.
   const pendingSanitation = skipsChecklist
     ? []
@@ -71,6 +77,8 @@ export async function POST(request: Request) {
     // Packing (flat daily) can go home whenever they're done, so no half-day prompt.
     exemptFromHalfDay: employeeRecord?.payBasis === "FLAT_DAILY",
     requirePhoto: await getRequirePhotoOnPunch(),
+    sanitationPhotoRequired: sanitationSettings.photoRequired,
+    chemicalGuide: chemicalGuideText(sanitationSettings.chemicalGuide),
     coworkersStillIn: await countCoworkersStillIn(matched.id),
     pendingTasks: [
       ...pendingSanitation.map((s) => ({

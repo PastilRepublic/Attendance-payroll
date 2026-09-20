@@ -7,12 +7,21 @@ import { formatInTimeZone } from "date-fns-tz";
 import { TIMEZONE } from "@/lib/payroll";
 import Badge from "@/components/Badge";
 import SanitationProgress from "@/components/SanitationProgress";
+import { TIMING_RANK } from "@/lib/sanitationLabels";
+import { formatDateKey } from "@/lib/sanitationSchedule";
 
 type PresenceStatus = "OUT" | "WORKING" | "ON_BREAK" | "DONE";
 type OperationDay = "COOKING" | "JAR_FILLING";
 type ResolvedOperationDay = OperationDay | "OFF";
 type RiskLevel = "LOW" | "MEDIUM" | "HIGH";
 type SanitationTiming = "PRE_COOKING" | "POST_COOKING" | "ANYTIME";
+
+interface UpcomingReminder {
+  schedule: "WEEKLY" | "MONTHLY";
+  dueDate: string;
+  phase: "due-today" | "coming-up" | "later";
+  tasks: unknown[];
+}
 
 interface SanitationTask {
   id: string;
@@ -60,9 +69,6 @@ const PRESENCE_LABELS: Record<PresenceStatus, string> = {
   DONE: "Timed out",
   OUT: "Not in",
 };
-
-// Before-lunch duties first, then anytime, then the ones done at Time Out.
-const TIMING_RANK: Record<SanitationTiming, number> = { PRE_COOKING: 0, ANYTIME: 1, POST_COOKING: 2 };
 
 function sortSanitationTasks(tasks: SanitationTask[]): SanitationTask[] {
   return [...tasks].sort((a, b) => TIMING_RANK[a.timing] - TIMING_RANK[b.timing]);
@@ -136,6 +142,7 @@ export default function HomeKiosk() {
   const [employees, setEmployees] = useState<EmployeeOption[]>([]);
   const [employeesFailed, setEmployeesFailed] = useState(false);
   const [sanitationTasks, setSanitationTasks] = useState<SanitationTask[]>([]);
+  const [reminders, setReminders] = useState<UpcomingReminder[]>([]);
   const [sanitationFailed, setSanitationFailed] = useState(false);
   const [sanitationLoaded, setSanitationLoaded] = useState(false);
   // Which of the two nav links is "on" -- the home page is employee-facing,
@@ -177,6 +184,12 @@ export default function HomeKiosk() {
       .then((res) => (res.ok ? res.json() : Promise.reject()))
       .then((data) => {
         setSanitationTasks(Array.isArray(data.tasks) ? data.tasks : []);
+        // Weekly / monthly reminders only show once their 2-day window opens.
+        setReminders(
+          [data.upcoming?.weekly, data.upcoming?.monthly].filter(
+            (r): r is UpcomingReminder => Boolean(r) && r.phase !== "later" && r.tasks.length > 0
+          )
+        );
         setSanitationFailed(false);
       })
       .catch(() => setSanitationFailed(true))
@@ -371,6 +384,23 @@ export default function HomeKiosk() {
                 </>
               );
             })()}
+            {sanitationLoaded &&
+              !sanitationFailed &&
+              reminders.map((r) => (
+                <p
+                  key={r.schedule}
+                  className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs text-amber-900"
+                >
+                  <span className="font-semibold">
+                    {r.schedule === "WEEKLY" ? "Weekly" : "Monthly"} cleaning
+                    {r.phase === "due-today" ? " today" : ""}
+                  </span>
+                  {r.phase === "due-today" ? "" : ` · ${formatDateKey(r.dueDate, "EEE, MMM d")}`}
+                  <span className="block text-amber-800/80">
+                    {r.tasks.length} {r.tasks.length === 1 ? "task" : "tasks"}
+                  </span>
+                </p>
+              ))}
             <Link href="/sanitation" className="text-xs text-amber-600 hover:underline mt-2 inline-block">
               View full board →
             </Link>

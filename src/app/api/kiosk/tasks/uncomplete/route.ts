@@ -42,7 +42,7 @@ export async function POST(request: Request) {
     }
     await prisma.sanitationAssignment.update({
       where: { id: taskAssignmentId },
-      data: { employeeId: null, status: "PENDING", completedAt: null },
+      data: { employeeId: null, status: "PENDING", completedAt: null, photoUrl: null },
     });
     return NextResponse.json({ ok: true });
   }

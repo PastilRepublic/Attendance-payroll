@@ -308,6 +308,19 @@ model Settings {
    * locked until once too many pile up. Email + password login is unaffected. */
   adminPinFailures         Int          @default(0)
   adminPinLockedUntil      DateTime?
+  /** "Supervisor unavailable": while on, ticking a cleaning duty at the kiosk needs a photo. */
+  sanitationPhotoRequired  Boolean      @default(false)
+  /** ISO weekday (1 = Monday ... 7 = Sunday) that weekly cleaning duties fall on. */
+  weeklyCleaningDay        Int          @default(6)
+  /** Overrides the month's monthly cleaning date. Ignored once that month has passed -- the
+   * default (last weeklyCleaningDay of the month) applies again. */
+  monthlyCleaningDate      DateTime?    @db.Date
+  /** The sanitizer the crew uses and its approved food-area dilution. The guide is only shown
+   * to employees once an owner has confirmed it (chemicalGuideConfirmedAt). */
+  chemicalProduct          String       @default("Zonrox")
+  chemicalStrength         String       @default("")
+  chemicalDilution         String       @default("")
+  chemicalGuideConfirmedAt DateTime?
   updatedAt               DateTime     @updatedAt
 }
 
@@ -420,6 +433,9 @@ model SanitationProcedure {
   // When this duty is due at the kiosk: PRE_COOKING gates the lunch-break
   // punch, POST_COOKING gates Time Out, ANYTIME shows after any punch.
   timing         SanitationTiming @default(ANYTIME)
+  // How often this duty comes up: DAILY is scheduled every day, WEEKLY only on
+  // Settings.weeklyCleaningDay, MONTHLY only on the month's cleaning date.
+  schedule       SanitationSchedule @default(DAILY)
   // Optional pay incentive for whoever does this duty. Never shown at the
   // kiosk; it is only suggested to admins on payroll once a supervisor has
   // passed the inspection.
@@ -429,6 +445,12 @@ model SanitationProcedure {
   updatedAt      DateTime @updatedAt
 
   assignments SanitationAssignment[]
+}
+
+enum SanitationSchedule {
+  DAILY
+  WEEKLY
+  MONTHLY
 }
 
 enum SanitationTiming {
@@ -474,6 +496,8 @@ model SanitationAssignment {
   payslipAdjustment   PayslipAdjustment? @relation(fields: [payslipAdjustmentId], references: [id])
   /** True once an admin has declined this duty's bonus, so it stops being suggested. */
   bonusDismissed      Boolean            @default(false)
+  /** Photo proof taken at the kiosk while "Supervisor unavailable" was on -- a filename in the punch-photos bucket. */
+  photoUrl            String?
 
   createdAt DateTime @default(now())
 

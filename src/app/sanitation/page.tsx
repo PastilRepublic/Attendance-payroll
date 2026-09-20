@@ -2,28 +2,52 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatInTimeZone } from "date-fns-tz";
 import { TIMEZONE } from "@/lib/payroll";
-import Card from "@/components/Card";
-import Badge from "@/components/Badge";
-import RiskDot from "@/components/RiskDot";
-import SanitationProgress from "@/components/SanitationProgress";
-import { ensureTodaysSanitationSchedule, scopeFilterFor, todayManila } from "@/lib/sanitation";
+import {
+  chemicalGuideText,
+  ensureTodaysSanitationSchedule,
+  getSanitationSettings,
+  getUpcomingSanitation,
+  scopeFilterFor,
+  todayManila,
+} from "@/lib/sanitation";
 import { getOperationDay } from "@/lib/settings";
+import { TIMING_RANK } from "@/lib/sanitationLabels";
+import { formatDateKey } from "@/lib/sanitationSchedule";
+import SanitationBoard from "./SanitationBoard";
 
 export const dynamic = "force-dynamic";
 
 export default async function SanitationBoardPage() {
   await ensureTodaysSanitationSchedule();
   const date = todayManila();
-  const operationDay = await getOperationDay();
+  const [operationDay, settings] = await Promise.all([getOperationDay(), getSanitationSettings()]);
 
-  const assignments = await prisma.sanitationAssignment.findMany({
-    where: {
-      date: new Date(`${date}T00:00:00.000Z`),
-      procedure: { appliesTo: scopeFilterFor(operationDay) },
-    },
-    include: { procedure: true, employee: true },
-    orderBy: { procedure: { name: "asc" } },
-  });
+  const [assignments, upcoming] = await Promise.all([
+    prisma.sanitationAssignment.findMany({
+      where: {
+        date: new Date(`${date}T00:00:00.000Z`),
+        procedure: { appliesTo: scopeFilterFor(operationDay) },
+      },
+      include: { procedure: true, employee: true },
+      orderBy: { procedure: { name: "asc" } },
+    }),
+    getUpcomingSanitation(date, operationDay, settings),
+  ]);
+
+  // Before-lunch duties first; the name order from the query holds within a group.
+  const tasks = assignments
+    .map((a) => ({
+      id: a.id,
+      name: a.procedure.name,
+      instruction: a.procedure.steps,
+      timing: a.procedure.timing,
+      schedule: a.procedure.schedule,
+      status: a.status,
+      employeeName: a.employee?.name ?? null,
+      completedLabel: a.completedAt ? formatInTimeZone(a.completedAt, TIMEZONE, "h:mm a") : null,
+      inspectionResult: a.inspectionResult,
+    }))
+    .sort((a, b) => TIMING_RANK[a.timing] - TIMING_RANK[b.timing]);
 
   return (
     <div className="flex-1 flex flex-col bg-slate-50">
@@ -41,74 +65,15 @@ export default async function SanitationBoardPage() {
 
       <div className="flex-1 px-4 py-8">
         <div className="max-w-3xl mx-auto">
-          <h2 className="text-xl font-semibold text-slate-900 mb-1">
-            Sanitation Inspection &amp; Schedule
-          </h2>
-          <p className="text-sm text-slate-500 mb-6">{date} — who&apos;s in charge of what today</p>
+          <h2 className="text-xl font-semibold text-slate-900 mb-1">Sanitation checklist</h2>
+          <p className="text-sm text-slate-500 mb-6">{formatDateKey(date, "EEEE, MMMM d")}</p>
 
-          {assignments.length > 0 && (
-            <Card className="p-4 mb-4">
-              <SanitationProgress tasks={assignments} />
-            </Card>
-          )}
-
-          <Card className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-slate-50 text-slate-600 text-left">
-                <tr>
-                  <th className="px-4 py-2 font-medium">Area / Equipment</th>
-                  <th className="px-4 py-2 font-medium">Duty</th>
-                  <th className="px-4 py-2 font-medium">Signed off by</th>
-                  <th className="px-4 py-2 font-medium">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {assignments.map((a) => (
-                  <tr key={a.id} className="border-t border-slate-100">
-                    <td className="px-4 py-2 text-slate-700">{a.procedure.areaEquipment}</td>
-                    <td className="px-4 py-2 text-slate-900 font-medium">
-                      <span className="inline-flex items-center gap-1.5">
-                        <RiskDot level={a.procedure.riskLevel} />
-                        {a.procedure.name}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2 text-slate-700">
-                      {a.employee ? (
-                        <>
-                          {a.employee.name}
-                          {a.completedAt && (
-                            <span className="text-slate-400 text-xs ml-1.5">
-                              {formatInTimeZone(a.completedAt, TIMEZONE, "h:mm a")}
-                            </span>
-                          )}
-                        </>
-                      ) : (
-                        <span className="text-slate-400 italic">Team</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-2">
-                      {a.inspectionResult ? (
-                        <Badge status={a.inspectionResult === "PASS" ? "pass" : "fail"}>
-                          {a.inspectionResult === "PASS" ? "Passed" : "Failed"}
-                        </Badge>
-                      ) : a.status === "DONE" ? (
-                        <Badge status="awaiting">Done — awaiting inspection</Badge>
-                      ) : (
-                        <Badge status="pending" />
-                      )}
-                    </td>
-                  </tr>
-                ))}
-                {assignments.length === 0 && (
-                  <tr>
-                    <td colSpan={4} className="px-4 py-8 text-center text-slate-400">
-                      No sanitation assignments scheduled for today.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </Card>
+          <SanitationBoard
+            tasks={tasks}
+            weekly={upcoming.weekly}
+            monthly={upcoming.monthly}
+            chemicalGuide={chemicalGuideText(settings.chemicalGuide)}
+          />
         </div>
       </div>
     </div>

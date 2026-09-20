@@ -44,6 +44,10 @@ interface IdentifyData {
   totals: Totals;
   requirePhoto: boolean;
   exemptFromHalfDay: boolean;
+  /** "Supervisor unavailable" is on -- ticking a cleaning duty needs a photo. */
+  sanitationPhotoRequired?: boolean;
+  /** Owner-confirmed sanitizer + dilution, shown on the checklist; null until confirmed. */
+  chemicalGuide?: string | null;
   coworkersStillIn?: { beforeBreak: number; beforeOut: number };
 }
 
@@ -187,6 +191,8 @@ export default function KioskClient({
   const [chosenAction, setChosenAction] = useState<PunchType | null>(null);
   const [gate, setGate] = useState<SanitationTiming | null>(null);
   const [overrideOpen, setOverrideOpen] = useState(false);
+  // The duty waiting on a proof photo while "Supervisor unavailable" is on.
+  const [proofTaskId, setProofTaskId] = useState<string | null>(null);
   const [nowTick, setNowTick] = useState(() => Date.now());
   const [confirmSecondsLeft, setConfirmSecondsLeft] = useState(CONFIRM_AUTO_RESET_MS / 1000);
   const deviceIdRef = useRef<string>("");
@@ -240,6 +246,7 @@ export default function KioskClient({
     setIdentifyData(null);
     setChosenAction(null);
     setGate(null);
+    setProofTaskId(null);
     setOverrideOpen(false);
   }, []);
 
@@ -320,8 +327,8 @@ export default function KioskClient({
     return { status: t.status, inspectionResult: t.inspectionResult };
   });
 
-  const completeTask = useCallback(
-    async (taskId: string, kind: "TASK" | "SANITATION") => {
+  const submitCompletion = useCallback(
+    async (taskId: string, kind: "TASK" | "SANITATION", photo?: string) => {
       try {
         const res = await fetch("/api/kiosk/tasks/complete", {
           method: "POST",
@@ -331,16 +338,35 @@ export default function KioskClient({
             employeeId: selectedEmployee?.id,
             taskAssignmentId: taskId,
             kind,
+            photo,
           }),
         });
         if (res.ok) {
           setDoneTaskIds((prev) => new Set(prev).add(taskId));
+        } else if (!photo && kind === "SANITATION") {
+          // "Supervisor unavailable" may have been switched on after this
+          // employee identified -- the server says so, so ask for the photo.
+          const data = await res.json().catch(() => null);
+          if (typeof data?.error === "string" && data.error.startsWith("Photo proof")) {
+            setProofTaskId(taskId);
+          }
         }
       } catch {
         // Best-effort: task stays pending, admin can still see/manage it directly.
       }
     },
     [pin, selectedEmployee]
+  );
+
+  const completeTask = useCallback(
+    async (taskId: string, kind: "TASK" | "SANITATION") => {
+      if (kind === "SANITATION" && identifyData?.sanitationPhotoRequired) {
+        setProofTaskId(taskId);
+        return;
+      }
+      await submitCompletion(taskId, kind);
+    },
+    [identifyData, submitCompletion]
   );
 
   const undoTask = useCallback(
@@ -683,6 +709,7 @@ export default function KioskClient({
                 </span>
               </>
             }
+            chemicalGuide={identifyData?.chemicalGuide}
             tasks={pendingTasks.filter((t) => t.timing === gate)}
             progress={[]}
             doneIds={doneTaskIds}
@@ -697,6 +724,24 @@ export default function KioskClient({
           />
         )}
 
+        {proofTaskId && screen === "tasks" && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 px-4">
+            <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+              <PhotoCapture
+                title="Photo of the finished work"
+                subtitle="The supervisor isn't here, so take a photo to show it's done."
+                allowSkip={false}
+                onCaptured={(photo) => {
+                  const taskId = proofTaskId;
+                  setProofTaskId(null);
+                  void submitCompletion(taskId, "SANITATION", photo);
+                }}
+                onCancel={() => setProofTaskId(null)}
+              />
+            </div>
+          </div>
+        )}
+
         {overrideOpen && screen === "tasks" && gate && (
           <SupervisorOverrideModal
             onCancel={() => setOverrideOpen(false)}
@@ -707,6 +752,7 @@ export default function KioskClient({
         {screen === "tasks" && !gate && (
           <TaskChecklist
             title="Your tasks today"
+            chemicalGuide={identifyData?.chemicalGuide}
             tasks={pendingTasks.filter(isUngated)}
             progress={checklistProgress}
             doneIds={doneTaskIds}
@@ -947,6 +993,7 @@ function TaskChecklist({
   title,
   subtitle,
   notice,
+  chemicalGuide,
   tasks,
   progress,
   doneIds,
@@ -963,6 +1010,8 @@ function TaskChecklist({
   subtitle?: string;
   /** Prominent instruction shown above the list. */
   notice?: React.ReactNode;
+  /** Owner-confirmed sanitizer and dilution; nothing is shown until it's confirmed. */
+  chemicalGuide?: string | null;
   tasks: PendingTask[];
   progress: { status: "PENDING" | "DONE"; inspectionResult: "PASS" | "FAIL" | null }[];
   doneIds: Set<string>;
@@ -986,6 +1035,11 @@ function TaskChecklist({
       {notice && (
         <p className="mb-5 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-base text-amber-900 text-left">
           {notice}
+        </p>
+      )}
+      {chemicalGuide && (
+        <p className="mb-5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-left text-base text-slate-700">
+          <span className="font-semibold">Chemical guide:</span> {chemicalGuide}
         </p>
       )}
       {progress.length > 0 && (
@@ -1157,9 +1211,18 @@ function SupervisorOverrideModal({
 function PhotoCapture({
   onCaptured,
   onSkip,
+  onCancel,
+  title = "Hold still…",
+  subtitle,
+  allowSkip = true,
 }: {
   onCaptured: (dataUrl: string) => void;
-  onSkip: () => void;
+  onSkip?: () => void;
+  onCancel?: () => void;
+  title?: string;
+  subtitle?: string;
+  /** False when the photo is mandatory (sanitation proof) -- no way past a dead camera. */
+  allowSkip?: boolean;
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -1211,19 +1274,34 @@ function PhotoCapture({
     return (
       <div className="text-center">
         <p className="text-2xl font-semibold mb-4 text-slate-900">Camera unavailable</p>
-        <button
-          onClick={onSkip}
-          className="rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-900 px-6 py-3 text-lg"
-        >
-          Continue without photo
-        </button>
+        {allowSkip ? (
+          <button
+            onClick={onSkip}
+            className="rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-900 px-6 py-3 text-lg"
+          >
+            Continue without photo
+          </button>
+        ) : (
+          <p className="text-sm text-slate-500 mb-4">
+            A photo is needed for this duty. Allow the camera, or ask the owner.
+          </p>
+        )}
+        {onCancel && (
+          <button
+            onClick={onCancel}
+            className="rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-700 px-6 py-3 text-lg"
+          >
+            Cancel
+          </button>
+        )}
       </div>
     );
   }
 
   return (
     <div className="text-center">
-      <p className="text-2xl font-semibold mb-4 text-slate-900">Hold still…</p>
+      <p className={`text-2xl font-semibold text-slate-900 ${subtitle ? "mb-1" : "mb-4"}`}>{title}</p>
+      {subtitle && <p className="text-sm text-slate-500 mb-4">{subtitle}</p>}
       <video
         ref={videoRef}
         autoPlay
@@ -1231,13 +1309,23 @@ function PhotoCapture({
         muted
         className="w-80 h-60 rounded-xl bg-black object-cover mx-auto mb-4"
       />
-      <button
-        onClick={capture}
-        disabled={!ready}
-        className="rounded-xl bg-orange-500 hover:bg-orange-600 disabled:bg-slate-200 disabled:text-slate-400 text-white px-6 py-3 text-lg font-medium"
-      >
-        {ready ? "Capture Now" : "Starting camera…"}
-      </button>
+      <div className="flex items-center justify-center gap-3">
+        {onCancel && (
+          <button
+            onClick={onCancel}
+            className="rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-700 px-6 py-3 text-lg"
+          >
+            Cancel
+          </button>
+        )}
+        <button
+          onClick={capture}
+          disabled={!ready}
+          className="rounded-xl bg-orange-500 hover:bg-orange-600 disabled:bg-slate-200 disabled:text-slate-400 text-white px-6 py-3 text-lg font-medium"
+        >
+          {ready ? "Capture Now" : "Starting camera…"}
+        </button>
+      </div>
     </div>
   );
 }
