@@ -14,15 +14,15 @@ const TONES = {
     failed: "text-red-400",
     track: "bg-slate-700",
   },
-  // Kiosk: light card with a slate border, like the rest of the kiosk cards.
+  // Kiosk: soft orange tint (the brand accent) so it stands out from the white kiosk cards.
   light: {
-    card: "border border-slate-200 bg-slate-50 text-slate-900",
-    label: "text-slate-500",
-    total: "text-slate-400",
-    verified: "text-green-600",
-    waiting: "text-amber-600",
-    failed: "text-red-600",
-    track: "bg-slate-200",
+    card: "border border-orange-200 bg-orange-50 text-slate-900",
+    label: "text-orange-800",
+    total: "text-orange-400",
+    verified: "text-green-700",
+    waiting: "text-amber-700",
+    failed: "text-red-700",
+    track: "bg-white",
   },
 } as const;
 
