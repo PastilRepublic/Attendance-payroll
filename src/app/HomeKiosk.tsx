@@ -53,6 +53,13 @@ const PRESENCE_DOT_STYLES: Record<PresenceStatus, string> = {
   DONE: "bg-sky-500",
 };
 
+const PRESENCE_LABELS: Record<PresenceStatus, string> = {
+  WORKING: "Working",
+  ON_BREAK: "On break",
+  DONE: "Timed out",
+  OUT: "Not in",
+};
+
 const RISK_RANK: Record<RiskLevel, number> = { HIGH: 0, MEDIUM: 1, LOW: 2 };
 
 function sortSanitationTasks(tasks: SanitationTask[]): SanitationTask[] {
@@ -453,6 +460,14 @@ export default function HomeKiosk() {
                     </span>
                   </button>
                 ))}
+                <div className="px-4 py-2.5 flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-slate-500 bg-slate-50">
+                  {(Object.keys(PRESENCE_LABELS) as PresenceStatus[]).map((s) => (
+                    <span key={s} className="inline-flex items-center gap-1.5">
+                      <span className={`w-2.5 h-2.5 rounded-full ${PRESENCE_DOT_STYLES[s]}`} />
+                      {PRESENCE_LABELS[s]}
+                    </span>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
