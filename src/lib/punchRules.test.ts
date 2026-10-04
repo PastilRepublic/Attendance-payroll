@@ -1,0 +1,126 @@
+import { describe, it, expect } from "vitest";
+import {
+  dayStateAfter,
+  firstInvalidPunch,
+  resolvePunchTime,
+  validateDayEdit,
+  MAX_OFFLINE_PUNCH_AGE_MS,
+} from "./punchRules";
+import type { PunchType } from "./payroll";
+
+// Manila wall-clock time on 2026-10-05 as a UTC instant (Manila is UTC+8, no DST).
+function at(hhmm: string): Date {
+  return new Date(`2026-10-05T${hhmm}:00+08:00`);
+}
+function p(type: PunchType, hhmm: string) {
+  return { type, timestamp: at(hhmm) };
+}
+
+describe("dayStateAfter", () => {
+  it("allows only Time In before anything is punched", () => {
+    expect(dayStateAfter([])).toEqual({ status: "OUT", allowedActions: ["IN"] });
+  });
+
+  it("offers Start Break or Time Out while working, and only Time Out once the break is used", () => {
+    expect(dayStateAfter([p("IN", "08:00")]).allowedActions).toEqual(["BREAK_START", "OUT"]);
+    expect(
+      dayStateAfter([p("IN", "08:00"), p("BREAK_START", "12:00"), p("BREAK_END", "13:00")]).allowedActions
+    ).toEqual(["OUT"]);
+  });
+
+  it("allows only End Break while on a break, and nothing after Time Out", () => {
+    expect(dayStateAfter([p("IN", "08:00"), p("BREAK_START", "12:00")]).allowedActions).toEqual(["BREAK_END"]);
+    expect(dayStateAfter([p("IN", "08:00"), p("OUT", "17:00")])).toEqual({ status: "DONE", allowedActions: [] });
+  });
+
+  it("goes by time order, not the order given", () => {
+    expect(dayStateAfter([p("OUT", "17:00"), p("IN", "08:00")]).status).toBe("DONE");
+  });
+});
+
+describe("firstInvalidPunch", () => {
+  it("accepts a full day", () => {
+    expect(
+      firstInvalidPunch([p("IN", "08:00"), p("BREAK_START", "12:00"), p("BREAK_END", "13:00"), p("OUT", "17:00")])
+    ).toBe(-1);
+  });
+
+  it("flags a second Time In (e.g. a double tap)", () => {
+    expect(firstInvalidPunch([p("IN", "08:00"), p("IN", "08:00")])).toBe(1);
+  });
+
+  it("flags an offline Time Out landing before the day's Time In", () => {
+    expect(firstInvalidPunch([p("OUT", "07:30"), p("IN", "08:00")])).toBe(0);
+  });
+
+  it("flags a Time Out straight from a break", () => {
+    expect(firstInvalidPunch([p("IN", "08:00"), p("BREAK_START", "12:00"), p("OUT", "17:00")])).toBe(2);
+  });
+});
+
+describe("resolvePunchTime", () => {
+  const now = at("10:30");
+
+  it("records a live punch now", () => {
+    expect(resolvePunchTime(null, now)).toEqual({ ok: true, timestamp: now, backdated: false });
+  });
+
+  it("records an offline punch at the time it was made, not when it synced", () => {
+    const queuedAt = at("08:00");
+    expect(resolvePunchTime(queuedAt.toISOString(), now)).toEqual({
+      ok: true,
+      timestamp: queuedAt,
+      backdated: true,
+    });
+  });
+
+  it("caps a device clock running ahead at now", () => {
+    expect(resolvePunchTime(at("11:00").toISOString(), now)).toEqual({ ok: true, timestamp: now, backdated: false });
+  });
+
+  it("falls back to now for an unreadable time", () => {
+    expect(resolvePunchTime("not a date", now)).toEqual({ ok: true, timestamp: now, backdated: false });
+  });
+
+  it("rejects an offline punch older than the sync limit", () => {
+    const old = new Date(now.getTime() - MAX_OFFLINE_PUNCH_AGE_MS - 60000);
+    expect(resolvePunchTime(old.toISOString(), now)).toMatchObject({ ok: false, error: "OFFLINE_PUNCH_TOO_OLD" });
+  });
+});
+
+describe("validateDayEdit", () => {
+  const blank = { timeIn: "", breakStart: "", breakEnd: "", timeOut: "" };
+  const past = (t: Partial<typeof blank>) => validateDayEdit({ ...blank, ...t }, "2026-10-04", "2026-10-05", "10:00");
+
+  it("accepts a full day, a day without a break, a half day, and an empty day", () => {
+    expect(past({ timeIn: "08:00", breakStart: "12:00", breakEnd: "13:00", timeOut: "17:00" })).toBeNull();
+    expect(past({ timeIn: "08:00", timeOut: "17:00" })).toBeNull();
+    expect(past({ timeIn: "08:00", breakStart: "12:00" })).toBeNull();
+    expect(past({})).toBeNull();
+  });
+
+  it("rejects times out of order", () => {
+    expect(past({ timeIn: "09:00", timeOut: "08:00" })).toMatch(/in order/);
+  });
+
+  it("rejects a Time Out or Start Break without a Time In", () => {
+    expect(past({ timeOut: "17:00" })).toMatch(/Time Out needs a Time In/);
+    expect(past({ breakStart: "12:00" })).toMatch(/needs a Time In/);
+  });
+
+  it("rejects an End Break without a Start Break", () => {
+    expect(past({ timeIn: "08:00", breakEnd: "13:00", timeOut: "17:00" })).toMatch(/needs a Start Break/);
+  });
+
+  it("rejects a Time Out after a break that never ended", () => {
+    expect(past({ timeIn: "08:00", breakStart: "12:00", timeOut: "17:00" })).toMatch(/needs an End Break/);
+  });
+
+  it("rejects times later than now today, and any times on a future date", () => {
+    expect(validateDayEdit({ ...blank, timeIn: "08:00", timeOut: "17:00" }, "2026-10-05", "2026-10-05", "10:00")).toMatch(
+      /Time Out \(17:00\) is later than the current time/
+    );
+    expect(validateDayEdit({ ...blank, timeIn: "08:00" }, "2026-10-05", "2026-10-05", "10:00")).toBeNull();
+    expect(validateDayEdit({ ...blank, timeIn: "08:00" }, "2026-10-06", "2026-10-05", "10:00")).toMatch(/future date/);
+  });
+});

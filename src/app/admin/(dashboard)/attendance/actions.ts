@@ -7,6 +7,8 @@ import { requireAdmin } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
 import { TIMEZONE } from "@/lib/payroll";
 import { pickDaySlots } from "@/lib/attendanceSlots";
+import { validateDayEdit } from "@/lib/punchRules";
+import { findFinalizedPeriodCovering, finalizedPeriodMessage } from "@/lib/payPeriodLock";
 import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
 
 function localToUtc(date: string, time: string): Date {
@@ -92,6 +94,9 @@ const SLOT_TYPES = [
   { field: "timeOut", type: "OUT" },
 ] as const;
 
+/** Result of a Manage-day form submit, shown inline by the form (see ManageDayForms). */
+export type DayFormState = { error?: string; savedAt?: number };
+
 function nextDayKey(dateStr: string): string {
   return new Date(new Date(`${dateStr}T00:00:00.000Z`).getTime() + 86400000).toISOString().slice(0, 10);
 }
@@ -106,24 +111,31 @@ function nextDayKey(dateStr: string): string {
  * times with the reason, so a correction stays traceable without piling up
  * replacement rows.
  */
-export async function saveDayPunches(formData: FormData) {
+export async function saveDayPunches(_prev: DayFormState, formData: FormData): Promise<DayFormState> {
   const admin = await requireAdmin();
-  const parsed = dayPunchesSchema.parse({
+  const result = dayPunchesSchema.safeParse({
     employeeId: formData.get("employeeId"),
     date: formData.get("date"),
     timeIn: formData.get("timeIn") ?? "",
     breakStart: formData.get("breakStart") ?? "",
     breakEnd: formData.get("breakEnd") ?? "",
     timeOut: formData.get("timeOut") ?? "",
-    reason: formData.get("reason"),
+    reason: formData.get("reason") ?? undefined,
   });
+  if (!result.success) return { error: "Please enter valid times (HH:MM)." };
+  const parsed = result.data;
 
-  const entered = SLOT_TYPES.filter((s) => parsed[s.field] !== "");
-  for (let i = 1; i < entered.length; i++) {
-    if (parsed[entered[i].field] <= parsed[entered[i - 1].field]) {
-      throw new Error("Times must be in order: Time In, Start Break/Lunch, End Break/Lunch, Time Out.");
-    }
-  }
+  const now = new Date();
+  const invalid = validateDayEdit(
+    parsed,
+    parsed.date,
+    formatInTimeZone(now, TIMEZONE, "yyyy-MM-dd"),
+    formatInTimeZone(now, TIMEZONE, "HH:mm")
+  );
+  if (invalid) return { error: invalid };
+
+  const finalized = await findFinalizedPeriodCovering(parsed.date);
+  if (finalized) return { error: finalizedPeriodMessage(finalized) };
 
   const existing = await prisma.punch.findMany({
     where: {
@@ -136,6 +148,11 @@ export async function saveDayPunches(formData: FormData) {
     },
     orderBy: { timestamp: "asc" },
   });
+
+  const clearingAll = SLOT_TYPES.every((s) => parsed[s.field] === "");
+  if (clearingAll && existing.length > 0 && !parsed.reason) {
+    return { error: "Enter a reason to remove every punch for this day." };
+  }
 
   const kept = pickDaySlots(existing);
   const keptBySlot = {
@@ -175,7 +192,7 @@ export async function saveDayPunches(formData: FormData) {
     }
   }
 
-  if (changes.length === 0) return;
+  if (changes.length === 0) return { savedAt: Date.now() };
 
   await prisma.$transaction([
     prisma.punch.updateMany({ where: { id: { in: voidIds } }, data: { voided: true } }),
@@ -214,21 +231,27 @@ export async function saveDayPunches(formData: FormData) {
   });
 
   revalidatePath("/admin/attendance");
+  return { savedAt: Date.now() };
 }
 
 const dayStatusSchema = z.object({
   employeeId: z.string().min(1),
-  date: z.string().min(1),
+  date: z.string().regex(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/),
   status: z.enum(["NORMAL", "PAID_LEAVE", "UNPAID_ABSENCE"]),
 });
 
-export async function setDayStatus(formData: FormData) {
+export async function setDayStatus(_prev: DayFormState, formData: FormData): Promise<DayFormState> {
   const admin = await requireAdmin();
-  const parsed = dayStatusSchema.parse({
+  const result = dayStatusSchema.safeParse({
     employeeId: formData.get("employeeId"),
     date: formData.get("date"),
     status: formData.get("status"),
   });
+  if (!result.success) return { error: "Please choose a valid status." };
+  const parsed = result.data;
+
+  const finalized = await findFinalizedPeriodCovering(parsed.date);
+  if (finalized) return { error: finalizedPeriodMessage(finalized) };
 
   const existing = await prisma.dayStatus.findUnique({
     where: { employeeId_date: { employeeId: parsed.employeeId, date: new Date(`${parsed.date}T00:00:00.000Z`) } },
@@ -277,4 +300,5 @@ export async function setDayStatus(formData: FormData) {
   }
 
   revalidatePath("/admin/attendance");
+  return { savedAt: Date.now() };
 }

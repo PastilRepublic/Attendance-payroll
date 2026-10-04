@@ -2,8 +2,7 @@ import { fromZonedTime, formatInTimeZone } from "date-fns-tz";
 import { addDays } from "date-fns";
 import { prisma } from "@/lib/prisma";
 import { localDateKey, TIMEZONE, pairPunches, nextWeeklyPeriod, type PunchType } from "@/lib/payroll";
-
-export type PresenceStatus = "OUT" | "WORKING" | "ON_BREAK" | "DONE";
+import { derivePresenceStatus, getAllowedActions, type PresenceStatus } from "@/lib/punchRules";
 
 /** The local (Asia/Manila) calendar-day range containing `now`, as UTC instants. */
 export function getTodayRange(now: Date = new Date()): { dayStart: Date; dayEnd: Date } {
@@ -13,36 +12,7 @@ export function getTodayRange(now: Date = new Date()): { dayStart: Date; dayEnd:
   return { dayStart, dayEnd };
 }
 
-/**
- * An employee's current presence, derived from the type of their most
- * recent punch today. Scoped to today only -- someone who forgot to clock
- * out yesterday reads as OUT today, not stuck WORKING. A completed
- * IN -> ... -> OUT cycle today reads as DONE, not OUT, so the day is
- * locked and cannot be re-started until tomorrow.
- */
-export function derivePresenceStatus(lastPunchType: PunchType | null): PresenceStatus {
-  if (lastPunchType === "BREAK_START") return "ON_BREAK";
-  if (lastPunchType === "IN" || lastPunchType === "BREAK_END") return "WORKING";
-  if (lastPunchType === "OUT") return "DONE";
-  return "OUT";
-}
-
-/**
- * Which punch types are valid to submit next, given the current status.
- * Clocking out is not allowed directly from a break -- End Break must
- * happen first (matches Clockify, and guarantees a BREAK_END timestamp
- * always exists whenever a break happened, which the late-return-from-break
- * check in payroll.ts depends on). DONE allows nothing -- once an employee
- * has timed out for the day, only an admin correction can reopen it.
- * One break per day: once `breakUsedToday` is true, WORKING no longer
- * offers BREAK_START again.
- */
-export function getAllowedActions(status: PresenceStatus, breakUsedToday = false): PunchType[] {
-  if (status === "OUT") return ["IN"];
-  if (status === "WORKING") return breakUsedToday ? ["OUT"] : ["BREAK_START", "OUT"];
-  if (status === "ON_BREAK") return ["BREAK_END"];
-  return [];
-}
+export { derivePresenceStatus, getAllowedActions, type PresenceStatus };
 
 /**
  * How many coworkers (active, non-supervisor, excluding `employeeId`) can

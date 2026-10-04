@@ -89,6 +89,8 @@ export async function flushQueue(): Promise<{ synced: number; failed: number; re
           type: item.type,
           deviceId: item.deviceId,
           photoDataUrl: item.photoDataUrl,
+          // Recorded at the time it was made, not when it finally synced.
+          queuedAt: item.queuedAt,
         }),
       });
     } catch {

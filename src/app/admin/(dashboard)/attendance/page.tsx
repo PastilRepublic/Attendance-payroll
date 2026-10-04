@@ -4,7 +4,8 @@ import { computeDailyResults, earlyOutFlag, localDateKey, type EarlyOutFlag } fr
 import { computeDayTimeline, pickDaySlots } from "@/lib/attendanceSlots";
 import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
 import { TIMEZONE } from "@/lib/payroll";
-import { saveDayPunches, setDayStatus, setShiftOverride, removeShiftOverride } from "./actions";
+import { setShiftOverride, removeShiftOverride } from "./actions";
+import { DayPunchesForm, DayStatusForm } from "./ManageDayForms";
 import AutoRefresh from "./AutoRefresh";
 import ClosePanesOnOutsideClick from "./ClosePanesOnOutsideClick";
 import EmployeeSelect from "./EmployeeSelect";
@@ -618,69 +619,17 @@ function ManageDayForm({
         Manage
       </summary>
       <div className="absolute z-10 right-0 mt-1 bg-white shadow-lg rounded-md border border-slate-200 p-3 w-72 max-w-[90vw] text-left">
-        <form action={saveDayPunches}>
-          <input type="hidden" name="employeeId" value={employeeId} />
-          <input type="hidden" name="date" value={date} />
-          <div className="space-y-2">
-            {fields.map((f) => (
-              <div key={f.name} className="flex items-center gap-3">
-                <label htmlFor={`${f.name}-${employeeId}-${date}`} className="w-24 shrink-0 text-xs font-medium text-slate-600">
-                  {f.label}
-                </label>
-                <input
-                  id={`${f.name}-${employeeId}-${date}`}
-                  type="time"
-                  name={f.name}
-                  defaultValue={f.punch ? formatInTimeZone(f.punch.timestamp, TIMEZONE, "HH:mm") : ""}
-                  className="flex-1 rounded-md border border-slate-300 px-2 py-1 text-sm text-slate-800"
-                />
-                {f.punch?.photoPath && (
-                  <a
-                    href={`/api/admin/punch-photo/${f.punch.photoPath}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="shrink-0"
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={`/api/admin/punch-photo/${f.punch.photoPath}`}
-                      alt={`${f.label} photo`}
-                      className="w-8 h-8 rounded object-cover border border-slate-200 hover:opacity-80"
-                    />
-                  </a>
-                )}
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-3">
-            <label className="block text-xs text-slate-500 mb-1">Reason for the change (optional)</label>
-            <input
-              type="text"
-              name="reason"
-              className="w-full rounded-md border border-slate-300 px-2 py-1 text-xs"
-            />
-          </div>
-          <div className="flex items-center justify-between mt-2">
-            <p className="text-xs text-slate-400">Clear a time to remove that punch.</p>
-            <Button size="sm">Save</Button>
-          </div>
-        </form>
-
-        <form action={setDayStatus} className="flex items-center gap-2 mt-3 pt-3 border-t border-slate-100">
-          <input type="hidden" name="employeeId" value={employeeId} />
-          <input type="hidden" name="date" value={date} />
-          <select
-            name="status"
-            defaultValue={dayStatus}
-            className="rounded-md border border-slate-300 px-2 py-1 text-xs flex-1"
-          >
-            <option value="NORMAL">Normal</option>
-            <option value="PAID_LEAVE">Paid Leave</option>
-            <option value="UNPAID_ABSENCE">Unpaid Absence</option>
-          </select>
-          <Button variant="secondary" size="sm">Set</Button>
-        </form>
+        <DayPunchesForm
+          employeeId={employeeId}
+          date={date}
+          fields={fields.map((f) => ({
+            name: f.name,
+            label: f.label,
+            value: f.punch ? formatInTimeZone(f.punch.timestamp, TIMEZONE, "HH:mm") : "",
+            photoPath: f.punch?.photoPath ?? null,
+          }))}
+        />
+        <DayStatusForm employeeId={employeeId} date={date} dayStatus={dayStatus} />
       </div>
     </details>
   );

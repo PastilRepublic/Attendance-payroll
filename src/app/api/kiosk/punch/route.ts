@@ -2,10 +2,20 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { savePunchPhoto } from "@/lib/storage";
 import { resolveEmployeeByPin } from "@/lib/kioskAuth";
-import type { PunchType } from "@/lib/payroll";
 import { getKioskSnapshot } from "@/lib/kioskAttendance";
+import { localDateKey, TIMEZONE, type PunchType } from "@/lib/payroll";
+import { dayStateAfter, firstInvalidPunch, resolvePunchTime } from "@/lib/punchRules";
+import { findFinalizedPeriodCovering, finalizedPeriodMessage } from "@/lib/payPeriodLock";
+import { fromZonedTime } from "date-fns-tz";
+import { addDays } from "date-fns";
 
 const PUNCH_TYPES: PunchType[] = ["IN", "OUT", "BREAK_START", "BREAK_END"];
+
+class PunchRejected extends Error {
+  constructor(public body: { error: string; message: string }) {
+    super(body.message);
+  }
+}
 
 const GUARD_MESSAGES: Record<string, { error: string; message: string }> = {
   OUT: {
@@ -33,6 +43,8 @@ export async function POST(request: Request) {
   const deviceId = typeof body?.deviceId === "string" ? body.deviceId : null;
   const photoDataUrl = typeof body?.photoDataUrl === "string" ? body.photoDataUrl : null;
   const requestedType: PunchType | null = PUNCH_TYPES.includes(body?.type) ? body.type : null;
+  // Set only by the kiosk offline queue: when the punch actually happened.
+  const queuedAt = typeof body?.queuedAt === "string" ? body.queuedAt : null;
 
   if (!pin) {
     return NextResponse.json({ error: "PIN is required" }, { status: 400 });
@@ -51,54 +63,86 @@ export async function POST(request: Request) {
     });
   }
 
-  const snapshotBefore = await getKioskSnapshot(matched.id);
-
-  // The employee explicitly picks an action on the kiosk now (rather than a
-  // silent auto-toggle), so an explicit choice is honored here. Only when
-  // none is given (e.g. an older queued offline punch built against the
-  // pre-break two-state toggle) do we fall back to auto-deriving it, and
-  // that fallback never infers a break type.
-  let type: PunchType;
-  if (requestedType) {
-    type = requestedType;
-  } else {
-    type = snapshotBefore.status === "OUT" ? "IN" : "OUT";
+  const when = resolvePunchTime(queuedAt);
+  if (!when.ok) {
+    return NextResponse.json({ error: when.error, message: when.message }, { status: 409 });
   }
+  const timestamp = when.timestamp;
+  const dayKey = localDateKey(timestamp);
+  const dayStart = fromZonedTime(`${dayKey}T00:00:00`, TIMEZONE);
+  const dayEnd = addDays(dayStart, 1);
 
-  if (!snapshotBefore.allowedActions.includes(type)) {
-    if (snapshotBefore.status === "DONE") {
-      return NextResponse.json(
-        {
-          error: "ALREADY_COMPLETED",
-          message: "You've already completed your shift for today. See your admin if this is a mistake.",
+  let punch;
+  try {
+    punch = await prisma.$transaction(async (tx) => {
+      // Serialize punches per employee: without this, a double tap (or an
+      // offline sync racing a live punch) could pass the check below twice
+      // and record two Time Ins.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${matched.id}::text))`;
+
+      if (when.backdated) {
+        const finalized = await findFinalizedPeriodCovering(dayKey, tx);
+        if (finalized) {
+          throw new PunchRejected({ error: "PERIOD_FINALIZED", message: finalizedPeriodMessage(finalized) });
+        }
+      }
+
+      const dayPunches = await tx.punch.findMany({
+        where: { employeeId: matched.id, voided: false, timestamp: { gte: dayStart, lt: dayEnd } },
+        orderBy: { timestamp: "asc" },
+        select: { type: true, timestamp: true },
+      });
+      const before = dayPunches.filter((p) => p.timestamp <= timestamp);
+      const after = dayPunches.filter((p) => p.timestamp > timestamp);
+      const state = dayStateAfter(before);
+
+      // The employee explicitly picks an action on the kiosk now (rather than a
+      // silent auto-toggle), so an explicit choice is honored here. Only when
+      // none is given (e.g. an older queued offline punch built against the
+      // pre-break two-state toggle) do we fall back to auto-deriving it, and
+      // that fallback never infers a break type.
+      const type: PunchType = requestedType ?? (state.status === "OUT" ? "IN" : "OUT");
+
+      if (!state.allowedActions.includes(type)) {
+        if (state.status === "DONE") {
+          throw new PunchRejected({
+            error: "ALREADY_COMPLETED",
+            message: "You've already completed your shift for today. See your admin if this is a mistake.",
+          });
+        }
+        if (type === "BREAK_START" && state.status === "WORKING") {
+          throw new PunchRejected({
+            error: "BREAK_ALREADY_USED",
+            message: "You've already used your break for today.",
+          });
+        }
+        throw new PunchRejected(GUARD_MESSAGES[type]);
+      }
+      // A synced offline punch may land before punches already recorded that
+      // day; it must still leave the whole day in a valid order.
+      if (after.length > 0 && firstInvalidPunch([...before, { type, timestamp }, ...after]) !== -1) {
+        throw new PunchRejected({
+          error: "OUT_OF_ORDER",
+          message: "This punch conflicts with punches already recorded for that day. Please see your admin.",
+        });
+      }
+
+      return tx.punch.create({
+        data: {
+          employeeId: matched.id,
+          type,
+          deviceId: deviceId ?? undefined,
+          timestamp,
         },
-        { status: 409 }
-      );
+      });
+    });
+  } catch (err) {
+    if (err instanceof PunchRejected) {
+      return NextResponse.json(err.body, { status: 409 });
     }
-    if (type === "BREAK_START" && snapshotBefore.status === "WORKING") {
-      return NextResponse.json(
-        {
-          error: "BREAK_ALREADY_USED",
-          message: "You've already used your break for today.",
-        },
-        { status: 409 }
-      );
-    }
-    const guard = GUARD_MESSAGES[type];
-    return NextResponse.json(
-      { error: guard.error, message: guard.message },
-      { status: 409 }
-    );
+    throw err;
   }
-
-  const punch = await prisma.punch.create({
-    data: {
-      employeeId: matched.id,
-      type,
-      deviceId: deviceId ?? undefined,
-      timestamp: new Date(),
-    },
-  });
+  const type = punch.type;
 
   if (photoDataUrl) {
     try {
