@@ -7,19 +7,28 @@ import { requireAdmin } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
 import { TIMEZONE } from "@/lib/payroll";
 import { pickDaySlots } from "@/lib/attendanceSlots";
-import { validateDayEdit } from "@/lib/punchRules";
-import { findFinalizedPeriodCovering, finalizedPeriodMessage } from "@/lib/payPeriodLock";
+import { validateDayEdit, HHMM_PATTERN, isRealDateKey } from "@/lib/punchRules";
+import {
+  findFinalizedPeriodCovering,
+  finalizedPeriodMessage,
+  findPayLockedPeriodForDate,
+  payLockedDateMessage,
+} from "@/lib/payPeriodLock";
 import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
 
 function localToUtc(date: string, time: string): Date {
   return fromZonedTime(`${date}T${time}:00`, TIMEZONE);
 }
 
-const shiftOverrideSchema = z.object({
-  date: z.string().min(1),
-  shiftStartTime: z.string().regex(/^\d{2}:\d{2}$/),
-  shiftEndTime: z.string().regex(/^\d{2}:\d{2}$/),
-});
+const dateKeyField = z.string().refine(isRealDateKey, "Enter a valid date.");
+
+const shiftOverrideSchema = z
+  .object({
+    date: dateKeyField,
+    shiftStartTime: z.string().regex(HHMM_PATTERN, "Enter a valid start time."),
+    shiftEndTime: z.string().regex(HHMM_PATTERN, "Enter a valid end time."),
+  })
+  .refine((v) => v.shiftStartTime < v.shiftEndTime, "The shift must end after it starts.");
 
 export async function setShiftOverride(formData: FormData) {
   const admin = await requireAdmin();
@@ -28,6 +37,9 @@ export async function setShiftOverride(formData: FormData) {
     shiftStartTime: formData.get("shiftStartTime"),
     shiftEndTime: formData.get("shiftEndTime"),
   });
+
+  const locked = await findPayLockedPeriodForDate(parsed.date);
+  if (locked) throw new Error(payLockedDateMessage(locked));
 
   const date = new Date(`${parsed.date}T00:00:00.000Z`);
   const override = await prisma.shiftOverride.upsert({
@@ -57,6 +69,8 @@ export async function removeShiftOverride(formData: FormData) {
   const id = String(formData.get("overrideId"));
 
   const existing = await prisma.shiftOverride.findUniqueOrThrow({ where: { id } });
+  const locked = await findPayLockedPeriodForDate(existing.date.toISOString().slice(0, 10));
+  if (locked) throw new Error(payLockedDateMessage(locked));
   await prisma.shiftOverride.delete({ where: { id } });
 
   await logAudit({
@@ -74,11 +88,11 @@ export async function removeShiftOverride(formData: FormData) {
   revalidatePath("/admin/attendance");
 }
 
-const timeField = z.string().regex(/^[0-9]{2}:[0-9]{2}$/).or(z.literal(""));
+const timeField = z.string().regex(HHMM_PATTERN).or(z.literal(""));
 
 const dayPunchesSchema = z.object({
   employeeId: z.string().min(1),
-  date: z.string().regex(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/),
+  date: dateKeyField,
   timeIn: timeField,
   breakStart: timeField,
   breakEnd: timeField,
@@ -122,8 +136,11 @@ export async function saveDayPunches(_prev: DayFormState, formData: FormData): P
     timeOut: formData.get("timeOut") ?? "",
     reason: formData.get("reason") ?? undefined,
   });
-  if (!result.success) return { error: "Please enter valid times (HH:MM)." };
+  if (!result.success) return { error: "Please enter a valid date and valid times (HH:MM, 00:00 to 23:59)." };
   const parsed = result.data;
+
+  const employee = await prisma.employee.findUnique({ where: { id: parsed.employeeId }, select: { id: true } });
+  if (!employee) return { error: "That employee no longer exists." };
 
   const now = new Date();
   const invalid = validateDayEdit(
@@ -236,7 +253,7 @@ export async function saveDayPunches(_prev: DayFormState, formData: FormData): P
 
 const dayStatusSchema = z.object({
   employeeId: z.string().min(1),
-  date: z.string().regex(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/),
+  date: dateKeyField,
   status: z.enum(["NORMAL", "PAID_LEAVE", "UNPAID_ABSENCE"]),
 });
 
@@ -247,8 +264,11 @@ export async function setDayStatus(_prev: DayFormState, formData: FormData): Pro
     date: formData.get("date"),
     status: formData.get("status"),
   });
-  if (!result.success) return { error: "Please choose a valid status." };
+  if (!result.success) return { error: "Please choose a valid date and status." };
   const parsed = result.data;
+
+  const employee = await prisma.employee.findUnique({ where: { id: parsed.employeeId }, select: { id: true } });
+  if (!employee) return { error: "That employee no longer exists." };
 
   const finalized = await findFinalizedPeriodCovering(parsed.employeeId, parsed.date);
   if (finalized) return { error: finalizedPeriodMessage(finalized) };

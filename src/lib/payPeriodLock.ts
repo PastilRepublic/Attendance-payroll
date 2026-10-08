@@ -40,3 +40,26 @@ export function finalizedPeriodMessage(period: {
   }
   return `This employee's payslip for ${start} to ${end} is finalized, so this day's attendance is locked. Unlock the payslip on Payroll to change it.`;
 }
+
+/**
+ * Like findFinalizedPeriodCovering, for things that apply to everyone on a
+ * date (e.g. a shift override): locked once the period is finalized or any
+ * employee's payslip in it is.
+ */
+export async function findPayLockedPeriodForDate(dateKey: string) {
+  const date = new Date(`${dateKey}T00:00:00.000Z`);
+  return prisma.payPeriod.findFirst({
+    where: {
+      startDate: { lte: date },
+      endDate: { gte: date },
+      OR: [{ status: "FINALIZED" }, { payslips: { some: { status: "FINALIZED" } } }],
+    },
+    select: { startDate: true, endDate: true },
+  });
+}
+
+export function payLockedDateMessage(period: { startDate: Date; endDate: Date }): string {
+  const start = period.startDate.toISOString().slice(0, 10);
+  const end = period.endDate.toISOString().slice(0, 10);
+  return `This day is in the pay period ${start} to ${end}, which has finalized payslips, so it can't be changed. Unlock the payslips on Payroll first.`;
+}

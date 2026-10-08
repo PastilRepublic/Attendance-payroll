@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
+  HHMM_PATTERN,
+  isRealDateKey,
   dayStateAfter,
   firstInvalidPunch,
   resolvePunchTime,
@@ -122,5 +124,20 @@ describe("validateDayEdit", () => {
     );
     expect(validateDayEdit({ ...blank, timeIn: "08:00" }, "2026-10-05", "2026-10-05", "10:00")).toBeNull();
     expect(validateDayEdit({ ...blank, timeIn: "08:00" }, "2026-10-06", "2026-10-05", "10:00")).toMatch(/future date/);
+  });
+});
+
+describe("HHMM_PATTERN and isRealDateKey", () => {
+  it("accepts real 24-hour times only", () => {
+    for (const ok of ["00:00", "08:05", "23:59"]) expect(HHMM_PATTERN.test(ok)).toBe(true);
+    for (const bad of ["24:00", "99:99", "8:05", "12:60", "12:5", ""]) expect(HHMM_PATTERN.test(bad)).toBe(false);
+  });
+
+  it("accepts real calendar dates only", () => {
+    expect(isRealDateKey("2026-02-28")).toBe(true);
+    expect(isRealDateKey("2028-02-29")).toBe(true);
+    for (const bad of ["2026-02-31", "2026-13-01", "2026-00-10", "2026-1-1", "garbage"]) {
+      expect(isRealDateKey(bad)).toBe(false);
+    }
   });
 });
