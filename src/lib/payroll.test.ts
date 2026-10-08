@@ -600,3 +600,16 @@ describe("full period integration - hand-calculable example", () => {
     expect(pay.grossPay).toBeCloseTo(3866.6667, 2);
   });
 });
+
+describe("computeDailyResults - break started but never ended", () => {
+  it("does not deduct the flat unpaid lunch on top of a break the employee never came back from", () => {
+    const punches = [
+      { timestamp: atManila("2026-01-05", 8, 0), type: "IN" as const },
+      { timestamp: atManila("2026-01-05", 12, 0), type: "BREAK_START" as const },
+    ];
+    const [day] = computeDailyResults(punches, [], settings, "2026-01-05", "2026-01-05");
+    expect(day.workedMinutes).toBe(4 * 60);
+    expect(day.regularMinutes).toBe(4 * 60); // not 3h
+    expect(day.missingTimeOut).toBe(true);
+  });
+});

@@ -87,12 +87,33 @@ export async function setPeriodDayType(formData: FormData) {
   revalidatePath(`/admin/payroll/${parsed.payPeriodId}`);
 }
 
-const DEDUCTION_LABELS = ["Cash Advance", "Negligence", "Late", "Half day"];
+/** Guards the "skip suggestion" actions: the date must fall in the pay period,
+ * and neither the period nor this employee's payslip may be finalized. */
+async function assertSuggestionEditable(payPeriodId: string, employeeId: string, dateKey: string) {
+  const period = await prisma.payPeriod.findUniqueOrThrow({ where: { id: payPeriodId } });
+  const date = new Date(`${dateKey}T00:00:00.000Z`);
+  if (date < period.startDate || date > period.endDate) {
+    throw new Error("That date is outside this pay period.");
+  }
+  const finalizedPayslip = await prisma.payslip.findFirst({
+    where: { employeeId, payPeriodId, status: "FINALIZED" },
+    select: { id: true },
+  });
+  if (period.status === "FINALIZED" || finalizedPayslip) {
+    throw new Error("This payslip is finalized. Unlock it first to make changes.");
+  }
+}
+
+const DEDUCTION_LABELS =["Cash Advance", "Negligence", "Late", "Half day"];
 
 const adjustmentSchema = z.object({
   payslipId: z.string().min(1),
   label: z.enum(["Cash Advance", "Negligence", "Late", "Half day", "Bonus"]),
-  amount: z.coerce.number().positive("Amount must be greater than zero"),
+  amount: z.coerce
+    .number()
+    .positive("Amount must be greater than zero")
+    .max(100000, "Amount must be ₱100,000 or less")
+    .transform((n) => Math.round(n * 100) / 100),
   note: z.string().trim().optional(),
 });
 
@@ -177,7 +198,11 @@ export async function finalizePeriod(formData: FormData) {
   }
 
   const [employees, settings, dayOverrides] = await Promise.all([
-    prisma.employee.findMany({ where: { active: true } }),
+    // Also anyone deactivated mid-period who already has a payslip here, so
+    // theirs is locked with the rest instead of staying a draft.
+    prisma.employee.findMany({
+      where: { OR: [{ active: true }, { payslips: { some: { payPeriodId } } }] },
+    }),
     getSettings(),
     getOperationDayOverrides(period.startDate, period.endDate),
   ]);
@@ -231,6 +256,9 @@ export async function unlockPayslip(formData: FormData) {
   });
 
   const payslip = await prisma.payslip.findUniqueOrThrow({ where: { id: parsed.payslipId } });
+  if (payslip.status !== "FINALIZED") {
+    throw new Error("This payslip isn't finalized, so there is nothing to unlock.");
+  }
 
   await prisma.payslip.update({ where: { id: payslip.id }, data: { status: "DRAFT" } });
   await prisma.payPeriod.update({
@@ -449,6 +477,7 @@ export async function dismissLateSuggestion(formData: FormData) {
     date: formData.get("date"),
     payPeriodId: formData.get("payPeriodId"),
   });
+  await assertSuggestionEditable(parsed.payPeriodId, parsed.employeeId, parsed.date);
 
   const dateValue = new Date(`${parsed.date}T00:00:00.000Z`);
   const existing = await prisma.lateDayAction.findUnique({
@@ -560,6 +589,7 @@ export async function dismissHalfDaySuggestion(formData: FormData) {
     date: formData.get("date"),
     payPeriodId: formData.get("payPeriodId"),
   });
+  await assertSuggestionEditable(parsed.payPeriodId, parsed.employeeId, parsed.date);
 
   const dateValue = new Date(`${parsed.date}T00:00:00.000Z`);
   const existing = await prisma.halfDayAction.findUnique({

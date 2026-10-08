@@ -224,14 +224,13 @@ export async function getEmployeePeriodReview(
  * finalized. Off days worked are period-wide, so they're reported separately
  * (see finalizeIssues). */
 export function payslipIssues(
-  payBasis: PayBasis,
   review: EmployeePeriodReview,
   netPay: number
 ): string[] {
   const issues: string[] = [];
-  // Flat-daily staff are paid the full day either way, so a missing Time Out
-  // doesn't change their pay; production days are covered by the half-day check.
-  if (payBasis !== "FLAT_DAILY" && review.noTimeOutDays.length > 0) {
+  // A Time In with no Time Out (and no break) isn't a completed day: it earns
+  // nothing for flat-daily staff and undercounts hours for everyone else.
+  if (review.noTimeOutDays.length > 0) {
     issues.push(`No Time Out on ${review.noTimeOutDays.join(", ")} — set it on the Attendance page`);
   }
   if (review.earlyOutDays.length > 0) {
@@ -270,7 +269,6 @@ export function finalizeIssues(
       employeeId: r.employee.id,
       employeeName: r.employee.name,
       issues: payslipIssues(
-        r.employee.payBasis,
         r.review,
         Number(r.payslip.grossPay) + adjustmentsTotal(r.payslip.adjustments)
       ),

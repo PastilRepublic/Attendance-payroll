@@ -165,12 +165,13 @@ export interface BreakPair {
  */
 export function pairPunches(
   punches: PunchInput[]
-): { workedMinutes: number; segments: number; breakPairs: BreakPair[] } {
+): { workedMinutes: number; segments: number; breakPairs: BreakPair[]; breaksStarted: number } {
   const sorted = [...punches].sort(
     (a, b) => a.timestamp.getTime() - b.timestamp.getTime()
   );
   let workedMs = 0;
   let segments = 0;
+  let breaksStarted = 0;
   let openIn: Date | null = null;
   let openBreakStart: Date | null = null;
   const breakPairs: BreakPair[] = [];
@@ -185,6 +186,7 @@ export function pairPunches(
       workedMs += p.timestamp.getTime() - openIn.getTime();
       openIn = null;
       openBreakStart = p.timestamp;
+      breaksStarted += 1;
     } else if (p.type === "BREAK_END" && openBreakStart) {
       breakPairs.push({ start: openBreakStart, end: p.timestamp });
       openBreakStart = null;
@@ -193,7 +195,7 @@ export function pairPunches(
     // Out-of-sequence punches (e.g. a stray BREAK_END with no open break)
     // are ignored -- there's no well-defined interval to attribute them to.
   }
-  return { workedMinutes: workedMs / 60000, segments, breakPairs };
+  return { workedMinutes: workedMs / 60000, segments, breakPairs, breaksStarted };
 }
 
 /**
@@ -247,7 +249,7 @@ export function computeDailyResults(
     const lateThreshold = shiftStartMinutes + settings.gracePeriodMinutes;
 
     const dayPunches = clipEarlyArrival(rawDayPunches, date, shiftStartMinutes);
-    const { workedMinutes, segments, breakPairs } = pairPunches(dayPunches);
+    const { workedMinutes, segments, breakPairs, breaksStarted } = pairPunches(dayPunches);
 
     if (dayStatus === "PAID_LEAVE") {
       return {
@@ -284,8 +286,10 @@ export function computeDailyResults(
     // back in for lunch (old-style, before Break punches existed) -- and an
     // actual BREAK_START/BREAK_END pair means the same thing. Either way that
     // gap is already excluded from workedMinutes, so don't also subtract the
-    // flat unpaid-lunch minutes on top of it.
-    const hadBreak = segments >= 2 || breakPairs.length > 0;
+    // flat unpaid-lunch minutes on top of it. That includes a break that was
+    // started but never ended (they didn't come back): the lunch hour is already
+    // not counted, so it mustn't be deducted a second time.
+    const hadBreak = segments >= 2 || breaksStarted > 0;
     const netMinutes = hadBreak
       ? workedMinutes
       : Math.max(workedMinutes - settings.unpaidLunchMinutes, 0);
