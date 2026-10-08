@@ -8,24 +8,34 @@ import { signOut } from "@/lib/auth";
 import { requireAdmin } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
 import { hashPassword, hashPin, verifyPassword } from "@/lib/pin";
+import { HHMM_PATTERN } from "@/lib/punchRules";
 import { ADMIN_PIN_MESSAGE, ADMIN_PIN_PATTERN, assertAdminPinIsUnique } from "@/lib/adminPin";
 
-const operationalSettingsSchema = z.object({
-  requirePhotoOnPunch: z.coerce.boolean(),
-  shiftStartTime: z.string().regex(/^\d{2}:\d{2}$/),
-  shiftEndTime: z.string().regex(/^\d{2}:\d{2}$/),
-});
+const operationalSettingsSchema = z
+  .object({
+    requirePhotoOnPunch: z.coerce.boolean(),
+    shiftStartTime: z.string().regex(HHMM_PATTERN, "Enter a valid shift start time."),
+    shiftEndTime: z.string().regex(HHMM_PATTERN, "Enter a valid shift end time."),
+  })
+  .refine((v) => v.shiftStartTime < v.shiftEndTime, "The shift must end after it starts.");
+
+const round2 = (n: number) => Math.round(n * 100) / 100;
+const dayRate = z.coerce
+  .number()
+  .positive("Day rate must be greater than 0")
+  .max(100000, "Day rate must be ₱100,000 or less")
+  .transform(round2);
 
 /** These directly affect pay calculations, so only OWNER may change them --
  * a SUPERVISOR's submission for these fields is ignored, never trusted from
  * the client, even if the form somehow posted values for them. */
 const ownerOnlySettingsSchema = z.object({
-  gracePeriodMinutes: z.coerce.number().int().min(0),
-  unpaidLunchMinutes: z.coerce.number().int().min(0),
-  regularHoursCapPerDay: z.coerce.number().positive(),
+  gracePeriodMinutes: z.coerce.number().int().min(0).max(120, "Grace period can be at most 120 minutes"),
+  unpaidLunchMinutes: z.coerce.number().int().min(0).max(180, "Unpaid lunch can be at most 180 minutes"),
+  regularHoursCapPerDay: z.coerce.number().min(1, "Regular hours per day must be 1 to 24").max(24, "Regular hours per day must be 1 to 24"),
   payPeriodStartDay: z.coerce.number().int().min(1).max(7),
-  cookingDayRate: z.coerce.number().min(0),
-  jarFillingDayRate: z.coerce.number().min(0),
+  cookingDayRate: dayRate,
+  jarFillingDayRate: dayRate,
 });
 
 export async function updateSettings(formData: FormData) {

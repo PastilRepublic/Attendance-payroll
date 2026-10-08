@@ -9,6 +9,10 @@ import { hashPin, verifyPin, hashPassword } from "@/lib/pin";
 import { requireOwner } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
 import { saveEmployeePhoto } from "@/lib/storage";
+import { isRealDateKey } from "@/lib/punchRules";
+
+const MAX_PAY_RATE = 100000;
+const round2 = (n: number) => Math.round(n * 100) / 100;
 
 /** PINs identify who is punching, so no two active employees may share one. */
 async function assertPinIsUnique(pin: string, excludeEmployeeId?: string) {
@@ -28,7 +32,7 @@ const employeeSchema = z
     name: z.string().trim().min(1, "Name is required"),
     payBasis: z.enum(["HOURLY", "DAILY", "FLAT_DAILY", "OPERATION_DAY"]),
     payRate: z.coerce.number().min(0).catch(0),
-    dateHired: z.string().min(1, "Date hired is required"),
+    dateHired: z.string().refine(isRealDateKey, "Enter a valid date hired"),
   })
   // Production (OPERATION_DAY) pay comes from the Settings rates, so the
   // per-employee rate only has to be filled in for the other pay bases.
@@ -36,14 +40,22 @@ const employeeSchema = z
     message: "Pay rate must be greater than 0",
     path: ["payRate"],
   })
-  .transform((v) => (v.payBasis === "OPERATION_DAY" ? { ...v, payRate: 0 } : v));
+  .refine((v) => v.payRate <= MAX_PAY_RATE, {
+    message: "Pay rate must be ₱100,000 or less",
+    path: ["payRate"],
+  })
+  .transform((v) => ({ ...v, payRate: v.payBasis === "OPERATION_DAY" ? 0 : round2(v.payRate) }));
 
 const pinSchema = z
   .string()
   .regex(/^\d{4}$/, "PIN must be exactly 4 digits");
 
+/** Emails are stored lowercase and matched case-insensitively (phone keyboards
+ * love to capitalise the first letter). */
+const emailField = z.string().trim().toLowerCase().email("Valid email is required");
+
 const supervisorAccessSchema = z.object({
-  email: z.string().trim().email("Valid email is required"),
+  email: emailField,
   password: z.string().min(8, "Password must be at least 8 characters"),
 });
 
@@ -70,7 +82,9 @@ export async function createEmployee(formData: FormData) {
       })
     : null;
   if (accessParsed) {
-    const existingAdmin = await prisma.adminUser.findUnique({ where: { email: accessParsed.email } });
+    const existingAdmin = await prisma.adminUser.findFirst({
+      where: { email: { equals: accessParsed.email, mode: "insensitive" } },
+    });
     if (existingAdmin) {
       throw new Error("An admin account with this email already exists.");
     }
@@ -232,12 +246,17 @@ export async function grantSupervisorAccess(employeeId: string, formData: FormDa
     password: formData.get("password"),
   });
 
-  const existingAdmin = await prisma.adminUser.findUnique({ where: { email: parsed.email } });
+  const existingAdmin = await prisma.adminUser.findFirst({
+    where: { email: { equals: parsed.email, mode: "insensitive" } },
+  });
   if (existingAdmin) {
     throw new Error("An admin account with this email already exists.");
   }
 
   const employee = await prisma.employee.findUniqueOrThrow({ where: { id: employeeId } });
+  if (await prisma.adminUser.findUnique({ where: { employeeId } })) {
+    throw new Error("This employee already has an admin account.");
+  }
 
   const created = await prisma.adminUser.create({
     data: {
@@ -262,7 +281,7 @@ export async function grantSupervisorAccess(employeeId: string, formData: FormDa
 }
 
 const updateAccessSchema = z.object({
-  email: z.string().trim().email("Valid email is required"),
+  email: emailField,
   newPassword: z.string().trim().optional(),
 });
 
@@ -278,8 +297,10 @@ export async function updateSupervisorAccess(employeeId: string, formData: FormD
 
   const account = await prisma.adminUser.findUniqueOrThrow({ where: { employeeId } });
 
-  if (parsed.email !== account.email) {
-    const existingAdmin = await prisma.adminUser.findUnique({ where: { email: parsed.email } });
+  if (parsed.email !== account.email.toLowerCase()) {
+    const existingAdmin = await prisma.adminUser.findFirst({
+      where: { email: { equals: parsed.email, mode: "insensitive" }, id: { not: account.id } },
+    });
     if (existingAdmin) {
       throw new Error("An admin account with this email already exists.");
     }

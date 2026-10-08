@@ -22,7 +22,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         const password = credentials?.password as string | undefined;
         if (!email || !password) return null;
 
-        const admin = await prisma.adminUser.findUnique({ where: { email } });
+        const admin = await prisma.adminUser.findFirst({
+          where: { email: { equals: email.trim(), mode: "insensitive" } },
+        });
         if (!admin || !admin.active) return null;
 
         const valid = await verifyPassword(password, admin.passwordHash);
