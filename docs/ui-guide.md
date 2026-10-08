@@ -117,3 +117,13 @@ text-slate-500`) with one friendly sentence.
 - Check every new screen at phone width (≈340px) and desktop. No horizontal page scroll; tables scroll
   inside their card.
 - Don't add new colors, radii or shadows that aren't described here without asking.
+
+## Where this applies
+
+- **Do not restyle:** the kiosk (`/kiosk`, the home page's kiosk flow) and Sanitation (`/admin/sanitation`,
+  `/sanitation`). They keep their current look unless the owner says otherwise.
+- **Restyle to this guide:** Payroll, Employees, Inventory. Other admin pages (Attendance, Settings,
+  login, employee portal) follow it when they are next worked on, or when the owner asks.
+- Because Kiosk and Sanitation use some shared components (`Card`, `Button`, `Badge`, the admin
+  layout), **don't change those components' default look.** Add new variants or new components for the
+  guide's style instead, and use them in the screens that are being restyled.
