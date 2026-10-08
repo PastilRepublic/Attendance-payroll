@@ -16,6 +16,21 @@ const quantityField = (label: string) =>
     .max(MAX_QUANTITY, `${label} must be 1,000,000 or less`)
     .transform(round2);
 
+/** Two active items can't share a name (capital letters don't count). */
+async function assertNameAvailable(name: string, excludeId?: string) {
+  const duplicate = await prisma.inventoryItem.findFirst({
+    where: {
+      active: true,
+      name: { equals: name, mode: "insensitive" },
+      id: excludeId ? { not: excludeId } : undefined,
+    },
+    select: { id: true },
+  });
+  if (duplicate) {
+    throw new Error("An item with this name already exists.");
+  }
+}
+
 const createItemSchema = z.object({
   name: z.string().trim().min(1, "Name is required"),
   category: z.enum(["INGREDIENT", "PRODUCT", "PACKAGING"]),
@@ -34,13 +49,7 @@ export async function createItem(formData: FormData) {
     initialQuantity: formData.get("initialQuantity"),
   });
 
-  const duplicate = await prisma.inventoryItem.findFirst({
-    where: { active: true, name: { equals: parsed.name, mode: "insensitive" } },
-    select: { id: true },
-  });
-  if (duplicate) {
-    throw new Error("An item with this name already exists.");
-  }
+  await assertNameAvailable(parsed.name);
 
   // The starting stock is recorded as a first movement too, so the item's
   // history adds up to what's on hand.
@@ -151,6 +160,84 @@ export async function recordStockMovement(formData: FormData) {
   revalidatePath("/admin/inventory");
 }
 
+const updateItemSchema = z.object({
+  itemId: z.string().min(1),
+  name: z.string().trim().min(1, "Name is required"),
+  category: z.enum(["INGREDIENT", "PRODUCT", "PACKAGING"]),
+  unit: z.string().trim().min(1, "Unit is required"),
+  lowStockThreshold: quantityField("Low-stock threshold"),
+});
+
+/** Edits an item's details. The quantity on hand only changes through stock in/out, so it always has a reason. */
+export async function updateItem(formData: FormData) {
+  const admin = await requireAdmin();
+  const parsed = updateItemSchema.parse({
+    itemId: formData.get("itemId"),
+    name: formData.get("name"),
+    category: formData.get("category"),
+    unit: formData.get("unit"),
+    lowStockThreshold: formData.get("lowStockThreshold"),
+  });
+
+  const before = await prisma.inventoryItem.findUniqueOrThrow({ where: { id: parsed.itemId } });
+  if (before.active) await assertNameAvailable(parsed.name, parsed.itemId);
+
+  const item = await prisma.inventoryItem.update({
+    where: { id: parsed.itemId },
+    data: {
+      name: parsed.name,
+      category: parsed.category,
+      unit: parsed.unit,
+      lowStockThreshold: parsed.lowStockThreshold,
+    },
+  });
+
+  await logAudit({
+    actorAdminId: admin.id,
+    action: "UPDATE_INVENTORY_ITEM",
+    targetTable: "InventoryItem",
+    targetId: item.id,
+    before: {
+      name: before.name,
+      category: before.category,
+      unit: before.unit,
+      lowStockThreshold: Number(before.lowStockThreshold),
+    },
+    after: {
+      name: item.name,
+      category: item.category,
+      unit: item.unit,
+      lowStockThreshold: Number(item.lowStockThreshold),
+    },
+  });
+
+  revalidatePath("/admin/inventory");
+  revalidatePath(`/admin/inventory/${item.id}`);
+}
+
+/** Deactivating hides an item from the list but keeps it, and its history, saved. */
+export async function setItemActive(formData: FormData) {
+  const admin = await requireAdmin();
+  const itemId = z.string().min(1).parse(formData.get("itemId"));
+  const active = formData.get("active") === "true";
+
+  const item = await prisma.inventoryItem.findUniqueOrThrow({ where: { id: itemId } });
+  if (active) await assertNameAvailable(item.name, itemId);
+
+  await prisma.inventoryItem.update({ where: { id: itemId }, data: { active } });
+
+  await logAudit({
+    actorAdminId: admin.id,
+    action: active ? "REACTIVATE_INVENTORY_ITEM" : "DEACTIVATE_INVENTORY_ITEM",
+    targetTable: "InventoryItem",
+    targetId: itemId,
+    after: { name: item.name, quantity: Number(item.quantity) },
+  });
+
+  revalidatePath("/admin/inventory");
+  revalidatePath(`/admin/inventory/${itemId}`);
+}
+
 // Form versions of the actions above (see ActionForm): they return the problem
 // to the form instead of throwing.
 export async function createItemForm(_prev: FormState, formData: FormData): Promise<FormState> {
@@ -159,4 +246,12 @@ export async function createItemForm(_prev: FormState, formData: FormData): Prom
 
 export async function recordStockMovementForm(_prev: FormState, formData: FormData): Promise<FormState> {
   return runForm(() => recordStockMovement(formData));
+}
+
+export async function updateItemForm(_prev: FormState, formData: FormData): Promise<FormState> {
+  return runForm(() => updateItem(formData));
+}
+
+export async function setItemActiveForm(_prev: FormState, formData: FormData): Promise<FormState> {
+  return runForm(() => setItemActive(formData));
 }
