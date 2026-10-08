@@ -1,12 +1,27 @@
 import NextAuth, { CredentialsSignin } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
-import { prisma } from "@/lib/prisma";
-import { verifyPassword } from "@/lib/pin";
+import {
+  AdminPasswordLockedError,
+  WARN_PASSWORD_ATTEMPTS_LEFT,
+  checkAdminPassword,
+} from "@/lib/adminPassword";
 import { AdminPinLockedError, ADMIN_PIN_PATTERN, findAdminByPin } from "@/lib/adminPin";
 import { authConfig } from "@/lib/auth.config";
 
 class PinLockedSignin extends CredentialsSignin {
   code = "pin_locked";
+}
+
+class PasswordLockedSignin extends CredentialsSignin {
+  code = "password_locked";
+}
+
+/** code "password_left_N": wrong password, N attempts left before the lock. */
+class WrongPasswordSignin extends CredentialsSignin {
+  constructor(left: number) {
+    super();
+    this.code = `password_left_${left}`;
+  }
 }
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
@@ -22,13 +37,20 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         const password = credentials?.password as string | undefined;
         if (!email || !password) return null;
 
-        const admin = await prisma.adminUser.findFirst({
-          where: { email: { equals: email.trim(), mode: "insensitive" } },
-        });
-        if (!admin || !admin.active) return null;
-
-        const valid = await verifyPassword(password, admin.passwordHash);
-        if (!valid) return null;
+        let result;
+        try {
+          result = await checkAdminPassword(email, password);
+        } catch (error) {
+          if (error instanceof AdminPasswordLockedError) throw new PasswordLockedSignin();
+          throw error;
+        }
+        const { admin, attemptsLeft } = result;
+        if (!admin) {
+          if (attemptsLeft !== null && attemptsLeft <= WARN_PASSWORD_ATTEMPTS_LEFT) {
+            throw new WrongPasswordSignin(attemptsLeft);
+          }
+          return null;
+        }
 
         return { id: admin.id, name: admin.name, email: admin.email, role: admin.role };
       },

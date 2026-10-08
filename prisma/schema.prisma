@@ -92,6 +92,9 @@ model AdminUser {
   /** True unless access has been revoked -- kept rather than deleted, since
    * audit log entries and other history reference this account. */
   active       Boolean   @default(true)
+  /** Wrong passwords since the last correct one; see lib/adminPassword. */
+  passwordFailures    Int       @default(0)
+  passwordLockedUntil DateTime?
   createdAt    DateTime  @default(now())
 
   /** Links a SUPERVISOR login to the Employee record for the same person

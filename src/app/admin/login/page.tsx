@@ -22,7 +22,9 @@ async function loginAction(formData: FormData) {
     });
   } catch (error) {
     if (error instanceof AuthError) {
-      redirect(loginErrorUrl(callbackUrl, "password", "1"));
+      const code = (error as { code?: string }).code;
+      const known = code === "password_locked" || code?.startsWith("password_left_");
+      redirect(loginErrorUrl(callbackUrl, "password", known ? code! : "1"));
     }
     throw error;
   }
@@ -54,9 +56,14 @@ export default async function LoginPage({
   const pinMode = params.mode === "pin";
   const otherModeHref = `/admin/login?mode=${pinMode ? "password" : "pin"}&callbackUrl=${encodeURIComponent(callbackUrl)}`;
 
+  const attemptsLeft = params.error?.match(/^password_left_(d+)$/)?.[1];
   const errorMessage = !params.error
     ? null
-    : params.error === "locked"
+    : params.error === "password_locked"
+      ? "Too many wrong passwords. Password login for this account is locked for 15 minutes -- use your PIN if you have one, or try again later."
+      : attemptsLeft
+        ? `Incorrect email or password. You have ${attemptsLeft} attempt${attemptsLeft === "1" ? "" : "s"} left.`
+        : params.error === "locked"
       ? "Too many wrong PINs. PIN login is locked for 15 minutes -- use your email and password instead."
       : pinMode
         ? "Incorrect PIN."
