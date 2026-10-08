@@ -1,6 +1,7 @@
 import { formatInTimeZone } from "date-fns-tz";
+import ActionForm from "@/components/ActionForm";
 import { TIMEZONE } from "@/lib/payroll";
-import { createEmployee } from "../actions";
+import { createEmployeeForm } from "../actions";
 import PasswordInput from "@/components/PasswordInput";
 import PayBasisFields from "@/components/PayBasisFields";
 import PhotoInput from "@/components/PhotoInput";
@@ -15,7 +16,7 @@ export default function NewEmployeePage() {
     <div className="max-w-lg">
       <PageHeader title="New Employee" />
       <Card className="p-6">
-      <form action={createEmployee} className="space-y-4">
+      <ActionForm action={createEmployeeForm} className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1">Name</label>
           <input
@@ -87,7 +88,7 @@ export default function NewEmployeePage() {
         </details>
 
         <Button type="submit" className="w-full">Create Employee</Button>
-      </form>
+      </ActionForm>
       </Card>
     </div>
   );

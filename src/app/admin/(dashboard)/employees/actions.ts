@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { runForm, type FormState } from "@/lib/formAction";
 import { prisma } from "@/lib/prisma";
 import { recordEmployeeRate } from "@/lib/payRates";
 import { hashPin, verifyPin, hashPassword } from "@/lib/pin";
@@ -344,4 +345,27 @@ export async function setSupervisorAccessActive(employeeId: string, active: bool
 
   revalidatePath(`/admin/employees/${employeeId}`);
   revalidatePath("/admin/employees");
+}
+
+// Form versions of the actions above (see ActionForm): they return the problem
+// to the form instead of throwing; a successful save still redirects.
+
+export async function createEmployeeForm(_prev: FormState, formData: FormData): Promise<FormState> {
+  return runForm(() => createEmployee(formData));
+}
+
+export async function updateEmployeeForm(employeeId: string, _prev: FormState, formData: FormData): Promise<FormState> {
+  return runForm(() => updateEmployee(employeeId, formData));
+}
+
+export async function resetEmployeePinForm(employeeId: string, _prev: FormState, formData: FormData): Promise<FormState> {
+  return runForm(() => resetEmployeePin(employeeId, formData));
+}
+
+export async function updateSupervisorAccessForm(employeeId: string, _prev: FormState, formData: FormData): Promise<FormState> {
+  return runForm(() => updateSupervisorAccess(employeeId, formData));
+}
+
+export async function grantSupervisorAccessForm(employeeId: string, _prev: FormState, formData: FormData): Promise<FormState> {
+  return runForm(() => grantSupervisorAccess(employeeId, formData));
 }

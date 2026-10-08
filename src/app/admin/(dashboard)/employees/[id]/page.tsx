@@ -1,11 +1,7 @@
 import { notFound } from "next/navigation";
+import ActionForm from "@/components/ActionForm";
 import { prisma } from "@/lib/prisma";
-import {
-  updateEmployee,
-  resetEmployeePin,
-  grantSupervisorAccess,
-  updateSupervisorAccess,
-  setSupervisorAccessActive,
+import { updateEmployeeForm, resetEmployeePinForm, grantSupervisorAccessForm, updateSupervisorAccessForm, setSupervisorAccessActive
 } from "../actions";
 import PasswordInput from "@/components/PasswordInput";
 import PayBasisFields from "@/components/PayBasisFields";
@@ -27,10 +23,10 @@ export default async function EditEmployeePage({
   });
   if (!employee) notFound();
 
-  const updateEmployeeWithId = updateEmployee.bind(null, employee.id);
-  const resetPinWithId = resetEmployeePin.bind(null, employee.id);
-  const grantAccessWithId = grantSupervisorAccess.bind(null, employee.id);
-  const updateAccessWithId = updateSupervisorAccess.bind(null, employee.id);
+  const updateEmployeeWithId = updateEmployeeForm.bind(null, employee.id);
+  const resetPinWithId = resetEmployeePinForm.bind(null, employee.id);
+  const grantAccessWithId = grantSupervisorAccessForm.bind(null, employee.id);
+  const updateAccessWithId = updateSupervisorAccessForm.bind(null, employee.id);
   const setAccessActiveWithId = setSupervisorAccessActive.bind(
     null,
     employee.id,
@@ -42,7 +38,7 @@ export default async function EditEmployeePage({
       <PageHeader title={`Edit ${employee.name}`} />
 
       <Card className="p-6">
-        <form action={updateEmployeeWithId} className="space-y-4">
+        <ActionForm action={updateEmployeeWithId} className="space-y-4">
           <PhotoInput
             currentPhotoUrl={employee.photoPath ? `/api/kiosk/employee-photo/${employee.photoPath}` : null}
             helperText="Leave blank to keep the current photo."
@@ -78,11 +74,11 @@ export default async function EditEmployeePage({
             />
           </div>
           <Button type="submit" className="w-full">Save Changes</Button>
-        </form>
+        </ActionForm>
       </Card>
 
       <Card className="p-6">
-        <form action={resetPinWithId} className="space-y-4">
+        <ActionForm action={resetPinWithId} className="space-y-4">
           <h2 className="text-sm font-semibold text-slate-900">Reset PIN</h2>
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -98,7 +94,7 @@ export default async function EditEmployeePage({
             />
           </div>
           <Button type="submit" variant="secondary" className="w-full">Set New PIN</Button>
-        </form>
+        </ActionForm>
       </Card>
 
       {employee.adminAccount ? (
@@ -110,7 +106,7 @@ export default async function EditEmployeePage({
             </Badge>
           </div>
 
-          <form action={updateAccessWithId} className="space-y-3">
+          <ActionForm action={updateAccessWithId} successMessage="Saved" className="space-y-3">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
                 Login email
@@ -132,7 +128,7 @@ export default async function EditEmployeePage({
               helperText="Fill this in if they forgot their password -- they can change it again themselves after logging in."
             />
             <Button type="submit" variant="secondary" className="w-full">Save Login Changes</Button>
-          </form>
+          </ActionForm>
 
           <form action={setAccessActiveWithId}>
             <button
@@ -154,7 +150,7 @@ export default async function EditEmployeePage({
         </Card>
       ) : (
         <Card className="p-6">
-          <form action={grantAccessWithId} className="space-y-4">
+          <ActionForm action={grantAccessWithId} className="space-y-4">
             <h2 className="text-sm font-semibold text-slate-900">Grant Supervisor Access</h2>
             <p className="text-xs text-slate-500">
               Gives this person a login to the admin dashboard with Supervisor access
@@ -177,7 +173,7 @@ export default async function EditEmployeePage({
               helperText="They can change this after logging in."
             />
             <Button type="submit" variant="secondary" className="w-full">Grant Access</Button>
-          </form>
+          </ActionForm>
         </Card>
       )}
     </div>

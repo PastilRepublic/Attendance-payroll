@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { runForm, type FormState } from "@/lib/formAction";
 import { prisma } from "@/lib/prisma";
 import { requireOwner } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
@@ -613,4 +614,35 @@ export async function dismissHalfDaySuggestion(formData: FormData) {
   });
 
   revalidatePath(`/admin/payroll/${parsed.payPeriodId}`);
+}
+
+// Form versions of the actions above: they report a problem back to the form
+// (see ActionForm) instead of throwing, so the message actually reaches the screen.
+
+export async function finalizePeriodForm(_prev: FormState, formData: FormData): Promise<FormState> {
+  return runForm(() => finalizePeriod(formData));
+}
+
+export async function setPeriodDayTypeForm(_prev: FormState, formData: FormData): Promise<FormState> {
+  return runForm(() => setPeriodDayType(formData));
+}
+
+export async function addSanitationBonusForm(_prev: FormState, formData: FormData): Promise<FormState> {
+  return runForm(() => addSanitationBonusToPayslip(formData));
+}
+
+export async function addHalfDayDeductionForm(_prev: FormState, formData: FormData): Promise<FormState> {
+  return runForm(() => addHalfDayDeductionToPayslip(formData));
+}
+
+export async function addLateDeductionForm(_prev: FormState, formData: FormData): Promise<FormState> {
+  return runForm(() => addLateDeductionToPayslip(formData));
+}
+
+export async function addAdjustmentForm(_prev: FormState, formData: FormData): Promise<FormState> {
+  return runForm(() => addAdjustment(formData));
+}
+
+export async function unlockPayslipForm(_prev: FormState, formData: FormData): Promise<FormState> {
+  return runForm(() => unlockPayslip(formData));
 }

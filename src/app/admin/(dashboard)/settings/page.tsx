@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
+import ActionForm from "@/components/ActionForm";
 import { auth } from "@/lib/auth";
-import { updateSettings, changePassword, setAdminPin } from "./actions";
+import { updateSettingsForm, changePasswordForm, setAdminPinForm } from "./actions";
 import PasswordInput from "@/components/PasswordInput";
 import PageHeader from "@/components/PageHeader";
 import Card from "@/components/Card";
@@ -28,7 +29,7 @@ export default async function SettingsPage() {
       <PageHeader title="Settings" />
 
       <Card className="p-6">
-      <form action={updateSettings} className="space-y-5">
+      <ActionForm action={updateSettingsForm} successMessage="Saved" className="space-y-5">
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -170,11 +171,11 @@ export default async function SettingsPage() {
         </label>
 
         <Button type="submit" className="w-full">Save Settings</Button>
-      </form>
+      </ActionForm>
       </Card>
 
       <Card className="p-6 mt-6">
-      <form action={changePassword} className="space-y-4">
+      <ActionForm action={changePasswordForm} className="space-y-4">
         <h2 className="text-sm font-semibold text-slate-900">Change Admin Password</h2>
         <PasswordInput
           name="currentPassword"
@@ -191,11 +192,11 @@ export default async function SettingsPage() {
           You&apos;ll be signed out after changing your password and need to log in again.
         </p>
         <Button type="submit" variant="secondary" className="w-full">Change Password</Button>
-      </form>
+      </ActionForm>
       </Card>
 
       <Card className="p-6 mt-6">
-      <form action={setAdminPin} className="space-y-4">
+      <ActionForm action={setAdminPinForm} successMessage="Saved" className="space-y-4">
         <h2 className="text-sm font-semibold text-slate-900">Admin PIN login</h2>
         <p className="text-xs text-slate-500">
           {hasPin
@@ -221,7 +222,7 @@ export default async function SettingsPage() {
         <Button type="submit" variant="secondary" className="w-full">
           {hasPin ? "Update or Remove PIN" : "Set PIN"}
         </Button>
-      </form>
+      </ActionForm>
       </Card>
     </div>
   );

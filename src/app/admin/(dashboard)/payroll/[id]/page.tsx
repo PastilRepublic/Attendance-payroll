@@ -1,4 +1,5 @@
 import Link from "next/link";
+import ActionForm from "@/components/ActionForm";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import {
@@ -12,17 +13,17 @@ import { localDateKey, type PayBreakdownLine } from "@/lib/payroll";
 import { getSettings, getOperationDayOverrides } from "@/lib/settings";
 import { rotationDayForDate } from "@/lib/operationDay";
 import {
-  setPeriodDayType,
-  addAdjustment,
   removeAdjustment,
-  finalizePeriod,
-  unlockPayslip,
-  addSanitationBonusToPayslip,
   dismissBonusSuggestion,
-  addLateDeductionToPayslip,
   dismissLateSuggestion,
-  addHalfDayDeductionToPayslip,
   dismissHalfDaySuggestion,
+  finalizePeriodForm,
+  setPeriodDayTypeForm,
+  addSanitationBonusForm,
+  addHalfDayDeductionForm,
+  addLateDeductionForm,
+  addAdjustmentForm,
+  unlockPayslipForm,
 } from "../actions";
 
 export default async function PayPeriodDetailPage({
@@ -109,7 +110,7 @@ export default async function PayPeriodDetailPage({
           </span>
           {period.status === "OPEN" &&
             (periodEnded ? (
-              <form action={finalizePeriod} className="flex items-center gap-3">
+              <ActionForm action={finalizePeriodForm} className="flex flex-wrap items-center gap-3">
                 <input type="hidden" name="payPeriodId" value={period.id} />
                 {openIssues && (
                   <label className="flex items-center gap-1.5 text-xs text-red-700">
@@ -120,7 +121,7 @@ export default async function PayPeriodDetailPage({
                 <button className="rounded-md bg-slate-900 text-white text-sm font-medium px-4 py-2 hover:bg-slate-800">
                   Finalize Period
                 </button>
-              </form>
+              </ActionForm>
             ) : (
               <span className="text-xs text-slate-500">Can be finalized after {endDate}</span>
             ))}
@@ -181,7 +182,7 @@ export default async function PayPeriodDetailPage({
                     </span>
                   </span>
                   {period.status === "OPEN" ? (
-                    <form action={setPeriodDayType} className="flex items-center gap-2">
+                    <ActionForm action={setPeriodDayTypeForm} className="flex flex-wrap items-center gap-2">
                       <input type="hidden" name="payPeriodId" value={period.id} />
                       <input type="hidden" name="date" value={date} />
                       <select
@@ -198,7 +199,7 @@ export default async function PayPeriodDetailPage({
                       <button className="rounded-md bg-slate-900 text-white text-xs px-3 py-1 hover:bg-slate-800">
                         Save
                       </button>
-                    </form>
+                    </ActionForm>
                   ) : (
                     <span className="text-xs text-slate-600">{dayTypeLabels[effective]}</span>
                   )}
@@ -345,7 +346,7 @@ export default async function PayPeriodDetailPage({
                         {a.procedure.name} — {a.date.toISOString().slice(0, 10)}
                       </span>
                       <div className="flex items-center gap-2">
-                      <form action={addSanitationBonusToPayslip} className="flex items-center gap-2">
+                      <ActionForm action={addSanitationBonusForm} className="flex flex-wrap items-center gap-2">
                         <input type="hidden" name="payslipId" value={payslip.id} />
                         <input type="hidden" name="sanitationAssignmentId" value={a.id} />
                         <span className="text-slate-500">₱</span>
@@ -361,7 +362,7 @@ export default async function PayPeriodDetailPage({
                         <button className="rounded-md bg-amber-600 text-white px-2 py-1 hover:bg-amber-500">
                           Add to payslip
                         </button>
-                      </form>
+                      </ActionForm>
                       <form action={dismissBonusSuggestion}>
                         <input type="hidden" name="kind" value="SANITATION" />
                         <input type="hidden" name="assignmentId" value={a.id} />
@@ -400,7 +401,7 @@ export default async function PayPeriodDetailPage({
                         {d.noTimeOut && " — no Time Out (didn't come back after break?)"}
                       </span>
                       <div className="flex items-center gap-2">
-                        <form action={addHalfDayDeductionToPayslip} className="flex items-center gap-2">
+                        <ActionForm action={addHalfDayDeductionForm} className="flex flex-wrap items-center gap-2">
                           <input type="hidden" name="payslipId" value={payslip.id} />
                           <input type="hidden" name="date" value={d.date} />
                           <span className="text-slate-500">₱</span>
@@ -416,7 +417,7 @@ export default async function PayPeriodDetailPage({
                           <button className="rounded-md bg-blue-600 text-white px-2 py-1 hover:bg-blue-500">
                             Deduct from payslip
                           </button>
-                        </form>
+                        </ActionForm>
                         <form action={dismissHalfDaySuggestion}>
                           <input type="hidden" name="employeeId" value={employee.id} />
                           <input type="hidden" name="date" value={d.date} />
@@ -442,7 +443,7 @@ export default async function PayPeriodDetailPage({
                         Late {l.lateMinutes} min — {l.date}
                       </span>
                       <div className="flex items-center gap-2">
-                        <form action={addLateDeductionToPayslip} className="flex items-center gap-2">
+                        <ActionForm action={addLateDeductionForm} className="flex flex-wrap items-center gap-2">
                           <input type="hidden" name="payslipId" value={payslip.id} />
                           <input type="hidden" name="date" value={l.date} />
                           <span className="text-slate-500">₱</span>
@@ -458,7 +459,7 @@ export default async function PayPeriodDetailPage({
                           <button className="rounded-md bg-red-600 text-white px-2 py-1 hover:bg-red-500">
                             Deduct from payslip
                           </button>
-                        </form>
+                        </ActionForm>
                         <form action={dismissLateSuggestion}>
                           <input type="hidden" name="employeeId" value={employee.id} />
                           <input type="hidden" name="date" value={l.date} />
@@ -478,7 +479,7 @@ export default async function PayPeriodDetailPage({
                   <summary className="text-xs text-slate-500 cursor-pointer hover:underline">
                     + Add adjustment
                   </summary>
-                  <form action={addAdjustment} className="flex flex-wrap items-end gap-2 mt-2">
+                  <ActionForm action={addAdjustmentForm} resetOnSuccess className="flex flex-wrap items-end gap-2 mt-2">
                     <input type="hidden" name="payslipId" value={payslip.id} />
                     <div>
                       <label className="block text-xs text-slate-500">Label</label>
@@ -520,7 +521,7 @@ export default async function PayPeriodDetailPage({
                     <button className="rounded-md bg-slate-900 text-white text-xs px-3 py-1.5 hover:bg-slate-800">
                       Add
                     </button>
-                  </form>
+                  </ActionForm>
                 </details>
               ) : (
                 <div className="flex items-center justify-between mt-2">
@@ -535,8 +536,8 @@ export default async function PayPeriodDetailPage({
                     <summary className="text-xs text-red-600 cursor-pointer hover:underline inline">
                       Unlock
                     </summary>
-                    <form
-                      action={unlockPayslip}
+                    <ActionForm
+                      action={unlockPayslipForm}
                       className="absolute z-10 mt-1 right-4 bg-white shadow-lg rounded-md border border-slate-200 p-3 flex flex-col gap-2 w-64"
                     >
                       <input type="hidden" name="payslipId" value={payslip.id} />
@@ -550,7 +551,7 @@ export default async function PayPeriodDetailPage({
                       <button className="rounded-md bg-red-600 text-white text-xs px-3 py-1.5 hover:bg-red-500">
                         Confirm Unlock
                       </button>
-                    </form>
+                    </ActionForm>
                   </details>
                 </div>
               )}

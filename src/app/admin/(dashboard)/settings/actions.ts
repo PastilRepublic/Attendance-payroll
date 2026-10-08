@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { runForm, type FormState } from "@/lib/formAction";
 import { prisma } from "@/lib/prisma";
 import { recordOperationRates } from "@/lib/payRates";
 import { signOut } from "@/lib/auth";
@@ -169,4 +170,19 @@ export async function setAdminPin(formData: FormData) {
   });
 
   revalidatePath("/admin/settings");
+}
+
+// Form versions of the actions above (see ActionForm): they return the problem
+// to the form instead of throwing.
+
+export async function updateSettingsForm(_prev: FormState, formData: FormData): Promise<FormState> {
+  return runForm(() => updateSettings(formData));
+}
+
+export async function changePasswordForm(_prev: FormState, formData: FormData): Promise<FormState> {
+  return runForm(() => changePassword(formData));
+}
+
+export async function setAdminPinForm(_prev: FormState, formData: FormData): Promise<FormState> {
+  return runForm(() => setAdminPin(formData));
 }
