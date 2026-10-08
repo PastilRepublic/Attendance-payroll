@@ -349,6 +349,8 @@ export function summarizePeriod(days: DailyResult[]): PeriodResult {
  * computeDailyResults) as a reference for the admin to decide on a manual
  * Bonus adjustment, but never factor into gross pay here.
  */
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
 export function computePay(
   regularHours: number,
   payBasis: "HOURLY" | "DAILY",
@@ -363,6 +365,49 @@ export function computePay(
     basePay,
     grossPay: basePay,
   };
+}
+
+/**
+ * Gross pay from regular hours, priced day by day at the rate in effect on
+ * each date (see rateInEffect) -- a rate change mid-period only affects the
+ * days from its effective date on. Same rules as computePay otherwise.
+ */
+export function computeHoursPay(
+  days: DailyResult[],
+  payBasis: "HOURLY" | "DAILY",
+  payRateFor: (date: string) => number,
+  settings: Pick<PayrollSettings, "regularHoursCapPerDay">
+): PayResult {
+  let basePay = 0;
+  for (const d of days) {
+    if (d.regularMinutes <= 0) continue;
+    basePay += computePay(d.regularMinutes / 60, payBasis, payRateFor(d.date), settings).basePay;
+  }
+  basePay = round2(basePay);
+  const lastDay = days[days.length - 1]?.date;
+  const hourlyRate = lastDay
+    ? computePay(1, payBasis, payRateFor(lastDay), settings).hourlyRate
+    : 0;
+  return { hourlyRate, basePay, grossPay: basePay };
+}
+
+/**
+ * The rate in effect on a local date from a list of rate changes sorted by
+ * effectiveDate (oldest first): the latest change on or before that date. A
+ * date before the first change uses the first one; no changes at all uses
+ * the fallback (the current rate).
+ */
+export function rateInEffect<T extends { effectiveDate: string }>(
+  changes: T[],
+  date: string,
+  fallback: T
+): T {
+  let found: T | undefined;
+  for (const c of changes) {
+    if (c.effectiveDate <= date) found = c;
+    else break;
+  }
+  return found ?? changes[0] ?? fallback;
 }
 
 /** Pay per day worked for OPERATION_DAY (production) employees, by the
@@ -386,7 +431,6 @@ export interface DayBasedPayResult {
   lines: PayBreakdownLine[];
 }
 
-const round2 = (n: number) => Math.round(n * 100) / 100;
 
 /**
  * Gross pay for employees paid per day worked -- the full day's rate for any
@@ -401,17 +445,24 @@ const round2 = (n: number) => Math.round(n * 100) / 100;
  *
  * For both, an UNPAID_ABSENCE day pays nothing and a PAID_LEAVE day counts as
  * worked.
+ *
+ * Rates can be given per date (the rate in effect that day), so a rate change
+ * mid-period only affects the days from its effective date on; days at
+ * different rates get separate breakdown lines.
  */
 export function computeDayBasedPay(
   days: DailyResult[],
   payBasis: DayBasedPayBasis,
-  payRate: number,
+  payRate: number | ((date: string) => number),
   operationDayFor: (date: string) => "COOKING" | "JAR_FILLING" | "OFF",
-  rates: OperationPayRates
+  rates: OperationPayRates | ((date: string) => OperationPayRates)
 ): DayBasedPayResult {
-  const counts = new Map<string, PayBreakdownLine>();
-  const add = (key: string, label: string, rate: number) => {
-    const line = counts.get(key) ?? { label, days: 0, rate, amount: 0 };
+  const payRateFor = typeof payRate === "function" ? payRate : () => payRate;
+  const ratesFor = typeof rates === "function" ? rates : () => rates;
+  const counts = new Map<string, PayBreakdownLine & { kind: string }>();
+  const add = (kind: string, label: string, rate: number) => {
+    const key = `${kind}:${rate}`;
+    const line = counts.get(key) ?? { kind, label, days: 0, rate, amount: 0 };
     line.days += 1;
     counts.set(key, line);
   };
@@ -420,17 +471,17 @@ export function computeDayBasedPay(
     if (d.dayStatus === "UNPAID_ABSENCE") continue;
     if (d.dayStatus !== "PAID_LEAVE" && d.workedMinutes <= 0) continue;
 
-    if (payBasis === "FLAT_DAILY") add("flat", "Day worked", payRate);
-    else if (operationDayFor(d.date) === "COOKING") add("cooking", "Cooking day", rates.cooking);
-    else add("jar", "Jar filling day", rates.jarFilling);
+    if (payBasis === "FLAT_DAILY") add("flat", "Day worked", payRateFor(d.date));
+    else if (operationDayFor(d.date) === "COOKING") add("cooking", "Cooking day", ratesFor(d.date).cooking);
+    else add("jar", "Jar filling day", ratesFor(d.date).jarFilling);
   }
 
-  const lines = ["flat", "cooking", "jar"]
-    .filter((k) => counts.has(k))
-    .map((k) => {
-      const line = counts.get(k)!;
-      return { ...line, amount: round2(line.days * line.rate) };
-    });
+  // Grouped by kind (flat, cooking, jar), each kind's rates in date order.
+  const lines = ["flat", "cooking", "jar"].flatMap((kind) =>
+    [...counts.values()]
+      .filter((l) => l.kind === kind)
+      .map(({ label, days, rate }) => ({ label, days, rate, amount: round2(days * rate) }))
+  );
   const basePay = round2(lines.reduce((sum, l) => sum + l.amount, 0));
   return { basePay, grossPay: basePay, lines };
 }

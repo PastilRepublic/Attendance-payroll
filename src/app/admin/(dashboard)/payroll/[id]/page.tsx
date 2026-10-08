@@ -244,7 +244,7 @@ export default async function PayPeriodDetailPage({
               {breakdownLines.length > 0 && (
                 <ul className="mb-2 text-xs text-slate-600 space-y-0.5">
                   {breakdownLines.map((l) => (
-                    <li key={l.label}>
+                    <li key={`${l.label}-${l.rate}`}>
                       {l.days} × {l.label} @ ₱{l.rate.toFixed(2)} = ₱{l.amount.toFixed(2)}
                     </li>
                   ))}

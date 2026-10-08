@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { adjustmentsTotal, getPeriodDailyResults } from "@/lib/payrollService";
 import { TIMEZONE, PAY_BASIS_LABELS, earlyOutFlag, type PayBreakdownLine } from "@/lib/payroll";
 import { getSettings } from "@/lib/settings";
+import { getEmployeeRateFor } from "@/lib/payRates";
 import { formatInTimeZone } from "date-fns-tz";
 import PrintButton from "./PrintButton";
 
@@ -34,6 +35,15 @@ export default async function PayslipPrintPage({
       return { date: d.date, flags };
     })
     .filter((d) => d.flags.length > 0);
+
+  // The rate(s) in effect during this period -- not today's rate, which may
+  // have changed since.
+  const rateFor = await getEmployeeRateFor(payslip.employee, payslip.payPeriod.endDate);
+  const periodRates: number[] = [];
+  for (let t = payslip.payPeriod.startDate.getTime(); t <= payslip.payPeriod.endDate.getTime(); t += 86400000) {
+    const rate = rateFor(new Date(t).toISOString().slice(0, 10));
+    if (!periodRates.includes(rate)) periodRates.push(rate);
+  }
 
   const adjTotal = adjustmentsTotal(payslip.adjustments);
   const total = Number(payslip.grossPay) + adjTotal;
@@ -73,7 +83,7 @@ export default async function PayslipPrintPage({
           <div className="font-medium">
             {payslip.employee.payBasis === "OPERATION_DAY"
               ? "By operation day"
-              : `₱${Number(payslip.employee.payRate).toFixed(2)}`}
+              : periodRates.map((r) => `₱${r.toFixed(2)}`).join(" → ")}
           </div>
         </div>
       </div>
@@ -89,7 +99,7 @@ export default async function PayslipPrintPage({
             <td className="py-2 text-right">{Number(payslip.overtimeHours).toFixed(2)}</td>
           </tr>
           {breakdownLines.map((l) => (
-            <tr key={l.label} className="border-b border-slate-100 text-slate-600">
+            <tr key={`${l.label}-${l.rate}`} className="border-b border-slate-100 text-slate-600">
               <td className="py-2 pl-4">
                 {l.days} × {l.label} @ ₱{l.rate.toFixed(2)}
               </td>

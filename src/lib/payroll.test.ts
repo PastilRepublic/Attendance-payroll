@@ -4,6 +4,8 @@ import {
   summarizePeriod,
   computePay,
   computeDayBasedPay,
+  computeHoursPay,
+  rateInEffect,
   isEarlyOutDay,
   earlyOutFlag,
   localDateKey,
@@ -439,6 +441,86 @@ describe("computeDayBasedPay", () => {
       "2026-01-05"
     );
     expect(computeDayBasedPay(days, "FLAT_DAILY", 600, dayFor, rates).basePay).toBe(0);
+  });
+
+  it("production: a rate change mid-week only reprices days from its effective date", () => {
+    // Mon 01-05 and Wed 01-07 are Cooking days; the Cooking rate goes 400 -> 450 on Wed.
+    const days = daysFor(
+      [...punchPair("2026-01-05", 8, 17), ...punchPair("2026-01-07", 8, 17)],
+      "2026-01-05",
+      "2026-01-07"
+    );
+    const ratesFor = (d: string) => (d >= "2026-01-07" ? { cooking: 450, jarFilling: 350 } : rates);
+    const pay = computeDayBasedPay(days, "OPERATION_DAY", 0, dayFor, ratesFor);
+    expect(pay.basePay).toBe(850);
+    expect(pay.lines).toEqual([
+      { label: "Cooking day", days: 1, rate: 400, amount: 400 },
+      { label: "Cooking day", days: 1, rate: 450, amount: 450 },
+    ]);
+  });
+
+  it("flat daily: each day is paid the rate in effect that day", () => {
+    const days = daysFor(
+      [...punchPair("2026-01-05", 8, 17), ...punchPair("2026-01-06", 8, 17)],
+      "2026-01-05",
+      "2026-01-06"
+    );
+    const pay = computeDayBasedPay(days, "FLAT_DAILY", (d) => (d >= "2026-01-06" ? 700 : 600), dayFor, rates);
+    expect(pay.basePay).toBe(1300);
+  });
+});
+
+describe("computeHoursPay", () => {
+  it("prices each day's regular hours at that day's rate", () => {
+    // Two full 8-hour days; daily rate 720 then 800 from 01-06.
+    const days = computeDailyResults(
+      [
+        { timestamp: atManila("2026-01-05", 8, 0), type: "IN" },
+        { timestamp: atManila("2026-01-05", 17, 0), type: "OUT" },
+        { timestamp: atManila("2026-01-06", 8, 0), type: "IN" },
+        { timestamp: atManila("2026-01-06", 17, 0), type: "OUT" },
+      ],
+      [],
+      settings,
+      "2026-01-05",
+      "2026-01-06"
+    );
+    const pay = computeHoursPay(days, "DAILY", (d) => (d >= "2026-01-06" ? 800 : 720), settings);
+    expect(pay.basePay).toBe(1520);
+    expect(pay.grossPay).toBe(1520);
+  });
+
+  it("matches computePay when the rate never changes", () => {
+    const days = computeDailyResults(
+      [
+        { timestamp: atManila("2026-01-05", 8, 0), type: "IN" },
+        { timestamp: atManila("2026-01-05", 17, 0), type: "OUT" },
+      ],
+      [],
+      settings,
+      "2026-01-05",
+      "2026-01-05"
+    );
+    expect(computeHoursPay(days, "HOURLY", () => 100, settings).basePay).toBe(
+      computePay(8, "HOURLY", 100, settings).basePay
+    );
+  });
+});
+
+describe("rateInEffect", () => {
+  const changes = [
+    { effectiveDate: "2000-01-01", rate: 500 },
+    { effectiveDate: "2026-01-07", rate: 600 },
+  ];
+  const fallback = { effectiveDate: "", rate: 999 };
+  it("uses the latest change on or before the date", () => {
+    expect(rateInEffect(changes, "2026-01-06", fallback).rate).toBe(500);
+    expect(rateInEffect(changes, "2026-01-07", fallback).rate).toBe(600);
+    expect(rateInEffect(changes, "2026-02-01", fallback).rate).toBe(600);
+  });
+  it("uses the first change before any, and the fallback with no history", () => {
+    expect(rateInEffect(changes.slice(1), "2026-01-01", fallback).rate).toBe(600);
+    expect(rateInEffect([], "2026-01-01", fallback).rate).toBe(999);
   });
 });
 

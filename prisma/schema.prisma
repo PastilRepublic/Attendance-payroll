@@ -129,6 +129,22 @@ model Employee {
   sanitationAssignments SanitationAssignment[]
   lateDayActions        LateDayAction[]
   halfDayActions        HalfDayAction[]
+  rateChanges           EmployeeRateChange[]
+}
+
+/** Each change to an employee's pay rate and the local date it takes effect,
+ * so every worked day is paid the rate in effect that day -- a raise
+ * mid-period doesn't reprice the days before it. Employee.payRate stays the
+ * current rate. */
+model EmployeeRateChange {
+  id            String   @id @default(cuid())
+  employeeId    String
+  employee      Employee @relation(fields: [employeeId], references: [id])
+  effectiveDate DateTime @db.Date
+  payRate       Decimal  @db.Decimal(10, 2)
+  createdAt     DateTime @default(now())
+
+  @@unique([employeeId, effectiveDate])
 }
 
 model Device {
@@ -328,6 +344,17 @@ model Settings {
  * whenever a supervisor toggles it at the kiosk (or an owner corrects it on
  * payroll). Dates with no row fall back to the weekday rotation. Payroll reads
  * this so a past date's pay rate doesn't depend on today's kiosk state. */
+/** Each change to the Production Cooking / Jar Filling day rates and the local
+ * date it takes effect (see EmployeeRateChange). Settings keeps the current
+ * rates. */
+model OperationRateChange {
+  id                String   @id @default(cuid())
+  effectiveDate     DateTime @unique @db.Date
+  cookingDayRate    Decimal  @db.Decimal(10, 2)
+  jarFillingDayRate Decimal  @db.Decimal(10, 2)
+  createdAt         DateTime @default(now())
+}
+
 model OperationDayLog {
   date         DateTime     @id @db.Date
   operationDay OperationDay

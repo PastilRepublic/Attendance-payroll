@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { recordEmployeeRate } from "@/lib/payRates";
 import { hashPin, verifyPin, hashPassword } from "@/lib/pin";
 import { requireOwner } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
@@ -85,6 +86,8 @@ export async function createEmployee(formData: FormData) {
     },
   });
 
+  await recordEmployeeRate(employee.id, parsed.payRate, "CREATED");
+
   await logAudit({
     actorAdminId: admin.id,
     action: "CREATE_EMPLOYEE",
@@ -149,6 +152,14 @@ export async function updateEmployee(employeeId: string, formData: FormData) {
       dateHired: new Date(parsed.dateHired),
     },
   });
+
+  // Each worked day is paid the rate in effect that day, so a new rate only
+  // applies from today on (a pay basis change still covers the open period).
+  if (before.payBasis !== parsed.payBasis) {
+    await recordEmployeeRate(employeeId, parsed.payRate, "BASIS_CHANGED");
+  } else if (Number(before.payRate) !== parsed.payRate) {
+    await recordEmployeeRate(employeeId, parsed.payRate, "RATE_CHANGED", Number(before.payRate));
+  }
 
   await logAudit({
     actorAdminId: admin.id,

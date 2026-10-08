@@ -1,11 +1,12 @@
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
-import { getSettings, getOperationPayRates, getOperationDayOverrides } from "@/lib/settings";
+import { getSettings, getOperationDayOverrides } from "@/lib/settings";
+import { getEmployeeRateFor, getOperationRatesFor } from "@/lib/payRates";
 import { resolveOperationDayForDate, type OperationDay, type ResolvedOperationDay } from "@/lib/operationDay";
 import {
   computeDailyResults,
   summarizePeriod,
-  computePay,
+  computeHoursPay,
   computeDayBasedPay,
   isDayBasedPayBasis,
   isEarlyOutDay,
@@ -46,23 +47,26 @@ export async function getOrRefreshDraftPayslip(employeeId: string, payPeriodId: 
   let basePay: number;
   let grossPay: number;
   let payBreakdown: { lines: PayBreakdownLine[] } | null = null;
+  // Each day is priced at the rate in effect that day, so a rate change
+  // mid-period doesn't reprice the days before it.
+  const payRateFor = await getEmployeeRateFor(employee, payPeriod.endDate);
   if (isDayBasedPayBasis(employee.payBasis)) {
-    const [rates, overrides] = await Promise.all([
-      getOperationPayRates(),
+    const [ratesFor, overrides] = await Promise.all([
+      getOperationRatesFor(payPeriod.endDate),
       getOperationDayOverrides(payPeriod.startDate, payPeriod.endDate),
     ]);
     const pay = computeDayBasedPay(
       days,
       employee.payBasis,
-      Number(employee.payRate),
+      payRateFor,
       (date) => resolveOperationDayForDate(date, overrides),
-      rates
+      ratesFor
     );
     basePay = pay.basePay;
     grossPay = pay.grossPay;
     payBreakdown = { lines: pay.lines };
   } else {
-    const pay = computePay(regularHours, employee.payBasis, Number(employee.payRate), settings);
+    const pay = computeHoursPay(days, employee.payBasis, payRateFor, settings);
     basePay = pay.basePay;
     grossPay = pay.grossPay;
   }

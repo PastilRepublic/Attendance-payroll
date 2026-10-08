@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { recordOperationRates } from "@/lib/payRates";
 import { signOut } from "@/lib/auth";
 import { requireAdmin } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
@@ -64,6 +65,17 @@ export async function updateSettings(formData: FormData) {
     update: parsed,
     create: { id: 1, ...parsed },
   });
+
+  // Each worked day is paid the Production rates in effect that day, so new
+  // rates only apply from today on.
+  const previousRates = {
+    cooking: Number(before?.cookingDayRate ?? 400),
+    jarFilling: Number(before?.jarFillingDayRate ?? 350),
+  };
+  const newRates = { cooking: Number(parsed.cookingDayRate), jarFilling: Number(parsed.jarFillingDayRate) };
+  if (newRates.cooking !== previousRates.cooking || newRates.jarFilling !== previousRates.jarFilling) {
+    await recordOperationRates(newRates, previousRates);
+  }
 
   await logAudit({
     actorAdminId: admin.id,
