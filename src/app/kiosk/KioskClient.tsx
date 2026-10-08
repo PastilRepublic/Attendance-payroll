@@ -225,11 +225,14 @@ export default function KioskClient({
 
   useEffect(() => {
     if (screen !== "confirm") return;
-    setConfirmSecondsLeft(CONFIRM_AUTO_RESET_MS / 1000);
     const t = setInterval(() => {
       setConfirmSecondsLeft((s) => (s > 1 ? s - 1 : 1));
     }, 1000);
-    return () => clearInterval(t);
+    return () => {
+      clearInterval(t);
+      // Ready for the next confirm screen (the state starts at the full countdown).
+      setConfirmSecondsLeft(CONFIRM_AUTO_RESET_MS / 1000);
+    };
   }, [screen]);
 
   const resetToIdle = useCallback(() => {
