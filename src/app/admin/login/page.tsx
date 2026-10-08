@@ -56,7 +56,7 @@ export default async function LoginPage({
   const pinMode = params.mode === "pin";
   const otherModeHref = `/admin/login?mode=${pinMode ? "password" : "pin"}&callbackUrl=${encodeURIComponent(callbackUrl)}`;
 
-  const attemptsLeft = params.error?.match(/^password_left_(d+)$/)?.[1];
+  const attemptsLeft = params.error?.match(/^password_left_(\d+)$/)?.[1];
   const errorMessage = !params.error
     ? null
     : params.error === "password_locked"
