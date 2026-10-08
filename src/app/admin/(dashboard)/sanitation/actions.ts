@@ -7,6 +7,8 @@ import { requireAdmin, requireOwner } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
 import { SCHEDULE_LABELS } from "@/lib/sanitationLabels";
 import { monthlyCleaningDateFor } from "@/lib/sanitationSchedule";
+import { isRealDateKey } from "@/lib/punchRules";
+import { runForm, type FormState } from "@/lib/formAction";
 
 // Everything that shows sanitation data, so a change here is visible right away.
 function revalidateSanitation() {
@@ -19,8 +21,9 @@ const bonusAmountField = z
   .string()
   .trim()
   .optional()
-  .transform((v) => (v ? Number(v) : null))
-  .refine((v) => v === null || (Number.isFinite(v) && v > 0), "Bonus must be a positive amount");
+  .transform((v) => (v ? Math.round(Number(v) * 100) / 100 : null))
+  .refine((v) => v === null || (Number.isFinite(v) && v > 0), "Bonus must be a positive amount")
+  .refine((v) => v === null || v <= 100000, "Bonus must be ₱100,000 or less");
 
 const procedureFieldsSchema = z.object({
   name: z.string().trim().min(1, "Name is required"),
@@ -188,7 +191,7 @@ export async function setMonthlyCleaningDate(formData: FormData) {
   const admin = await requireAdmin();
   const raw = z
     .string()
-    .regex(/^(\d{4}-\d{2}-\d{2})?$/)
+    .refine((v) => v === "" || isRealDateKey(v), "Enter a valid date.")
     .parse(formData.get("monthlyDate") ?? "");
   // Picking the month's default date (the last cleaning weekday) is the same as no override.
   const settings = await prisma.settings.findUnique({ where: { id: 1 } });
@@ -213,8 +216,8 @@ export async function setMonthlyCleaningDate(formData: FormData) {
 }
 
 const assignSanitationSchema = z.object({
-  procedureId: z.string().min(1),
-  date: z.string().min(1),
+  procedureId: z.string().min(1, "Choose a task to assign."),
+  date: z.string().refine(isRealDateKey, "Enter a valid date."),
 });
 
 export async function assignSanitation(formData: FormData) {
@@ -224,10 +227,23 @@ export async function assignSanitation(formData: FormData) {
     date: formData.get("date"),
   });
 
+  const procedure = await prisma.sanitationProcedure.findUnique({ where: { id: parsed.procedureId } });
+  if (!procedure || !procedure.active) {
+    throw new Error("That task is no longer active.");
+  }
+  const date = new Date(`${parsed.date}T00:00:00.000Z`);
+  const duplicate = await prisma.sanitationAssignment.findFirst({
+    where: { procedureId: parsed.procedureId, date },
+    select: { id: true },
+  });
+  if (duplicate) {
+    throw new Error("That task is already on the list for this day.");
+  }
+
   const assignment = await prisma.sanitationAssignment.create({
     data: {
       procedureId: parsed.procedureId,
-      date: new Date(`${parsed.date}T00:00:00.000Z`),
+      date,
       assignedByAdminId: admin.id,
     },
   });
@@ -281,6 +297,14 @@ export async function inspectSanitationAssignment(formData: FormData) {
     result: formData.get("result"),
     note: formData.get("note") || undefined,
   });
+
+  const current = await prisma.sanitationAssignment.findUniqueOrThrow({ where: { id: parsed.assignmentId } });
+  if (current.status !== "DONE") {
+    throw new Error("This duty hasn't been marked done yet, so it can't be inspected.");
+  }
+  if (current.payslipAdjustmentId) {
+    throw new Error("This duty's bonus is already on a payslip, so its inspection can't be changed.");
+  }
 
   const assignment = await prisma.sanitationAssignment.update({
     where: { id: parsed.assignmentId },
@@ -379,4 +403,22 @@ export async function resetSanitationDay(formData: FormData) {
   });
 
   revalidateSanitation();
+}
+
+// Form versions of the actions above (see ActionForm): they return the problem
+// to the form instead of throwing.
+export async function createProcedureForm(_prev: FormState, formData: FormData): Promise<FormState> {
+  return runForm(() => createProcedure(formData));
+}
+
+export async function updateProcedureForm(_prev: FormState, formData: FormData): Promise<FormState> {
+  return runForm(() => updateProcedure(formData));
+}
+
+export async function assignSanitationForm(_prev: FormState, formData: FormData): Promise<FormState> {
+  return runForm(() => assignSanitation(formData));
+}
+
+export async function inspectSanitationAssignmentForm(_prev: FormState, formData: FormData): Promise<FormState> {
+  return runForm(() => inspectSanitationAssignment(formData));
 }

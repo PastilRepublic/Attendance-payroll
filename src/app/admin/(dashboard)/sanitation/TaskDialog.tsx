@@ -17,7 +17,8 @@ export function DialogCancelButton({ className }: { className: string }) {
 
 /**
  * A button that opens its children (the task form) in a popup. The form's own
- * server action does the saving; the popup closes on submit and resets when
+ * server action does the saving; the form closes the popup once it has saved
+ * (it stays open to show an error), and the form resets when the popup is
  * dismissed so a cancelled edit doesn't linger.
  */
 export default function TaskDialog({
@@ -47,8 +48,6 @@ export default function TaskDialog({
           if (e.target === dialogRef.current) dialogRef.current?.close();
         }}
         onClose={() => dialogRef.current?.querySelector("form")?.reset()}
-        // A submit bubbles up from the form; close once the browser has run its checks.
-        onSubmit={() => setTimeout(() => dialogRef.current?.close(), 0)}
         className="m-auto w-[min(40rem,calc(100vw-1.5rem))] max-h-[92vh] overflow-y-auto rounded-3xl border border-slate-200 bg-slate-50 p-0 text-slate-900 shadow-2xl backdrop:bg-slate-900/60"
       >
         <div className="p-6 sm:p-8">

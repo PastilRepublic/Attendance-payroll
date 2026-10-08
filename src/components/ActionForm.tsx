@@ -14,6 +14,7 @@ export default function ActionForm({
   children,
   successMessage,
   resetOnSuccess = false,
+  closeDialogOnSuccess = false,
 }: {
   action: (prev: FormState, formData: FormData) => Promise<FormState>;
   className?: string;
@@ -22,13 +23,17 @@ export default function ActionForm({
   successMessage?: string;
   /** Clear the fields after a successful save (for "add" forms). */
   resetOnSuccess?: boolean;
+  /** For a form inside a <dialog>: close the popup after a successful save (it stays open to show an error). */
+  closeDialogOnSuccess?: boolean;
 }) {
   const [state, formAction, pending] = useActionState<FormState, FormData>(action, {});
   const formRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
-    if (resetOnSuccess && state.savedAt) formRef.current?.reset();
-  }, [resetOnSuccess, state.savedAt]);
+    if (!state.savedAt) return;
+    if (resetOnSuccess) formRef.current?.reset();
+    if (closeDialogOnSuccess) formRef.current?.closest("dialog")?.close();
+  }, [resetOnSuccess, closeDialogOnSuccess, state.savedAt]);
 
   function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();

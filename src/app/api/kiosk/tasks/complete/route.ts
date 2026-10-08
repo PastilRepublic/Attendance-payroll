@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyPin } from "@/lib/pin";
 import { resolveEmployeeOrLocked } from "@/lib/kioskAuth";
 import { getSanitationSettings } from "@/lib/sanitation";
 import { savePunchPhoto } from "@/lib/storage";
@@ -64,8 +63,9 @@ export async function POST(request: Request) {
 
   // Re-verify the PIN belongs to the employee this task is assigned to --
   // never trust a client-supplied assignment id alone.
-  const validPin = await verifyPin(pin, assignment.employee.pinHash);
-  if (!validPin || !assignment.employee.active) {
+  const { matched, rejection } = await resolveEmployeeOrLocked(pin, assignment.employeeId);
+  if (rejection) return rejection;
+  if (!matched) {
     return NextResponse.json({ error: "PIN not recognized" }, { status: 401 });
   }
 

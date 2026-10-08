@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyPin } from "@/lib/pin";
 import { resolveEmployeeOrLocked } from "@/lib/kioskAuth";
 
 /**
@@ -57,8 +56,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Task not found" }, { status: 404 });
   }
 
-  const validPin = await verifyPin(pin, assignment.employee.pinHash);
-  if (!validPin || !assignment.employee.active) {
+  const { matched, rejection } = await resolveEmployeeOrLocked(pin, assignment.employeeId);
+  if (rejection) return rejection;
+  if (!matched) {
     return NextResponse.json({ error: "PIN not recognized" }, { status: 401 });
   }
 

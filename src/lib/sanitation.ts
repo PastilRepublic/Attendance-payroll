@@ -81,16 +81,22 @@ export async function ensureTodaysSanitationSchedule(): Promise<void> {
   });
   if (matchingProcedures.length === 0) return;
 
-  const existing = await prisma.sanitationAssignment.findMany({
-    where: { date: today, procedureId: { in: matchingProcedures.map((p) => p.id) } },
-    select: { procedureId: true },
-  });
-  const existingIds = new Set(existing.map((a) => a.procedureId));
-  const toCreate = matchingProcedures.filter((p) => !existingIds.has(p.id));
-  if (toCreate.length === 0) return;
+  // Several screens load this at once (kiosks, the board, admin), so the
+  // check-then-insert runs under a lock -- otherwise two of them could each
+  // see nothing scheduled and both add today's duties.
+  await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('sanitation-schedule'))`;
+    const existing = await tx.sanitationAssignment.findMany({
+      where: { date: today, procedureId: { in: matchingProcedures.map((p) => p.id) } },
+      select: { procedureId: true },
+    });
+    const existingIds = new Set(existing.map((a) => a.procedureId));
+    const toCreate = matchingProcedures.filter((p) => !existingIds.has(p.id));
+    if (toCreate.length === 0) return;
 
-  await prisma.sanitationAssignment.createMany({
-    data: toCreate.map((p) => ({ procedureId: p.id, date: today })),
+    await tx.sanitationAssignment.createMany({
+      data: toCreate.map((p) => ({ procedureId: p.id, date: today })),
+    });
   });
 }
 

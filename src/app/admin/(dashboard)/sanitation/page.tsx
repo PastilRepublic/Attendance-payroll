@@ -1,18 +1,20 @@
 import { prisma } from "@/lib/prisma";
 import { formatInTimeZone } from "date-fns-tz";
 import { TIMEZONE } from "@/lib/payroll";
+import ActionForm from "@/components/ActionForm";
+import type { FormState } from "@/lib/formAction";
 import {
-  assignSanitation,
-  createProcedure,
+  assignSanitationForm,
+  createProcedureForm,
   deleteSanitationAssignment,
-  inspectSanitationAssignment,
+  inspectSanitationAssignmentForm,
   passAllSanitationAssignments,
   resetSanitationDay,
   setMonthlyCleaningDate,
   setProcedureActive,
   setSanitationPhotoRequired,
   setWeeklyCleaningDay,
-  updateProcedure,
+  updateProcedureForm,
 } from "./actions";
 import { auth } from "@/lib/auth";
 import ConfirmSubmitButton from "@/components/ConfirmSubmitButton";
@@ -241,8 +243,8 @@ export default async function SanitationPage({
             </table>
           </div>
 
-          <form
-            action={assignSanitation}
+          <ActionForm
+            action={assignSanitationForm}
             className="flex flex-wrap items-end gap-3 border-t border-slate-100 pt-4"
           >
             <input type="hidden" name="date" value={date} />
@@ -265,7 +267,7 @@ export default async function SanitationPage({
             <p className="text-xs text-slate-400 w-full">
               No need to pick who — any active employee can claim and complete this at the kiosk.
             </p>
-          </form>
+          </ActionForm>
         </Card>
         </div>
 
@@ -309,7 +311,7 @@ export default async function SanitationPage({
               }
               triggerClassName="inline-flex items-center gap-2 rounded-full bg-accent-800 px-6 py-3 text-base font-semibold text-white hover:bg-accent-900"
             >
-              <TaskForm action={createProcedure} submitLabel="Add task" />
+              <TaskForm action={createProcedureForm} submitLabel="Add task" />
             </TaskDialog>
           </div>
 
@@ -535,7 +537,7 @@ function TaskCard({ procedure }: { procedure: Procedure }) {
           }
           triggerClassName={PILL_BUTTON}
         >
-          <TaskForm action={updateProcedure} submitLabel="Save changes" procedure={procedure} />
+          <TaskForm action={updateProcedureForm} submitLabel="Save changes" procedure={procedure} />
         </TaskDialog>
         <form action={setProcedureActive}>
           <input type="hidden" name="id" value={procedure.id} />
@@ -552,12 +554,12 @@ function TaskForm({
   submitLabel,
   procedure,
 }: {
-  action: (formData: FormData) => Promise<void>;
+  action: (prev: FormState, formData: FormData) => Promise<FormState>;
   submitLabel: string;
   procedure?: Procedure;
 }) {
   return (
-    <form action={action} className="mt-6 space-y-5">
+    <ActionForm action={action} closeDialogOnSuccess className="mt-6 space-y-5">
       {procedure && <input type="hidden" name="id" value={procedure.id} />}
       <div>
         <label className={LABEL_CLASS}>Task name</label>
@@ -643,7 +645,7 @@ function TaskForm({
           {submitLabel}
         </button>
       </div>
-    </form>
+    </ActionForm>
   );
 }
 
@@ -653,8 +655,8 @@ function InspectForm({ assignmentId }: { assignmentId: string }) {
       <summary className="text-xs text-slate-600 hover:underline cursor-pointer">
         Inspect
       </summary>
-      <form
-        action={inspectSanitationAssignment}
+      <ActionForm
+        action={inspectSanitationAssignmentForm}
         className="absolute z-10 mt-1 bg-white shadow-lg rounded-md border border-slate-200 p-3 flex flex-col gap-2 w-64"
       >
         <input type="hidden" name="assignmentId" value={assignmentId} />
@@ -677,7 +679,7 @@ function InspectForm({ assignmentId }: { assignmentId: string }) {
           />
         </div>
         <Button size="sm">Save Inspection</Button>
-      </form>
+      </ActionForm>
     </details>
   );
 }
