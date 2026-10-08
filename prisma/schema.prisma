@@ -112,6 +112,9 @@ model Employee {
   id         String   @id @default(cuid())
   name       String
   pinHash    String
+  /** Wrong PIN attempts since the last correct one; see lib/kioskAuth. */
+  pinFailures    Int       @default(0)
+  pinLockedUntil DateTime?
   payBasis   PayBasis
   payRate    Decimal  @db.Decimal(10, 2)
   active     Boolean  @default(true)
@@ -324,6 +327,9 @@ model Settings {
    * locked until once too many pile up. Email + password login is unaffected. */
   adminPinFailures         Int          @default(0)
   adminPinLockedUntil      DateTime?
+  /** Wrong PINs in PIN-only checks (no employee picked first), locked together like the admin PIN. */
+  employeePinFailures      Int          @default(0)
+  employeePinLockedUntil   DateTime?
   /** "Supervisor unavailable": while on, ticking a cleaning duty at the kiosk needs a photo. */
   sanitationPhotoRequired  Boolean      @default(false)
   /** ISO weekday (1 = Monday ... 7 = Sunday) that weekly cleaning duties fall on. */

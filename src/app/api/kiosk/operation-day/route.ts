@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { resolveEmployeeByPin } from "@/lib/kioskAuth";
+import { resolveEmployeeOrLocked } from "@/lib/kioskAuth";
 import { getOperationDay, setOperationDay, type OperationDay } from "@/lib/settings";
 
 const VALID: OperationDay[] = ["COOKING", "JAR_FILLING"];
@@ -21,7 +21,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "PIN is required" }, { status: 400 });
   }
 
-  const matched = await resolveEmployeeByPin(pin);
+  const { matched, locked } = await resolveEmployeeOrLocked(pin);
+  if (locked) return locked;
   if (!matched) {
     return NextResponse.json({ error: "PIN not recognized" }, { status: 401 });
   }

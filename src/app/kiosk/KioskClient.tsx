@@ -449,6 +449,12 @@ export default function KioskClient({
           setErrorNeedsAck(false);
           setScreen("error");
           scheduleReset();
+        } else if (res.status === 429) {
+          const data = await res.json().catch(() => null);
+          setErrorMessage(data?.error ?? "Too many wrong PIN attempts. Try again later.");
+          setErrorNeedsAck(false);
+          setScreen("error");
+          scheduleReset();
         } else if (res.status === 409) {
           const data = await res.json().catch(() => null);
           setErrorMessage(
@@ -496,6 +502,12 @@ export default function KioskClient({
         setScreen("actionPanel");
       } else if (res.status === 401) {
         setErrorMessage("PIN not recognized. Please try again.");
+        setErrorNeedsAck(false);
+        setScreen("error");
+        scheduleReset();
+      } else if (res.status === 429) {
+        const data = await res.json().catch(() => null);
+        setErrorMessage(data?.error ?? "Too many wrong PIN attempts. Try again later.");
         setErrorNeedsAck(false);
         setScreen("error");
         scheduleReset();

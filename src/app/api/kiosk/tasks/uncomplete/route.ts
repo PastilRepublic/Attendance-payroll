@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyPin } from "@/lib/pin";
-import { resolveEmployeeByPin } from "@/lib/kioskAuth";
+import { resolveEmployeeOrLocked } from "@/lib/kioskAuth";
 
 /**
  * Undoes an accidental tap on the kiosk checklist -- only while the item is
@@ -36,7 +36,8 @@ export async function POST(request: Request) {
         { status: 409 }
       );
     }
-    const matched = await resolveEmployeeByPin(pin, employeeId);
+    const { matched, locked } = await resolveEmployeeOrLocked(pin, employeeId);
+    if (locked) return locked;
     if (!matched || matched.id !== assignment.employeeId) {
       return NextResponse.json({ error: "PIN not recognized" }, { status: 401 });
     }

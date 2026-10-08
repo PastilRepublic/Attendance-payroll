@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyPin } from "@/lib/pin";
-import { resolveEmployeeByPin } from "@/lib/kioskAuth";
+import { resolveEmployeeOrLocked } from "@/lib/kioskAuth";
 import { getSanitationSettings } from "@/lib/sanitation";
 import { savePunchPhoto } from "@/lib/storage";
 
@@ -31,7 +31,8 @@ export async function POST(request: Request) {
     // Any active employee can claim and sign off for the team -- not just
     // whoever (if anyone) was pre-assigned. Re-verify the PIN belongs to a
     // real active employee, never trust a client-supplied id alone.
-    const matched = await resolveEmployeeByPin(pin, employeeId);
+    const { matched, locked } = await resolveEmployeeOrLocked(pin, employeeId);
+    if (locked) return locked;
     if (!matched) {
       return NextResponse.json({ error: "PIN not recognized" }, { status: 401 });
     }

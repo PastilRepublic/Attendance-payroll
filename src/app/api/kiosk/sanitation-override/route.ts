@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { resolveEmployeeByPin } from "@/lib/kioskAuth";
+import { resolveEmployeeOrLocked } from "@/lib/kioskAuth";
 import { logAudit } from "@/lib/audit";
 
 /** Lets an active supervisor/owner waive the pre/post-cooking cleaning gate
@@ -16,7 +16,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
 
-  const matched = await resolveEmployeeByPin(pin);
+  const { matched, locked } = await resolveEmployeeOrLocked(pin);
+  if (locked) return locked;
   if (!matched) {
     return NextResponse.json({ error: "PIN not recognized" }, { status: 401 });
   }

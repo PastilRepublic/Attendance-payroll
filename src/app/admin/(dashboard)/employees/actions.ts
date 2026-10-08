@@ -193,7 +193,7 @@ export async function resetEmployeePin(employeeId: string, formData: FormData) {
 
   await prisma.employee.update({
     where: { id: employeeId },
-    data: { pinHash: await hashPin(pin) },
+    data: { pinHash: await hashPin(pin), pinFailures: 0, pinLockedUntil: null },
   });
 
   await logAudit({

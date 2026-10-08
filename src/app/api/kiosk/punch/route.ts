@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { savePunchPhoto } from "@/lib/storage";
-import { resolveEmployeeByPin } from "@/lib/kioskAuth";
+import { resolveEmployeeOrLocked } from "@/lib/kioskAuth";
 import { getKioskSnapshot } from "@/lib/kioskAttendance";
 import { localDateKey, TIMEZONE, type PunchType } from "@/lib/payroll";
 import { dayStateAfter, firstInvalidPunch, resolvePunchTime } from "@/lib/punchRules";
@@ -50,7 +50,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "PIN is required" }, { status: 400 });
   }
 
-  const matched = await resolveEmployeeByPin(pin, employeeId);
+  const { matched, locked } = await resolveEmployeeOrLocked(pin, employeeId);
+  if (locked) return locked;
   if (!matched) {
     return NextResponse.json({ error: "PIN not recognized" }, { status: 401 });
   }

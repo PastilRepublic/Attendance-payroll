@@ -165,6 +165,14 @@ export default function EmployeeClient() {
         }),
       ]);
 
+      if (attRes.status === 429 || paySlipRes.status === 429) {
+        const locked = attRes.status === 429 ? attRes : paySlipRes;
+        const data = await locked.json().catch(() => null);
+        setPinError(data?.error ?? "Too many wrong PIN attempts. Try again later.");
+        setPin("");
+        setChecking(false);
+        return;
+      }
       if (attRes.status === 401 || paySlipRes.status === 401) {
         setPinError("PIN not recognized. Try again.");
         setPin("");
