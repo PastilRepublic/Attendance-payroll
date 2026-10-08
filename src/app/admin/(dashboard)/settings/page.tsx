@@ -3,9 +3,9 @@ import ActionForm from "@/components/ActionForm";
 import { auth } from "@/lib/auth";
 import { updateSettingsForm, changePasswordForm, setAdminPinForm } from "./actions";
 import PasswordInput from "@/components/PasswordInput";
-import PageHeader from "@/components/PageHeader";
-import Card from "@/components/Card";
-import Button from "@/components/Button";
+import SoftHeader from "@/components/ui/SoftHeader";
+import SoftCard from "@/components/ui/SoftCard";
+import PillButton from "@/components/ui/PillButton";
 
 const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -26,31 +26,31 @@ export default async function SettingsPage() {
 
   return (
     <div className="max-w-xl">
-      <PageHeader title="Settings" />
+      <SoftHeader title="Settings" />
 
-      <Card className="p-6">
+      <SoftCard>
       <ActionForm action={updateSettingsForm} successMessage="Saved" className="space-y-5">
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
+            <label className="mb-1 block text-sm font-medium text-slate-800">
               Shift start
             </label>
             <input
               name="shiftStartTime"
               type="time"
               defaultValue={settings.shiftStartTime}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-slate-400"
+              className="w-full rounded-full border border-slate-300 bg-slate-100 px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-200"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
+            <label className="mb-1 block text-sm font-medium text-slate-800">
               Shift end
             </label>
             <input
               name="shiftEndTime"
               type="time"
               defaultValue={settings.shiftEndTime}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-slate-400"
+              className="w-full rounded-full border border-slate-300 bg-slate-100 px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-200"
             />
           </div>
         </div>
@@ -59,7 +59,7 @@ export default async function SettingsPage() {
           <>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
+                <label className="mb-1 block text-sm font-medium text-slate-800">
                   Unpaid break (minutes)
                 </label>
                 <input
@@ -67,7 +67,7 @@ export default async function SettingsPage() {
                   type="number"
                   min="0"
                   defaultValue={settings.unpaidLunchMinutes}
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-slate-400"
+                  className="w-full rounded-full border border-slate-300 bg-slate-100 px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-200"
                 />
                 <p className="text-xs text-slate-500 mt-1">
                   Also the kiosk&apos;s Break allowance -- an employee who Starts Break and takes
@@ -75,7 +75,7 @@ export default async function SettingsPage() {
                 </p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
+                <label className="mb-1 block text-sm font-medium text-slate-800">
                   Regular hours cap / day
                 </label>
                 <input
@@ -84,7 +84,7 @@ export default async function SettingsPage() {
                   step="0.25"
                   min="0"
                   defaultValue={Number(settings.regularHoursCapPerDay)}
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-slate-400"
+                  className="w-full rounded-full border border-slate-300 bg-slate-100 px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-200"
                 />
                 <p className="text-xs text-slate-500 mt-1">
                   Hours worked beyond this are tracked as OT hours for reference, but are not
@@ -95,7 +95,7 @@ export default async function SettingsPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
+              <label className="mb-1 block text-sm font-medium text-slate-800">
                 Late grace period (minutes)
               </label>
               <input
@@ -103,18 +103,18 @@ export default async function SettingsPage() {
                 type="number"
                 min="0"
                 defaultValue={settings.gracePeriodMinutes}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-slate-400"
+                className="w-full rounded-full border border-slate-300 bg-slate-100 px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-200"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
+              <label className="mb-1 block text-sm font-medium text-slate-800">
                 Pay period starts on
               </label>
               <select
                 name="payPeriodStartDay"
                 defaultValue={settings.payPeriodStartDay}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-slate-400"
+                className="w-full rounded-full border border-slate-300 bg-slate-100 px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-200"
               >
                 {dayNames.map((d, i) => (
                   <option key={d} value={i + 1}>
@@ -144,14 +144,14 @@ export default async function SettingsPage() {
                   ] as const
                 ).map(([name, label, value]) => (
                   <div key={name}>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
+                    <label className="mb-1 block text-sm font-medium text-slate-800">{label}</label>
                     <input
                       name={name}
                       type="number"
                       step="0.01"
                       min="0"
                       defaultValue={value}
-                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-slate-400"
+                      className="w-full rounded-full border border-slate-300 bg-slate-100 px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-200"
                     />
                   </div>
                 ))}
@@ -170,11 +170,11 @@ export default async function SettingsPage() {
           Require a photo at each kiosk punch
         </label>
 
-        <Button type="submit" className="w-full">Save Settings</Button>
+        <PillButton type="submit" className="w-full">Save Settings</PillButton>
       </ActionForm>
-      </Card>
+      </SoftCard>
 
-      <Card className="p-6 mt-6">
+      <SoftCard className="mt-6">
       <ActionForm action={changePasswordForm} className="space-y-4">
         <h2 className="text-sm font-semibold text-slate-900">Change Admin Password</h2>
         <PasswordInput
@@ -191,11 +191,11 @@ export default async function SettingsPage() {
         <p className="text-xs text-slate-500">
           You&apos;ll be signed out after changing your password and need to log in again.
         </p>
-        <Button type="submit" variant="secondary" className="w-full">Change Password</Button>
+        <PillButton type="submit" variant="secondary" className="w-full">Change Password</PillButton>
       </ActionForm>
-      </Card>
+      </SoftCard>
 
-      <Card className="p-6 mt-6">
+      <SoftCard className="mt-6">
       <ActionForm action={setAdminPinForm} successMessage="Saved" className="space-y-4">
         <h2 className="text-sm font-semibold text-slate-900">Admin PIN login</h2>
         <p className="text-xs text-slate-500">
@@ -219,11 +219,11 @@ export default async function SettingsPage() {
           label="Current password"
           autoComplete="current-password"
         />
-        <Button type="submit" variant="secondary" className="w-full">
+        <PillButton type="submit" variant="secondary" className="w-full">
           {hasPin ? "Update or Remove PIN" : "Set PIN"}
-        </Button>
+        </PillButton>
       </ActionForm>
-      </Card>
+      </SoftCard>
     </div>
   );
 }

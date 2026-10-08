@@ -10,6 +10,7 @@
    #cffafe icon, dark #083344-#155e75 text), used for primary actions and highlights (Add task,
    Save, the monthly reminder, the tabs). Change the shades here to retint them all. */
 @theme {
+  --color-page: #f4f7fb;
   --color-accent-50: #ecfeff;
   --color-accent-100: #cffafe;
   --color-accent-200: #a5f3fc;

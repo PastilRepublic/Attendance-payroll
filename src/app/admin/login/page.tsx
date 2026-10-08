@@ -70,20 +70,20 @@ export default async function LoginPage({
         : "Incorrect email or password.";
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-slate-100 px-4">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-page px-4">
       <div className="w-full max-w-sm mb-3">
         <Link href="/" className="text-sm text-slate-500 hover:text-slate-700">
           ← Home
         </Link>
       </div>
-      <div className="w-full max-w-sm bg-white rounded-xl shadow p-8">
+      <div className="w-full max-w-sm rounded-3xl border border-slate-300 bg-white shadow-sm p-8">
         <h1 className="text-xl font-semibold text-slate-900 mb-1">Admin Login</h1>
         <p className="text-sm text-slate-500 mb-6">
           Attendance &amp; Payroll admin dashboard
         </p>
 
         {errorMessage && (
-          <div className="mb-4 rounded-md bg-red-50 text-red-700 text-sm px-3 py-2">
+          <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 text-rose-800 text-sm px-4 py-3">
             {errorMessage}
           </div>
         )}
@@ -102,7 +102,7 @@ export default async function LoginPage({
             />
             <button
               type="submit"
-              className="w-full rounded-md bg-slate-900 text-white text-sm font-medium py-2 hover:bg-slate-800"
+              className="w-full rounded-full bg-accent-800 text-white text-sm font-medium py-2.5 hover:bg-accent-900"
             >
               Sign in
             </button>
@@ -111,20 +111,20 @@ export default async function LoginPage({
           <form action={loginAction} className="space-y-4">
             <input type="hidden" name="callbackUrl" value={callbackUrl} />
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
+              <label className="mb-1 block text-sm font-medium text-slate-800">
                 Email
               </label>
               <input
                 type="email"
                 name="email"
                 required
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-500"
+                className="w-full rounded-full border border-slate-300 bg-slate-100 px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-200"
               />
             </div>
             <PasswordInput name="password" label="Password" autoComplete="current-password" />
             <button
               type="submit"
-              className="w-full rounded-md bg-slate-900 text-white text-sm font-medium py-2 hover:bg-slate-800"
+              className="w-full rounded-full bg-accent-800 text-white text-sm font-medium py-2.5 hover:bg-accent-900"
             >
               Sign in
             </button>

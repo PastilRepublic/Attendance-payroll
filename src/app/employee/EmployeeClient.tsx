@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import Card from "@/components/Card";
+import SoftCard from "@/components/ui/SoftCard";
 import Badge from "@/components/Badge";
-import Button from "@/components/Button";
+import PillButton from "@/components/ui/PillButton";
 
 interface EmployeeOption {
   id: string;
@@ -241,14 +241,14 @@ export default function EmployeeClient() {
   }
 
   return (
-    <div className="flex-1 flex flex-col bg-slate-100">
+    <div className="flex-1 flex flex-col bg-page">
       <div className="bg-white border-b border-slate-200 flex items-center justify-between gap-3 py-4 px-4 sm:px-6">
         <h1 className="text-lg sm:text-2xl md:text-3xl font-bold tracking-tight text-slate-900">
           The Famous Pastil Republic
         </h1>
         <Link
           href="/"
-          className="shrink-0 rounded-md bg-slate-900 text-white px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-medium hover:bg-slate-800"
+          className="shrink-0 rounded-full bg-slate-900 text-white px-4 py-2 text-xs sm:text-sm font-medium hover:bg-slate-800"
         >
           Home
         </Link>
@@ -276,7 +276,7 @@ export default function EmployeeClient() {
                     setPinError(null);
                     setScreen("pin");
                   }}
-                  className="rounded-xl bg-white border border-slate-300 hover:bg-slate-50 px-5 py-5 text-lg font-semibold text-slate-800 shadow-sm"
+                  className="rounded-2xl bg-white border border-slate-300 hover:bg-slate-50 px-5 py-5 text-lg font-semibold text-slate-800 shadow-sm"
                 >
                   {emp.name}
                 </button>
@@ -328,7 +328,7 @@ export default function EmployeeClient() {
                       key={d}
                       onClick={() => setPin("")}
                       disabled={checking}
-                      className="w-20 h-20 rounded-xl bg-slate-200 hover:bg-slate-300 text-base font-medium text-slate-700 disabled:opacity-50"
+                      className="w-20 h-20 rounded-full bg-slate-200 hover:bg-slate-300 text-base font-medium text-slate-700 disabled:opacity-50"
                     >
                       Clear
                     </button>
@@ -340,7 +340,7 @@ export default function EmployeeClient() {
                       key={d}
                       onClick={() => setPin((p) => p.slice(0, -1))}
                       disabled={checking}
-                      className="w-20 h-20 rounded-xl bg-slate-200 hover:bg-slate-300 text-base font-medium text-slate-700 disabled:opacity-50"
+                      className="w-20 h-20 rounded-full bg-slate-200 hover:bg-slate-300 text-base font-medium text-slate-700 disabled:opacity-50"
                     >
                       ⌫
                     </button>
@@ -351,7 +351,7 @@ export default function EmployeeClient() {
                     key={d}
                     onClick={() => handleDigit(d)}
                     disabled={checking}
-                    className="w-20 h-20 rounded-xl bg-white border border-slate-300 hover:bg-slate-50 text-2xl font-semibold text-slate-800 disabled:opacity-50"
+                    className="w-20 h-20 rounded-full bg-white border border-slate-300 hover:bg-slate-50 text-2xl font-semibold text-slate-800 disabled:opacity-50"
                   >
                     {d}
                   </button>
@@ -362,7 +362,7 @@ export default function EmployeeClient() {
             <button
               onClick={() => selected && submitPin(pin, selected)}
               disabled={pin.length < 4 || checking}
-              className="mt-5 w-64 h-14 rounded-xl bg-slate-900 hover:bg-slate-800 disabled:bg-slate-300 disabled:text-slate-500 text-white text-xl font-semibold"
+              className="mt-5 w-64 h-14 rounded-full bg-accent-800 hover:bg-accent-900 disabled:bg-slate-300 disabled:text-slate-500 text-white text-xl font-semibold"
             >
               {checking ? "Checking…" : "Enter"}
             </button>
@@ -424,7 +424,7 @@ export default function EmployeeClient() {
                   <select
                     value={rangeKind}
                     onChange={(e) => setRangeKind(e.target.value as RangeKind)}
-                    className="rounded-full border border-slate-300 px-3 py-1.5 text-sm bg-white"
+                    className="rounded-full border border-slate-300 bg-slate-100 px-4 py-2 text-sm text-slate-900 focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-200"
                   >
                     <option value="day">Day</option>
                     <option value="week">Week</option>
@@ -438,7 +438,7 @@ export default function EmployeeClient() {
                       min={earliestDate?.slice(0, 7)}
                       max={today.slice(0, 7)}
                       required
-                      className="rounded-full border border-slate-300 px-3 py-1.5 text-sm bg-white"
+                      className="rounded-full border border-slate-300 bg-slate-100 px-4 py-2 text-sm text-slate-900 focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-200"
                     />
                   ) : rangeKind === "week" ? (
                     <input
@@ -448,7 +448,7 @@ export default function EmployeeClient() {
                       min={earliestDate ? isoWeekString(earliestDate) : undefined}
                       max={isoWeekString(today)}
                       required
-                      className="rounded-full border border-slate-300 px-3 py-1.5 text-sm bg-white"
+                      className="rounded-full border border-slate-300 bg-slate-100 px-4 py-2 text-sm text-slate-900 focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-200"
                     />
                   ) : (
                     <input
@@ -458,19 +458,19 @@ export default function EmployeeClient() {
                       min={earliestDate ?? undefined}
                       max={today}
                       required
-                      className="rounded-full border border-slate-300 px-3 py-1.5 text-sm bg-white"
+                      className="rounded-full border border-slate-300 bg-slate-100 px-4 py-2 text-sm text-slate-900 focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-200"
                     />
                   )}
-                  <Button size="sm" disabled={monthLoading}>
+                  <PillButton size="sm" disabled={monthLoading}>
                     Go
-                  </Button>
+                  </PillButton>
                   {monthError && <span className="text-xs text-red-600">Could not load</span>}
                 </form>
               )}
             </div>
 
             {tab === "attendance" && (
-              <Card className="overflow-hidden">
+              <SoftCard padded={false} className="overflow-hidden">
                 <div className={`overflow-x-auto transition-opacity ${monthLoading ? "opacity-50" : ""}`}>
                   <table className="w-full text-sm">
                     <thead className="bg-slate-50 text-slate-600">
@@ -545,13 +545,13 @@ export default function EmployeeClient() {
                     </tbody>
                   </table>
                 </div>
-              </Card>
+              </SoftCard>
             )}
 
             {tab === "payslips" && (
               <div className="flex flex-col gap-3">
                 {(payslips ?? []).map((p) => (
-                  <Card key={p.id} padded>
+                  <SoftCard key={p.id} padded>
                     <div className="flex items-center justify-between mb-2">
                       <p className="font-semibold text-slate-800">
                         {p.periodStart} to {p.periodEnd}
@@ -608,7 +608,7 @@ export default function EmployeeClient() {
                     {p.adjustments.length > 0 && (() => {
                       const sorted = [...p.adjustments].sort((a, b) => b.amount - a.amount);
                       return (
-                        <div className="mb-2 border border-slate-200 rounded-md overflow-x-auto">
+                        <div className="mb-2 border border-slate-200 rounded-2xl overflow-x-auto">
                           <table className="w-full text-sm">
                             <thead className="bg-slate-50 text-slate-500">
                               <tr>
@@ -658,12 +658,12 @@ export default function EmployeeClient() {
                       <p className="text-sm font-medium text-slate-600">Total pay</p>
                       <p className="text-lg font-bold text-slate-900">{peso(p.totalPay)}</p>
                     </div>
-                  </Card>
+                  </SoftCard>
                 ))}
                 {(payslips ?? []).length === 0 && (
-                  <Card padded className="text-center text-slate-400">
+                  <SoftCard padded className="text-center text-slate-400">
                     No payslips yet.
-                  </Card>
+                  </SoftCard>
                 )}
               </div>
             )}

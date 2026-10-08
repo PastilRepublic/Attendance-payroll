@@ -1,7 +1,7 @@
 "use client";
 
 import { startTransition, useActionState, type FormEvent } from "react";
-import Button from "@/components/Button";
+import PillButton from "@/components/ui/PillButton";
 import { saveDayPunches, setDayStatus, type DayFormState } from "./actions";
 
 export interface DayField {
@@ -51,7 +51,7 @@ export function DayPunchesForm({
               type="time"
               name={f.name}
               defaultValue={f.value}
-              className="flex-1 rounded-md border border-slate-300 px-2 py-1 text-sm text-slate-800"
+              className="flex-1 rounded-full border border-slate-300 bg-slate-100 px-4 py-2 text-sm text-slate-900 focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-200"
             />
             {f.photoPath && (
               <a
@@ -77,7 +77,7 @@ export function DayPunchesForm({
         <input
           type="text"
           name="reason"
-          className="w-full rounded-md border border-slate-300 px-2 py-1 text-xs"
+          className="w-full rounded-full border border-slate-300 bg-slate-100 px-3 py-1.5 text-xs text-slate-900 focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-200"
         />
       </div>
       {state.error && (
@@ -87,9 +87,9 @@ export function DayPunchesForm({
       )}
       <div className="flex items-center justify-between mt-2">
         <p className="text-xs text-slate-400">Clear a time to remove that punch.</p>
-        <Button size="sm" disabled={pending}>
+        <PillButton size="sm" disabled={pending}>
           {pending ? "Saving…" : "Save"}
-        </Button>
+        </PillButton>
       </div>
     </form>
   );
@@ -114,15 +114,15 @@ export function DayStatusForm({
         <select
           name="status"
           defaultValue={dayStatus}
-          className="rounded-md border border-slate-300 px-2 py-1 text-xs flex-1"
+          className="flex-1 rounded-full border border-slate-300 bg-slate-100 px-3 py-1.5 text-xs text-slate-900 focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-200"
         >
           <option value="NORMAL">Normal</option>
           <option value="PAID_LEAVE">Paid Leave</option>
           <option value="UNPAID_ABSENCE">Unpaid Absence</option>
         </select>
-        <Button variant="secondary" size="sm" disabled={pending}>
+        <PillButton variant="secondary" size="sm" disabled={pending}>
           Set
-        </Button>
+        </PillButton>
       </div>
       {state.error && (
         <p role="alert" className="mt-2 text-xs text-red-600">

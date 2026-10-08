@@ -1,10 +1,16 @@
 import Link from "next/link";
+import { formatInTimeZone } from "date-fns-tz";
 import { prisma } from "@/lib/prisma";
 import { createNextPayPeriod } from "./actions";
-import PageHeader from "@/components/PageHeader";
-import Card from "@/components/Card";
 import Badge from "@/components/Badge";
-import Button from "@/components/Button";
+import SoftHeader from "@/components/ui/SoftHeader";
+import SoftCard from "@/components/ui/SoftCard";
+import PillButton from "@/components/ui/PillButton";
+import EmptyState from "@/components/ui/EmptyState";
+import { pillClass } from "@/components/ui/styles";
+
+// Pay period dates are stored as plain dates (UTC midnight), so format them in UTC.
+const fmt = (d: Date, pattern: string) => formatInTimeZone(d, "UTC", pattern);
 
 export default async function PayrollPage() {
   const periods = await prisma.payPeriod.findMany({
@@ -13,51 +19,41 @@ export default async function PayrollPage() {
 
   return (
     <div>
-      <PageHeader
+      <SoftHeader
         title="Payroll"
         description="Weekly pay periods and their payslips."
         actions={
           <form action={createNextPayPeriod}>
-            <Button>+ New Pay Period</Button>
+            <PillButton>+ New pay period</PillButton>
           </form>
         }
       />
 
-      <Card className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-slate-600 text-left">
-            <tr>
-              <th className="px-4 py-3">Period</th>
-              <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3"></th>
-            </tr>
-          </thead>
-          <tbody>
+      <SoftCard padded={false}>
+        {periods.length === 0 ? (
+          <div className="p-5 sm:p-7">
+            <EmptyState>No pay periods yet. Tap “New pay period” to start the first one.</EmptyState>
+          </div>
+        ) : (
+          <ul className="divide-y divide-slate-100">
             {periods.map((p) => (
-              <tr key={p.id} className="border-t border-slate-100">
-                <td className="px-4 py-3 font-medium text-slate-900">
-                  {p.startDate.toISOString().slice(0, 10)} — {p.endDate.toISOString().slice(0, 10)}
-                </td>
-                <td className="px-4 py-3">
-                  <Badge status={p.status === "FINALIZED" ? "finalized" : "open"} />
-                </td>
-                <td className="px-4 py-3 text-right">
-                  <Link href={`/admin/payroll/${p.id}`} className="text-slate-700 hover:underline">
-                    View
-                  </Link>
-                </td>
-              </tr>
+              <li key={p.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 sm:px-7">
+                <div>
+                  <div className="font-medium text-slate-900">
+                    {fmt(p.startDate, "MMM d")} – {fmt(p.endDate, "MMM d, yyyy")}
+                  </div>
+                  <div className="mt-1">
+                    <Badge status={p.status === "FINALIZED" ? "finalized" : "open"} />
+                  </div>
+                </div>
+                <Link href={`/admin/payroll/${p.id}`} className={pillClass("secondary", "sm")}>
+                  View
+                </Link>
+              </li>
             ))}
-            {periods.length === 0 && (
-              <tr>
-                <td colSpan={3} className="px-4 py-8 text-center text-slate-400">
-                  No pay periods yet.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </Card>
+          </ul>
+        )}
+      </SoftCard>
     </div>
   );
 }

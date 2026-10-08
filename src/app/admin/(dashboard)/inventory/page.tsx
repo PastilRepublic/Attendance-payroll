@@ -9,10 +9,11 @@ import {
   setItemActiveForm,
   updateItemForm,
 } from "./actions";
-import PageHeader from "@/components/PageHeader";
-import Card from "@/components/Card";
+import SoftHeader from "@/components/ui/SoftHeader";
+import SoftCard from "@/components/ui/SoftCard";
 import Badge from "@/components/Badge";
-import Button from "@/components/Button";
+import EmptyState from "@/components/ui/EmptyState";
+import PillButton from "@/components/ui/PillButton";
 
 const categoryLabels: Record<string, string> = {
   INGREDIENT: "Ingredient",
@@ -20,8 +21,8 @@ const categoryLabels: Record<string, string> = {
   PACKAGING: "Packaging",
 };
 
-const INPUT = "rounded-md border border-slate-300 px-2 py-1.5 text-sm";
-const INPUT_SM = "rounded-md border border-slate-300 px-2 py-1 text-xs";
+const INPUT = "rounded-full border border-slate-300 bg-slate-100 px-4 py-2.5 text-sm text-slate-900 focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-200";
+const INPUT_SM = "rounded-full border border-slate-300 bg-slate-100 px-3 py-1.5 text-xs text-slate-900 focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-200";
 
 export default async function InventoryPage() {
   const all = await prisma.inventoryItem.findMany({ orderBy: [{ name: "asc" }] });
@@ -37,16 +38,16 @@ export default async function InventoryPage() {
 
   return (
     <div>
-      <PageHeader title="Inventory" description="Ingredients, products, and packaging on hand." />
+      <SoftHeader title="Inventory" description="Ingredients, products, and packaging on hand." />
 
-      <details className="mb-6 bg-white rounded-xl shadow-sm border border-slate-200">
-        <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-slate-700">
+      <details className="mb-6 rounded-3xl border border-slate-300 bg-white shadow-sm">
+        <summary className="cursor-pointer px-5 py-4 text-sm font-medium text-slate-800">
           + New Item
         </summary>
         <ActionForm
           action={createItemForm}
           resetOnSuccess
-          className="p-4 pt-0 flex flex-wrap items-end gap-3"
+          className="p-5 pt-0 flex flex-wrap items-end gap-3"
         >
           <div>
             <label className="block text-xs text-slate-500 mb-1">Name</label>
@@ -86,7 +87,7 @@ export default async function InventoryPage() {
               className={`w-28 ${INPUT}`}
             />
           </div>
-          <Button>Add Item</Button>
+          <PillButton>Add Item</PillButton>
         </ActionForm>
       </details>
 
@@ -94,7 +95,7 @@ export default async function InventoryPage() {
         {sorted.map((item) => {
           const isLow = Number(item.quantity) <= Number(item.lowStockThreshold);
           return (
-            <Card key={item.id} padded accent={isLow ? "red" : "none"}>
+            <SoftCard key={item.id} accent={isLow ? "red" : "none"}>
               <div className="flex items-center justify-between">
                 <div>
                   <span className="font-medium text-slate-900">{item.name}</span>
@@ -155,7 +156,7 @@ export default async function InventoryPage() {
                       className={`w-full ${INPUT_SM}`}
                     />
                   </div>
-                  <Button size="sm">Record</Button>
+                  <PillButton size="sm">Record</PillButton>
                 </ActionForm>
               </details>
 
@@ -196,7 +197,7 @@ export default async function InventoryPage() {
                       className={`w-24 ${INPUT_SM}`}
                     />
                   </div>
-                  <Button size="sm">Save</Button>
+                  <PillButton size="sm">Save</PillButton>
                 </ActionForm>
                 <p className="mt-1 text-xs text-slate-400">
                   To change how much is on hand, use stock in/out so the change has a reason.
@@ -221,17 +222,17 @@ export default async function InventoryPage() {
                   </ConfirmSubmitButton>
                 </form>
               </div>
-            </Card>
+            </SoftCard>
           );
         })}
         {sorted.length === 0 && (
-          <p className="text-slate-400 text-center py-12">No inventory items yet.</p>
+          <EmptyState>No inventory items yet. Open “New Item” above to add the first one.</EmptyState>
         )}
       </div>
 
       {inactive.length > 0 && (
-        <details className="mt-8 bg-white rounded-xl shadow-sm border border-slate-200">
-          <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-slate-600">
+        <details className="mt-8 rounded-3xl border border-slate-300 bg-white shadow-sm">
+          <summary className="cursor-pointer px-5 py-4 text-sm font-medium text-slate-700">
             Inactive items ({inactive.length})
           </summary>
           <div className="divide-y divide-slate-100">
@@ -256,9 +257,9 @@ export default async function InventoryPage() {
                   <ActionForm action={setItemActiveForm} className="flex flex-wrap items-center gap-2">
                     <input type="hidden" name="itemId" value={item.id} />
                     <input type="hidden" name="active" value="true" />
-                    <Button size="sm" variant="secondary">
+                    <PillButton size="sm" variant="secondary">
                       Reactivate
-                    </Button>
+                    </PillButton>
                   </ActionForm>
                 </div>
               </div>

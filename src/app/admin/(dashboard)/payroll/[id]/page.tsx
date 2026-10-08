@@ -1,5 +1,8 @@
 import Link from "next/link";
 import ActionForm from "@/components/ActionForm";
+import Badge from "@/components/Badge";
+import { formatInTimeZone } from "date-fns-tz";
+import { pillClass } from "@/components/ui/styles";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import {
@@ -25,6 +28,9 @@ import {
   addAdjustmentForm,
   unlockPayslipForm,
 } from "../actions";
+
+// Pay period dates are stored as plain dates (UTC midnight), so format them in UTC.
+const fmtDate = (d: Date, pattern: string) => formatInTimeZone(d, "UTC", pattern);
 
 export default async function PayPeriodDetailPage({
   params,
@@ -89,47 +95,41 @@ export default async function PayPeriodDetailPage({
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
           <Link href="/admin/payroll" className="text-sm text-slate-500 hover:underline">
-            ← Pay Periods
+            ← Pay periods
           </Link>
-          <h1 className="text-xl font-semibold text-slate-900">
-            {period.startDate.toISOString().slice(0, 10)} — {period.endDate.toISOString().slice(0, 10)}
+          <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">
+            {fmtDate(period.startDate, "MMM d")} – {fmtDate(period.endDate, "MMM d, yyyy")}
           </h1>
+          <div className="mt-1.5">
+            <Badge status={period.status === "FINALIZED" ? "finalized" : "open"} />
+          </div>
         </div>
-        <div className="flex items-center gap-3">
-          <span
-            className={`px-2 py-0.5 rounded-full text-xs ${
-              period.status === "FINALIZED"
-                ? "bg-green-100 text-green-700"
-                : "bg-amber-100 text-amber-700"
-            }`}
-          >
-            {period.status}
-          </span>
+        <div className="flex flex-wrap items-center gap-3">
           {period.status === "OPEN" &&
             (periodEnded ? (
               <ActionForm action={finalizePeriodForm} className="flex flex-wrap items-center gap-3">
                 <input type="hidden" name="payPeriodId" value={period.id} />
                 {openIssues && (
-                  <label className="flex items-center gap-1.5 text-xs text-red-700">
+                  <label className="flex items-center gap-1.5 text-xs text-rose-700">
                     <input type="checkbox" name="acknowledgeIssues" required />
                     Finalize anyway
                   </label>
                 )}
-                <button className="rounded-md bg-slate-900 text-white text-sm font-medium px-4 py-2 hover:bg-slate-800">
-                  Finalize Period
-                </button>
+                <button className={pillClass("primary")}>Finalize period</button>
               </ActionForm>
             ) : (
-              <span className="text-xs text-slate-500">Can be finalized after {endDate}</span>
+              <span className="rounded-full bg-slate-100 px-4 py-2 text-xs text-slate-600">
+                Can be finalized after {fmtDate(period.endDate, "MMM d")}
+              </span>
             ))}
         </div>
       </div>
 
       {period.status === "OPEN" && openIssues && (
-        <div className="mb-4 rounded-md bg-red-50 border border-red-200 p-3 text-sm text-red-800">
+        <div className="mb-4 rounded-2xl bg-rose-50 border border-rose-200 p-4 text-sm text-rose-900">
           <p className="font-medium mb-1">Before finalizing</p>
           <ul className="list-disc pl-5 space-y-0.5 text-xs">
             {unsetOffDays.length > 0 && (
@@ -149,7 +149,7 @@ export default async function PayPeriodDetailPage({
       )}
 
       {period.status === "OPEN" && unsetOffDays.length > 0 && (
-        <div className="mb-4 rounded-md bg-amber-50 border border-amber-200 p-3 text-sm text-amber-800">
+        <div className="mb-4 rounded-2xl bg-amber-50 border border-amber-200 p-4 text-sm text-amber-900">
           Production staff worked on {unsetOffDays.join(", ")}, which is normally a day off. They&apos;re
           being paid the Jar Filling rate — open &quot;Day types this period&quot; below and set the
           date to Cooking or Jar filling if that&apos;s not right.
@@ -157,7 +157,7 @@ export default async function PayPeriodDetailPage({
       )}
 
       {hasProductionStaff && (
-        <details open={unsetOffDays.length > 0} className="mb-4 bg-white rounded-lg shadow p-4">
+        <details open={unsetOffDays.length > 0} className="mb-4 rounded-3xl border border-slate-300 bg-white shadow-sm p-5 sm:p-6">
           <summary className="text-sm font-medium text-slate-700 cursor-pointer">
             Day types this period (sets Production pay rate)
           </summary>
@@ -188,7 +188,7 @@ export default async function PayPeriodDetailPage({
                       <select
                         name="operationDay"
                         defaultValue={recorded ?? "AUTO"}
-                        className="rounded-md border border-slate-300 px-2 py-1 text-xs"
+                        className="rounded-full border border-slate-300 bg-slate-100 px-3 py-1.5 text-xs focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-200"
                       >
                         <option value="AUTO">
                           Rotation ({dayTypeLabels[rotationDayForDate(date)]})
@@ -196,7 +196,7 @@ export default async function PayPeriodDetailPage({
                         <option value="COOKING">Cooking</option>
                         <option value="JAR_FILLING">Jar filling</option>
                       </select>
-                      <button className="rounded-md bg-slate-900 text-white text-xs px-3 py-1 hover:bg-slate-800">
+                      <button className="rounded-full bg-accent-800 text-white text-xs font-medium px-3.5 py-1.5 hover:bg-accent-900">
                         Save
                       </button>
                     </ActionForm>
@@ -218,10 +218,10 @@ export default async function PayPeriodDetailPage({
             (payslip.payBreakdown as { lines?: PayBreakdownLine[] } | null)?.lines ?? [];
 
           return (
-            <div key={employee.id} className="bg-white rounded-lg shadow p-4">
+            <div key={employee.id} className="rounded-3xl border border-slate-300 bg-white shadow-sm p-5 sm:p-6">
               <div className="flex items-center justify-between mb-2">
                 <div>
-                  <span className="text-lg font-bold text-slate-900">{employee.name}</span>
+                  <span className="text-lg font-semibold text-slate-900">{employee.name}</span>
                   <span className="text-xs text-slate-500 ml-2">
                     {Number(payslip.regularHours).toFixed(2)}h regular
                     {Number(payslip.overtimeHours) > 0 &&
@@ -229,7 +229,7 @@ export default async function PayPeriodDetailPage({
                   </span>
                 </div>
                 <div className="text-right">
-                  <div className={`font-semibold ${total < 0 ? "text-red-700" : "text-slate-900"}`}>
+                  <div className={`text-2xl font-extrabold tracking-tight ${total < 0 ? "text-rose-700" : "text-slate-900"}`}>
                     {total < 0 ? "-" : ""}₱{Math.abs(total).toFixed(2)}
                   </div>
                   {total < 0 && (
@@ -259,7 +259,7 @@ export default async function PayPeriodDetailPage({
                 const netTotal = sorted.reduce((s, a) => s + Number(a.amount), 0);
 
                 return (
-                  <div className="mb-2 border border-slate-200 rounded-md overflow-x-auto">
+                  <div className="mb-3 border border-slate-200 rounded-2xl overflow-x-auto">
                     <table className="w-full text-xs">
                       <thead className="bg-slate-50 text-slate-600">
                         <tr>
@@ -333,7 +333,7 @@ export default async function PayPeriodDetailPage({
               })()}
 
               {payslip.status !== "FINALIZED" && suggestedCleaningBonuses.length > 0 && (
-                <div className="mb-2 rounded-md bg-amber-50 border border-amber-200 p-2">
+                <div className="mb-3 rounded-2xl bg-amber-50 border border-amber-200 p-3">
                   <p className="text-xs font-medium text-amber-800 mb-1">
                     Suggested bonuses from passed cleaning duties
                   </p>
@@ -357,9 +357,9 @@ export default async function PayPeriodDetailPage({
                           min="0.01"
                           required
                           defaultValue={Number(a.procedure.bonusAmount).toFixed(2)}
-                          className="w-20 rounded-md border border-slate-300 px-2 py-1 text-xs"
+                          className="w-24 rounded-full border border-slate-300 bg-slate-100 px-3 py-1.5 text-xs focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-200"
                         />
-                        <button className="rounded-md bg-amber-600 text-white px-2 py-1 hover:bg-amber-500">
+                        <button className="rounded-full bg-amber-600 text-white text-xs font-medium px-3.5 py-1.5 hover:bg-amber-500">
                           Add to payslip
                         </button>
                       </ActionForm>
@@ -367,7 +367,7 @@ export default async function PayPeriodDetailPage({
                         <input type="hidden" name="kind" value="SANITATION" />
                         <input type="hidden" name="assignmentId" value={a.id} />
                         <input type="hidden" name="payPeriodId" value={period.id} />
-                        <button className="rounded-md border border-slate-300 bg-white text-slate-600 px-2 py-1 hover:bg-slate-50">
+                        <button className="rounded-full border border-slate-300 bg-slate-100 text-slate-700 px-3.5 py-1.5 text-xs font-medium hover:bg-slate-200">
                           Skip
                         </button>
                       </form>
@@ -378,7 +378,7 @@ export default async function PayPeriodDetailPage({
               )}
 
               {payslip.status !== "FINALIZED" && noTimeOutDays.length > 0 && (
-                <div className="mb-2 rounded-md bg-red-50 border border-red-200 p-2">
+                <div className="mb-3 rounded-2xl bg-rose-50 border border-rose-200 p-3">
                   <p className="text-xs font-medium text-red-800">
                     {paidFullDay
                       ? `No Time Out on ${noTimeOutDays.join(", ")} — paid the full day rate. Set their actual Time Out on the Attendance page if you want the record complete.`
@@ -388,7 +388,7 @@ export default async function PayPeriodDetailPage({
               )}
 
               {payslip.status !== "FINALIZED" && earlyOutDays.length > 0 && (
-                <div className="mb-2 rounded-md bg-blue-50 border border-blue-200 p-2">
+                <div className="mb-3 rounded-2xl bg-accent-50 border border-accent-200 p-3">
                   <p className="text-xs font-medium text-blue-800 mb-1">
                     Half day — paid the full day rate. Enter the amount to deduct if it
                     was a half day, or Skip.
@@ -412,9 +412,9 @@ export default async function PayPeriodDetailPage({
                             min="0.01"
                             required
                             placeholder="Amount"
-                            className="w-20 rounded-md border border-slate-300 px-2 py-1 text-xs"
+                            className="w-24 rounded-full border border-slate-300 bg-slate-100 px-3 py-1.5 text-xs focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-200"
                           />
-                          <button className="rounded-md bg-blue-600 text-white px-2 py-1 hover:bg-blue-500">
+                          <button className="rounded-full bg-accent-800 text-white text-xs font-medium px-3.5 py-1.5 hover:bg-accent-900">
                             Deduct from payslip
                           </button>
                         </ActionForm>
@@ -422,7 +422,7 @@ export default async function PayPeriodDetailPage({
                           <input type="hidden" name="employeeId" value={employee.id} />
                           <input type="hidden" name="date" value={d.date} />
                           <input type="hidden" name="payPeriodId" value={period.id} />
-                          <button className="rounded-md border border-slate-300 bg-white text-slate-600 px-2 py-1 hover:bg-slate-50">
+                          <button className="rounded-full border border-slate-300 bg-slate-100 text-slate-700 px-3.5 py-1.5 text-xs font-medium hover:bg-slate-200">
                             Skip
                           </button>
                         </form>
@@ -433,7 +433,7 @@ export default async function PayPeriodDetailPage({
               )}
 
               {payslip.status !== "FINALIZED" && suggestedLate.length > 0 && (
-                <div className="mb-2 rounded-md bg-red-50 border border-red-200 p-2">
+                <div className="mb-3 rounded-2xl bg-rose-50 border border-rose-200 p-3">
                   <p className="text-xs font-medium text-red-800 mb-1">
                     Suggested deductions for late arrivals
                   </p>
@@ -454,9 +454,9 @@ export default async function PayPeriodDetailPage({
                             min="0.01"
                             required
                             defaultValue={l.amount.toFixed(2)}
-                            className="w-20 rounded-md border border-slate-300 px-2 py-1 text-xs"
+                            className="w-24 rounded-full border border-slate-300 bg-slate-100 px-3 py-1.5 text-xs focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-200"
                           />
-                          <button className="rounded-md bg-red-600 text-white px-2 py-1 hover:bg-red-500">
+                          <button className="rounded-full bg-rose-600 text-white text-xs font-medium px-3.5 py-1.5 hover:bg-rose-500">
                             Deduct from payslip
                           </button>
                         </ActionForm>
@@ -464,7 +464,7 @@ export default async function PayPeriodDetailPage({
                           <input type="hidden" name="employeeId" value={employee.id} />
                           <input type="hidden" name="date" value={l.date} />
                           <input type="hidden" name="payPeriodId" value={period.id} />
-                          <button className="rounded-md border border-slate-300 bg-white text-slate-600 px-2 py-1 hover:bg-slate-50">
+                          <button className="rounded-full border border-slate-300 bg-slate-100 text-slate-700 px-3.5 py-1.5 text-xs font-medium hover:bg-slate-200">
                             Skip
                           </button>
                         </form>
@@ -487,7 +487,7 @@ export default async function PayPeriodDetailPage({
                         name="label"
                         required
                         defaultValue=""
-                        className="rounded-md border border-slate-300 px-2 py-1 text-xs"
+                        className="rounded-full border border-slate-300 bg-slate-100 px-3 py-1.5 text-xs focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-200"
                       >
                         <option value="" disabled>
                           Select...
@@ -508,17 +508,17 @@ export default async function PayPeriodDetailPage({
                         min="0.01"
                         required
                         placeholder="500"
-                        className="rounded-md border border-slate-300 px-2 py-1 text-xs w-28"
+                        className="w-28 rounded-full border border-slate-300 bg-slate-100 px-3 py-1.5 text-xs focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-200"
                       />
                     </div>
                     <div className="flex-1 min-w-[140px]">
                       <label className="block text-xs text-slate-500">Note</label>
                       <input
                         name="note"
-                        className="w-full rounded-md border border-slate-300 px-2 py-1 text-xs"
+                        className="w-full rounded-full border border-slate-300 bg-slate-100 px-3 py-1.5 text-xs focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-200"
                       />
                     </div>
-                    <button className="rounded-md bg-slate-900 text-white text-xs px-3 py-1.5 hover:bg-slate-800">
+                    <button className="rounded-full bg-accent-800 text-white text-xs font-medium px-4 py-2 hover:bg-accent-900">
                       Add
                     </button>
                   </ActionForm>
@@ -538,7 +538,7 @@ export default async function PayPeriodDetailPage({
                     </summary>
                     <ActionForm
                       action={unlockPayslipForm}
-                      className="absolute z-10 mt-1 right-4 bg-white shadow-lg rounded-md border border-slate-200 p-3 flex flex-col gap-2 w-64"
+                      className="absolute z-10 mt-1 right-4 bg-white shadow-lg rounded-2xl border border-slate-200 p-4 flex flex-col gap-2 w-64"
                     >
                       <input type="hidden" name="payslipId" value={payslip.id} />
                       <label className="block text-xs text-slate-500">Reason (required)</label>
@@ -546,9 +546,9 @@ export default async function PayPeriodDetailPage({
                         name="reason"
                         required
                         minLength={3}
-                        className="w-full rounded-md border border-slate-300 px-2 py-1 text-xs"
+                        className="w-full rounded-full border border-slate-300 bg-slate-100 px-3 py-1.5 text-xs focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-200"
                       />
-                      <button className="rounded-md bg-red-600 text-white text-xs px-3 py-1.5 hover:bg-red-500">
+                      <button className="rounded-full border border-rose-200 bg-rose-50 text-rose-700 text-xs font-medium px-4 py-2 hover:bg-rose-100">
                         Confirm Unlock
                       </button>
                     </ActionForm>

@@ -36,13 +36,13 @@ export default function PhotoInput({
         </div>
       )}
       <div className="flex-1">
-        <label className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
+        <label className="mb-1 block text-sm font-medium text-slate-800">{label}</label>
         <input
           name="photo"
           type="file"
           accept="image/*"
           onChange={handleChange}
-          className="w-full text-sm text-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-slate-700 hover:file:bg-slate-200"
+          className="w-full text-sm text-slate-600 file:mr-3 file:rounded-full file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-slate-700 hover:file:bg-slate-200"
         />
         {helperText && <p className="text-xs text-slate-500 mt-1">{helperText}</p>}
       </div>

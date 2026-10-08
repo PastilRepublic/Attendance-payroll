@@ -10,11 +10,11 @@ import AutoRefresh from "./AutoRefresh";
 import ClosePanesOnOutsideClick from "./ClosePanesOnOutsideClick";
 import EmployeeSelect from "./EmployeeSelect";
 import { derivePresenceStatus, type PresenceStatus } from "@/lib/kioskAttendance";
-import PageHeader from "@/components/PageHeader";
-import Card from "@/components/Card";
+import SoftHeader from "@/components/ui/SoftHeader";
+import SoftCard from "@/components/ui/SoftCard";
 import Badge from "@/components/Badge";
 import Avatar from "@/components/Avatar";
-import Button from "@/components/Button";
+import PillButton from "@/components/ui/PillButton";
 
 function todayManila(): string {
   return formatInTimeZone(new Date(), TIMEZONE, "yyyy-MM-dd");
@@ -284,7 +284,7 @@ export default async function AttendancePage({
     <div>
       <AutoRefresh />
       <ClosePanesOnOutsideClick />
-      <PageHeader
+      <SoftHeader
         title="Attendance"
         description="Today's status at a glance, or drill into a week or month for one employee."
         actions={
@@ -298,7 +298,7 @@ export default async function AttendancePage({
             <select
               name="range"
               defaultValue={range}
-              className="rounded-full border border-slate-300 px-3 py-1.5 text-sm bg-white"
+              className="rounded-full border border-slate-300 bg-slate-100 px-4 py-2 text-sm text-slate-900 focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-200"
             >
               <option value="day">Today</option>
               <option value="week">Week</option>
@@ -309,24 +309,24 @@ export default async function AttendancePage({
                 type="month"
                 name="month"
                 defaultValue={month}
-                className="rounded-full border border-slate-300 px-3 py-1.5 text-sm"
+                className="rounded-full border border-slate-300 bg-slate-100 px-4 py-2 text-sm text-slate-900 focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-200"
               />
             ) : range === "week" ? (
               <input
                 type="week"
                 name="week"
                 defaultValue={week}
-                className="rounded-full border border-slate-300 px-3 py-1.5 text-sm"
+                className="rounded-full border border-slate-300 bg-slate-100 px-4 py-2 text-sm text-slate-900 focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-200"
               />
             ) : (
               <input
                 type="date"
                 name="date"
                 defaultValue={refDate}
-                className="rounded-full border border-slate-300 px-3 py-1.5 text-sm"
+                className="rounded-full border border-slate-300 bg-slate-100 px-4 py-2 text-sm text-slate-900 focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-200"
               />
             )}
-            <Button size="sm">Go</Button>
+            <PillButton size="sm">Go</PillButton>
           </form>
         }
       />
@@ -342,7 +342,7 @@ export default async function AttendancePage({
           Select an employee above to view their attendance for {periodPhrase}.
         </p>
       ) : (
-        <Card padded>
+        <SoftCard>
           <div className="flex items-center justify-between mb-3">
             <span className="text-lg font-bold text-slate-900">{selectedEmployee?.name}</span>
             <span className="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-600">
@@ -431,7 +431,7 @@ export default async function AttendancePage({
               </tbody>
             </table>
           </div>
-        </Card>
+        </SoftCard>
       )}
     </div>
   );
@@ -439,7 +439,7 @@ export default async function AttendancePage({
 
 function TodayDashboard({ rows, refDate }: { rows: TodayRow[]; refDate: string }) {
   return (
-    <Card padded>
+    <SoftCard>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-slate-600 text-left">
@@ -509,7 +509,7 @@ function TodayDashboard({ rows, refDate }: { rows: TodayRow[]; refDate: string }
           </tbody>
         </table>
       </div>
-    </Card>
+    </SoftCard>
   );
 }
 
@@ -521,7 +521,7 @@ function ShiftOverridesPanel({
   periodPhrase: string;
 }) {
   return (
-    <details className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 mb-4">
+    <details className="mb-4 rounded-3xl border border-slate-300 bg-white shadow-sm p-5">
       <summary className="text-sm font-medium text-slate-700 cursor-pointer">
         Shift start/end adjustment for {periodPhrase}
         {overrides.length > 0 && ` (${overrides.length})`}
@@ -567,7 +567,7 @@ function ShiftOverridesPanel({
             type="date"
             name="date"
             required
-            className="rounded-md border border-slate-300 px-2 py-1 text-xs"
+            className="rounded-full border border-slate-300 bg-slate-100 px-3 py-1.5 text-xs text-slate-900 focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-200"
           />
         </div>
         <div>
@@ -576,7 +576,7 @@ function ShiftOverridesPanel({
             type="time"
             name="shiftStartTime"
             required
-            className="rounded-md border border-slate-300 px-2 py-1 text-xs"
+            className="rounded-full border border-slate-300 bg-slate-100 px-3 py-1.5 text-xs text-slate-900 focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-200"
           />
         </div>
         <div>
@@ -585,10 +585,10 @@ function ShiftOverridesPanel({
             type="time"
             name="shiftEndTime"
             required
-            className="rounded-md border border-slate-300 px-2 py-1 text-xs"
+            className="rounded-full border border-slate-300 bg-slate-100 px-3 py-1.5 text-xs text-slate-900 focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-200"
           />
         </div>
-        <Button size="sm">Set</Button>
+        <PillButton size="sm">Set</PillButton>
       </form>
     </details>
   );
@@ -618,7 +618,7 @@ function ManageDayForm({
       <summary className="text-xs text-slate-500 cursor-pointer hover:underline whitespace-nowrap">
         Manage
       </summary>
-      <div className="absolute z-10 right-0 mt-1 bg-white shadow-lg rounded-md border border-slate-200 p-3 w-72 max-w-[90vw] text-left">
+      <div className="absolute z-10 right-0 mt-1 bg-white shadow-lg rounded-2xl border border-slate-200 p-4 w-72 max-w-[90vw] text-left">
         <DayPunchesForm
           employeeId={employeeId}
           date={date}

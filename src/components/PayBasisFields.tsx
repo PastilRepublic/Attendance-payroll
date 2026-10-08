@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { PAY_BASIS_LABELS, type PayBasis } from "@/lib/payroll";
 
-const inputBase = "w-full rounded-md border px-3 py-2 text-sm";
-const inputClass = `${inputBase} border-slate-300`;
+const inputBase = "w-full rounded-full border px-4 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-accent-200";
+const inputClass = `${inputBase} border-slate-300 bg-slate-100 focus:border-accent-500`;
 const inputErrorClass = `${inputBase} border-red-500 bg-red-50`;
 
 /** Pay basis + pay rate pair. Production pay comes from the Cooking / Jar
@@ -26,7 +26,7 @@ export default function PayBasisFields({
   return (
     <div className="grid grid-cols-2 gap-4">
       <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1">Pay basis</label>
+        <label className="mb-1 block text-sm font-medium text-slate-800">Pay basis</label>
         <select
           name="payBasis"
           value={payBasis}
@@ -44,7 +44,7 @@ export default function PayBasisFields({
         </select>
       </div>
       <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1">Pay rate (₱)</label>
+        <label className="mb-1 block text-sm font-medium text-slate-800">Pay rate (₱)</label>
         <input
           name="payRate"
           type="number"

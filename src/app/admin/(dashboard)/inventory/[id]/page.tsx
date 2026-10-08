@@ -3,8 +3,8 @@ import { notFound } from "next/navigation";
 import { formatInTimeZone } from "date-fns-tz";
 import { prisma } from "@/lib/prisma";
 import { TIMEZONE } from "@/lib/payroll";
-import PageHeader from "@/components/PageHeader";
-import Card from "@/components/Card";
+import SoftHeader from "@/components/ui/SoftHeader";
+import SoftCard from "@/components/ui/SoftCard";
 
 const HISTORY_LIMIT = 200;
 
@@ -33,13 +33,13 @@ export default async function InventoryHistoryPage({
         ← Inventory
       </Link>
       <div className="mt-3">
-        <PageHeader
+        <SoftHeader
           title={`${item.name} history`}
           description={`${Number(item.quantity)} ${item.unit} on hand${item.active ? "" : " · inactive"}`}
         />
       </div>
 
-      <Card className="overflow-x-auto">
+      <SoftCard padded={false} className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-xs text-slate-500 border-b border-slate-100">
@@ -78,7 +78,7 @@ export default async function InventoryHistoryPage({
             )}
           </tbody>
         </table>
-      </Card>
+      </SoftCard>
       {total > movements.length && (
         <p className="mt-2 text-xs text-slate-400">
           Showing the latest {movements.length} of {total} movements.
