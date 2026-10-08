@@ -6,9 +6,15 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireOwner } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
-import { nextWeeklyPeriod, isEarlyOutDay } from "@/lib/payroll";
-import { getOrRefreshDraftPayslip, getPeriodDailyResults } from "@/lib/payrollService";
-import { getSettings, setOperationDayForDate } from "@/lib/settings";
+import { nextWeeklyPeriod, isEarlyOutDay, localDateKey } from "@/lib/payroll";
+import {
+  getOrRefreshDraftPayslip,
+  getPeriodDailyResults,
+  getEmployeePeriodReview,
+  finalizeIssues,
+  hasFinalizeIssues,
+} from "@/lib/payrollService";
+import { getSettings, getOperationDayOverrides, setOperationDayForDate } from "@/lib/settings";
 
 export async function createNextPayPeriod() {
   const admin = await requireOwner();
@@ -158,28 +164,54 @@ export async function finalizePeriod(formData: FormData) {
   const admin = await requireOwner();
   const payPeriodId = String(formData.get("payPeriodId"));
 
+  const acknowledged = formData.get("acknowledgeIssues") === "on";
+
   const period = await prisma.payPeriod.findUniqueOrThrow({ where: { id: payPeriodId } });
   if (period.status === "FINALIZED") return;
 
-  const employees = await prisma.employee.findMany({ where: { active: true } });
-
-  for (const emp of employees) {
-    const payslip = await getOrRefreshDraftPayslip(emp.id, payPeriodId);
-    if (payslip.status !== "FINALIZED") {
-      await prisma.payslip.update({ where: { id: payslip.id }, data: { status: "FINALIZED" } });
-    }
+  // Finalizing freezes pay and locks attendance, so the whole week has to be
+  // over first -- otherwise the rest of the week's punches would be rejected.
+  const endDate = period.endDate.toISOString().slice(0, 10);
+  if (localDateKey(new Date()) <= endDate) {
+    throw new Error(`This pay period runs until ${endDate}. It can be finalized from the next day.`);
   }
 
-  await prisma.payPeriod.update({
-    where: { id: payPeriodId },
-    data: { status: "FINALIZED", finalizedAt: new Date(), finalizedByAdminId: admin.id },
-  });
+  const [employees, settings, dayOverrides] = await Promise.all([
+    prisma.employee.findMany({ where: { active: true } }),
+    getSettings(),
+    getOperationDayOverrides(period.startDate, period.endDate),
+  ]);
+
+  const rows = await Promise.all(
+    employees.map(async (emp) => ({
+      employee: emp,
+      payslip: await getOrRefreshDraftPayslip(emp.id, payPeriodId),
+      review: await getEmployeePeriodReview(emp, period, settings, dayOverrides),
+    }))
+  );
+
+  // Same checklist the payroll page shows. Finalizing with open items needs
+  // an explicit "finalize anyway" so nothing slips through by accident.
+  const issues = finalizeIssues(rows);
+  if (hasFinalizeIssues(issues) && !acknowledged) {
+    throw new Error("Some payslips still need attention. Review the checklist, or tick “Finalize anyway”.");
+  }
+
+  const draftIds = rows.filter((r) => r.payslip.status !== "FINALIZED").map((r) => r.payslip.id);
+  await prisma.$transaction([
+    prisma.payslip.updateMany({ where: { id: { in: draftIds } }, data: { status: "FINALIZED" } }),
+    prisma.payPeriod.update({
+      where: { id: payPeriodId },
+      data: { status: "FINALIZED", finalizedAt: new Date(), finalizedByAdminId: admin.id },
+    }),
+  ]);
 
   await logAudit({
     actorAdminId: admin.id,
     action: "FINALIZE_PAY_PERIOD",
     targetTable: "PayPeriod",
     targetId: payPeriodId,
+    after: hasFinalizeIssues(issues) ? { finalizedWithOpenIssues: issues } : undefined,
   });
 
   revalidatePath(`/admin/payroll/${payPeriodId}`);

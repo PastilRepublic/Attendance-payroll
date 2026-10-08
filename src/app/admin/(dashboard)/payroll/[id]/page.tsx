@@ -4,11 +4,13 @@ import { prisma } from "@/lib/prisma";
 import {
   getOrRefreshDraftPayslip,
   adjustmentsTotal,
-  getPeriodDailyResults,
+  getEmployeePeriodReview,
+  finalizeIssues,
+  hasFinalizeIssues,
 } from "@/lib/payrollService";
-import { suggestedLateDeduction, isEarlyOutDay, localDateKey, type PayBreakdownLine } from "@/lib/payroll";
+import { localDateKey, type PayBreakdownLine } from "@/lib/payroll";
 import { getSettings, getOperationDayOverrides } from "@/lib/settings";
-import { rotationDayForDate, resolveOperationDayForDate } from "@/lib/operationDay";
+import { rotationDayForDate } from "@/lib/operationDay";
 import {
   setPeriodDayType,
   addAdjustment,
@@ -65,88 +67,24 @@ export default async function PayPeriodDetailPage({
         include: { procedure: true },
         orderBy: { date: "asc" },
       });
-      const lateActions = await prisma.lateDayAction.findMany({
-        where: { employeeId: emp.id, date: { gte: period.startDate, lte: period.endDate } },
-      });
-      const handledLateDays = new Set(
-        lateActions
-          .filter((a) => a.dismissed || a.payslipAdjustmentId)
-          .map((a) => a.date.toISOString().slice(0, 10))
-      );
-      const dailyResults = await getPeriodDailyResults(emp.id, period, settings);
-      // Production staff are paid the full day rate for any day worked, so
-      // point out the days they cut short -- the admin can deduct for a half
-      // day or skip it. Days already deducted or skipped aren't shown again.
-      const halfDayActions =
-        emp.payBasis === "OPERATION_DAY"
-          ? await prisma.halfDayAction.findMany({
-              where: { employeeId: emp.id, date: { gte: period.startDate, lte: period.endDate } },
-            })
-          : [];
-      const handledHalfDays = new Set(
-        halfDayActions
-          .filter((a) => a.dismissed || a.payslipAdjustmentId)
-          .map((a) => a.date.toISOString().slice(0, 10))
-      );
-      const earlyOutDays =
-        emp.payBasis === "OPERATION_DAY"
-          ? dailyResults
-              .filter((d) => isEarlyOutDay(d) && !handledHalfDays.has(d.date))
-              .map((d) => ({
-                date: d.date,
-                noTimeOut: d.missingTimeOut,
-                dayType: resolveOperationDayForDate(d.date, dayOverrides),
-                hours: d.regularMinutes / 60,
-              }))
-          : [];
-      // A forgotten Time Out only counts the time up to their last punch, so
-      // point it out for everyone. Production days that get the Half day
-      // suggestion above already carry the note (even once deducted or skipped),
-      // so skip those here.
-      const today = localDateKey(new Date());
-      const earlyOutDates = new Set(
-        emp.payBasis === "OPERATION_DAY" ? dailyResults.filter(isEarlyOutDay).map((d) => d.date) : []
-      );
-      const noTimeOutDays = dailyResults
-        .filter((d) => d.missingTimeOut && d.dayStatus === null && d.date < today && !earlyOutDates.has(d.date))
-        .map((d) => d.date);
-      // Worked on a day the rotation says is Off (Sunday) and nobody set the day
-      // type: they're paid the Jar Filling rate unless it's set to Cooking.
-      const offDaysWorked =
-        emp.payBasis === "OPERATION_DAY"
-          ? dailyResults
-              .filter(
-                (d) =>
-                  d.workedMinutes > 0 &&
-                  d.dayStatus !== "UNPAID_ABSENCE" &&
-                  resolveOperationDayForDate(d.date, dayOverrides) === "OFF"
-              )
-              .map((d) => d.date)
-          : [];
-      const suggestedLate = dailyResults
-        .filter(
-          (d) =>
-            d.isLate && suggestedLateDeduction(d.lateMinutes) > 0 && !handledLateDays.has(d.date)
-        )
-        .map((d) => ({
-          date: d.date,
-          lateMinutes: d.lateMinutes,
-          amount: suggestedLateDeduction(d.lateMinutes),
-        }));
+      const review = await getEmployeePeriodReview(emp, period, settings, dayOverrides);
       return {
         employee: emp,
         payslip,
+        review,
         suggestedCleaningBonuses,
-        suggestedLate,
-        earlyOutDays,
-        noTimeOutDays,
+        ...review,
         paidFullDay: emp.payBasis === "FLAT_DAILY",
-        offDaysWorked,
       };
     })
   );
 
-  const unsetOffDays = [...new Set(payslips.flatMap((p) => p.offDaysWorked))].sort();
+  // The checklist finalizing requires to be handled (or explicitly overridden).
+  const issues = finalizeIssues(payslips);
+  const { unsetOffDays } = issues;
+  const openIssues = hasFinalizeIssues(issues);
+  const endDate = period.endDate.toISOString().slice(0, 10);
+  const periodEnded = localDateKey(new Date()) > endDate;
 
   return (
     <div>
@@ -169,16 +107,45 @@ export default async function PayPeriodDetailPage({
           >
             {period.status}
           </span>
-          {period.status === "OPEN" && (
-            <form action={finalizePeriod}>
-              <input type="hidden" name="payPeriodId" value={period.id} />
-              <button className="rounded-md bg-slate-900 text-white text-sm font-medium px-4 py-2 hover:bg-slate-800">
-                Finalize Period
-              </button>
-            </form>
-          )}
+          {period.status === "OPEN" &&
+            (periodEnded ? (
+              <form action={finalizePeriod} className="flex items-center gap-3">
+                <input type="hidden" name="payPeriodId" value={period.id} />
+                {openIssues && (
+                  <label className="flex items-center gap-1.5 text-xs text-red-700">
+                    <input type="checkbox" name="acknowledgeIssues" required />
+                    Finalize anyway
+                  </label>
+                )}
+                <button className="rounded-md bg-slate-900 text-white text-sm font-medium px-4 py-2 hover:bg-slate-800">
+                  Finalize Period
+                </button>
+              </form>
+            ) : (
+              <span className="text-xs text-slate-500">Can be finalized after {endDate}</span>
+            ))}
         </div>
       </div>
+
+      {period.status === "OPEN" && openIssues && (
+        <div className="mb-4 rounded-md bg-red-50 border border-red-200 p-3 text-sm text-red-800">
+          <p className="font-medium mb-1">Before finalizing</p>
+          <ul className="list-disc pl-5 space-y-0.5 text-xs">
+            {unsetOffDays.length > 0 && (
+              <li>
+                Production worked on {unsetOffDays.join(", ")} (normally Off) — set the day type below
+              </li>
+            )}
+            {issues.byEmployee.flatMap((e) =>
+              e.issues.map((issue) => (
+                <li key={`${e.employeeId}:${issue}`}>
+                  <span className="font-medium">{e.employeeName}:</span> {issue}
+                </li>
+              ))
+            )}
+          </ul>
+        </div>
+      )}
 
       {period.status === "OPEN" && unsetOffDays.length > 0 && (
         <div className="mb-4 rounded-md bg-amber-50 border border-amber-200 p-3 text-sm text-amber-800">
@@ -261,7 +228,12 @@ export default async function PayPeriodDetailPage({
                   </span>
                 </div>
                 <div className="text-right">
-                  <div className="font-semibold text-slate-900">₱{total.toFixed(2)}</div>
+                  <div className={`font-semibold ${total < 0 ? "text-red-700" : "text-slate-900"}`}>
+                    {total < 0 ? "-" : ""}₱{Math.abs(total).toFixed(2)}
+                  </div>
+                  {total < 0 && (
+                    <div className="text-xs font-medium text-red-700">Below zero — check deductions</div>
+                  )}
                   <div className="text-xs text-slate-500">
                     gross ₱{Number(payslip.grossPay).toFixed(2)}
                     {adjTotal !== 0 && ` ${adjTotal > 0 ? "+" : ""}${adjTotal.toFixed(2)} adj.`}

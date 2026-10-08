@@ -81,7 +81,7 @@ export async function POST(request: Request) {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${matched.id}::text))`;
 
       if (when.backdated) {
-        const finalized = await findFinalizedPeriodCovering(dayKey, tx);
+        const finalized = await findFinalizedPeriodCovering(matched.id, dayKey, tx);
         if (finalized) {
           throw new PunchRejected({ error: "PERIOD_FINALIZED", message: finalizedPeriodMessage(finalized) });
         }

@@ -134,7 +134,7 @@ export async function saveDayPunches(_prev: DayFormState, formData: FormData): P
   );
   if (invalid) return { error: invalid };
 
-  const finalized = await findFinalizedPeriodCovering(parsed.date);
+  const finalized = await findFinalizedPeriodCovering(parsed.employeeId, parsed.date);
   if (finalized) return { error: finalizedPeriodMessage(finalized) };
 
   const existing = await prisma.punch.findMany({
@@ -250,7 +250,7 @@ export async function setDayStatus(_prev: DayFormState, formData: FormData): Pro
   if (!result.success) return { error: "Please choose a valid status." };
   const parsed = result.data;
 
-  const finalized = await findFinalizedPeriodCovering(parsed.date);
+  const finalized = await findFinalizedPeriodCovering(parsed.employeeId, parsed.date);
   if (finalized) return { error: finalizedPeriodMessage(finalized) };
 
   const existing = await prisma.dayStatus.findUnique({
