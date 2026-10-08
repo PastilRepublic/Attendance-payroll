@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
-import { createItem, recordStockMovement } from "./actions";
+import ActionForm from "@/components/ActionForm";
+import { createItemForm, recordStockMovementForm } from "./actions";
 import PageHeader from "@/components/PageHeader";
 import Card from "@/components/Card";
 import Badge from "@/components/Badge";
@@ -32,7 +33,7 @@ export default async function InventoryPage() {
         <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-slate-700">
           + New Item
         </summary>
-        <form action={createItem} className="p-4 pt-0 flex flex-wrap items-end gap-3">
+        <ActionForm action={createItemForm} resetOnSuccess className="p-4 pt-0 flex flex-wrap items-end gap-3">
           <div>
             <label className="block text-xs text-slate-500 mb-1">Name</label>
             <input
@@ -84,7 +85,7 @@ export default async function InventoryPage() {
             />
           </div>
           <Button>Add Item</Button>
-        </form>
+        </ActionForm>
       </details>
 
       <div className="space-y-3">
@@ -118,8 +119,9 @@ export default async function InventoryPage() {
                 <summary className="text-xs text-slate-500 cursor-pointer hover:underline">
                   + Record stock in/out
                 </summary>
-                <form
-                  action={recordStockMovement}
+                <ActionForm
+                  action={recordStockMovementForm}
+                  resetOnSuccess
                   className="flex flex-wrap items-end gap-2 mt-2"
                 >
                   <input type="hidden" name="itemId" value={item.id} />
@@ -155,7 +157,7 @@ export default async function InventoryPage() {
                     />
                   </div>
                   <Button size="sm">Record</Button>
-                </form>
+                </ActionForm>
               </details>
             </Card>
           );
