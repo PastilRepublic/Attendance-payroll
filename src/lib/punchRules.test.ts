@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
   HHMM_PATTERN,
+  findDuplicateOfLatest,
+  isValidDeviceId,
   isRealDateKey,
   dayStateAfter,
   firstInvalidPunch,
@@ -139,5 +141,34 @@ describe("HHMM_PATTERN and isRealDateKey", () => {
     for (const bad of ["2026-02-31", "2026-13-01", "2026-00-10", "2026-1-1", "garbage"]) {
       expect(isRealDateKey(bad)).toBe(false);
     }
+  });
+});
+
+describe("offline retry helpers", () => {
+  const at = (h: number, m: number) => new Date(Date.UTC(2026, 0, 5, h, m));
+
+  it("caps how old an offline punch can be at 24 hours", () => {
+    expect(MAX_OFFLINE_PUNCH_AGE_MS).toBe(24 * 60 * 60 * 1000);
+    const now = new Date("2026-01-06T10:00:00Z");
+    expect(resolvePunchTime(new Date(now.getTime() - 23 * 3600_000).toISOString(), now)).toMatchObject({ ok: true });
+    expect(resolvePunchTime(new Date(now.getTime() - 25 * 3600_000).toISOString(), now)).toMatchObject({ ok: false });
+  });
+
+  it("only accepts UUID-like device ids", () => {
+    expect(isValidDeviceId("3f2b8c1e-9d4a-4b7e-8a11-0c5d6e7f8a90")).toBe(true);
+    for (const bad of ["", "short", "x".repeat(65), "has space in it", null, 42, "<script>alert(1)</script>"]) {
+      expect(isValidDeviceId(bad)).toBe(false);
+    }
+  });
+
+  it("treats a retried punch as the same punch only when it repeats the latest one shortly after", () => {
+    const before = [
+      { type: "IN" as const, timestamp: at(0, 0) },
+      { type: "BREAK_START" as const, timestamp: at(4, 0) },
+    ];
+    expect(findDuplicateOfLatest(before, "BREAK_START", at(4, 2))).toBe(before[1]);
+    expect(findDuplicateOfLatest(before, "BREAK_START", at(4, 30))).toBeNull(); // too long after
+    expect(findDuplicateOfLatest(before, "IN", at(4, 2))).toBeNull(); // not the latest type
+    expect(findDuplicateOfLatest([], "IN", at(4, 2))).toBeNull();
   });
 });

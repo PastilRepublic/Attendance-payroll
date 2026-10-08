@@ -4,7 +4,13 @@ import { savePunchPhoto } from "@/lib/storage";
 import { resolveEmployeeOrLocked } from "@/lib/kioskAuth";
 import { getKioskSnapshot } from "@/lib/kioskAttendance";
 import { localDateKey, TIMEZONE, type PunchType } from "@/lib/payroll";
-import { dayStateAfter, firstInvalidPunch, resolvePunchTime } from "@/lib/punchRules";
+import {
+  dayStateAfter,
+  findDuplicateOfLatest,
+  firstInvalidPunch,
+  isValidDeviceId,
+  resolvePunchTime,
+} from "@/lib/punchRules";
 import { findFinalizedPeriodCovering, finalizedPeriodMessage } from "@/lib/payPeriodLock";
 import { fromZonedTime } from "date-fns-tz";
 import { addDays } from "date-fns";
@@ -40,7 +46,7 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const pin = typeof body?.pin === "string" ? body.pin : null;
   const employeeId = typeof body?.employeeId === "string" ? body.employeeId : null;
-  const deviceId = typeof body?.deviceId === "string" ? body.deviceId : null;
+  const deviceId = isValidDeviceId(body?.deviceId) ? body.deviceId : null;
   const photoDataUrl = typeof body?.photoDataUrl === "string" ? body.photoDataUrl : null;
   const requestedType: PunchType | null = PUNCH_TYPES.includes(body?.type) ? body.type : null;
   // Set only by the kiosk offline queue: when the punch actually happened.
@@ -70,7 +76,8 @@ export async function POST(request: Request) {
   const dayStart = fromZonedTime(`${dayKey}T00:00:00`, TIMEZONE);
   const dayEnd = addDays(dayStart, 1);
 
-  let punch;
+  let punch: { id: string; type: PunchType; timestamp: Date };
+  let duplicateRetry = false;
   try {
     punch = await prisma.$transaction(async (tx) => {
       // Serialize punches per employee: without this, a double tap (or an
@@ -88,7 +95,7 @@ export async function POST(request: Request) {
       const dayPunches = await tx.punch.findMany({
         where: { employeeId: matched.id, voided: false, timestamp: { gte: dayStart, lt: dayEnd } },
         orderBy: { timestamp: "asc" },
-        select: { type: true, timestamp: true },
+        select: { id: true, type: true, timestamp: true },
       });
       const before = dayPunches.filter((p) => p.timestamp <= timestamp);
       const after = dayPunches.filter((p) => p.timestamp > timestamp);
@@ -102,6 +109,13 @@ export async function POST(request: Request) {
       const type: PunchType = requestedType ?? (state.status === "OUT" ? "IN" : "OUT");
 
       if (!state.allowedActions.includes(type)) {
+        // A retried offline punch whose first try was saved but never answered:
+        // it's already recorded, so report success instead of a false failure.
+        const duplicate = queuedAt ? findDuplicateOfLatest(before, type, timestamp) : null;
+        if (duplicate) {
+          duplicateRetry = true;
+          return duplicate;
+        }
         if (state.status === "DONE") {
           throw new PunchRejected({
             error: "ALREADY_COMPLETED",
@@ -142,7 +156,7 @@ export async function POST(request: Request) {
   }
   const type = punch.type;
 
-  if (photoDataUrl) {
+  if (photoDataUrl && !duplicateRetry) {
     try {
       const photoPath = await savePunchPhoto(punch.id, photoDataUrl);
       await prisma.punch.update({ where: { id: punch.id }, data: { photoPath } });

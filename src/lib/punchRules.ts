@@ -70,7 +70,32 @@ export function firstInvalidPunch(dayPunches: PunchLike[]): number {
 }
 
 /** How far back an offline punch may still be synced at the time it was made. */
-export const MAX_OFFLINE_PUNCH_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+export const MAX_OFFLINE_PUNCH_AGE_MS = 24 * 60 * 60 * 1000;
+
+/** The kiosk's device id is a UUID; anything else sent to the punch API is ignored. */
+export function isValidDeviceId(value: unknown): value is string {
+  return typeof value === "string" && /^[A-Za-z0-9_-]{8,64}$/.test(value);
+}
+
+/** How close an earlier identical punch must be for a retried one to count as the same punch. */
+const DUPLICATE_RETRY_WINDOW_MS = 10 * 60 * 1000;
+
+/**
+ * A queued (retried) punch the server rejected as out of sequence is really a
+ * duplicate when it repeats the employee's latest punch of that same type
+ * shortly before: the first try was saved but its reply was lost, so the kiosk
+ * sent it again. Returns that latest punch, or null.
+ */
+export function findDuplicateOfLatest<T extends { type: PunchType; timestamp: Date }>(
+  before: T[],
+  type: PunchType,
+  timestamp: Date
+): T | null {
+  const last = before[before.length - 1];
+  if (!last || last.type !== type) return null;
+  const gap = timestamp.getTime() - last.timestamp.getTime();
+  return gap >= 0 && gap <= DUPLICATE_RETRY_WINDOW_MS ? last : null;
+}
 
 export type PunchTimeResult =
   | { ok: true; timestamp: Date; backdated: boolean }
