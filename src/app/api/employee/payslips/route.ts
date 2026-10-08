@@ -19,11 +19,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "PIN and employeeId are required" }, { status: 400 });
   }
 
-  const { matched, locked } = await resolveEmployeeOrLocked(pin, employeeId);
-  if (locked) return locked;
-  if (!matched) {
-    return NextResponse.json({ error: "PIN not recognized" }, { status: 401 });
-  }
+  const { matched, rejection } = await resolveEmployeeOrLocked(pin, employeeId);
+  if (rejection) return rejection;
 
   const [employee, settings] = await Promise.all([
     prisma.employee.findUniqueOrThrow({ where: { id: matched.id }, select: { payBasis: true } }),

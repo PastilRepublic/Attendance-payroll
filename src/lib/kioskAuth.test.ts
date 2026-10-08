@@ -28,7 +28,7 @@ vi.mock("@/lib/pin", () => ({
   verifyPin: vi.fn(async (pin: string, hash: string) => hash === `hash:${pin}`),
 }));
 
-import { resolveEmployeeByPin, PinLockedError, MAX_PIN_FAILURES } from "./kioskAuth";
+import { resolveEmployeeByPin, resolveEmployeeOrLocked, PinLockedError, MAX_PIN_FAILURES } from "./kioskAuth";
 
 describe("resolveEmployeeByPin lockout", () => {
   beforeEach(() => {
@@ -55,5 +55,23 @@ describe("resolveEmployeeByPin lockout", () => {
     employee.pinLockedUntil = new Date(Date.now() - 1000);
     expect(await resolveEmployeeByPin("1234", "e1")).toEqual({ id: "e1", name: "Ana" });
     expect(employee.pinLockedUntil).toBeNull();
+  });
+});
+
+describe("resolveEmployeeOrLocked warnings", () => {
+  beforeEach(() => {
+    Object.assign(employee, { pinFailures: 0, pinLockedUntil: null });
+  });
+
+  it("stays quiet at first, warns when 3 attempts are left, then reports the lock on the last wrong PIN", async () => {
+    const msgs: { status: number; error: string }[] = [];
+    for (let i = 0; i < MAX_PIN_FAILURES; i++) {
+      const { rejection } = await resolveEmployeeOrLocked("0000", "e1");
+      msgs.push({ status: rejection!.status, error: (await rejection!.json()).error });
+    }
+    expect(msgs[0]).toEqual({ status: 401, error: "PIN not recognized" });
+    expect(msgs[2]).toEqual({ status: 401, error: "PIN not recognized. You have 3 attempts left." });
+    expect(msgs[4].error).toBe("PIN not recognized. You have 1 attempt left.");
+    expect(msgs[5].status).toBe(429);
   });
 });

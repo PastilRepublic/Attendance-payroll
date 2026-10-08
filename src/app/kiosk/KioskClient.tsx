@@ -458,7 +458,8 @@ export default function KioskClient({
           setScreen("confirm");
           finishAfterConfirm();
         } else if (res.status === 401) {
-          setErrorMessage("PIN not recognized. Please try again.");
+          const data = await res.json().catch(() => null);
+          setErrorMessage(data?.error ?? "PIN not recognized. Please try again.");
           setErrorNeedsAck(false);
           setScreen("error");
           scheduleReset();
@@ -514,7 +515,8 @@ export default function KioskClient({
         setDoneTaskIds(new Set());
         setScreen("actionPanel");
       } else if (res.status === 401) {
-        setErrorMessage("PIN not recognized. Please try again.");
+        const data = await res.json().catch(() => null);
+        setErrorMessage(data?.error ?? "PIN not recognized. Please try again.");
         setErrorNeedsAck(false);
         setScreen("error");
         if (selectedEmployee) scheduleRetrySamePerson();

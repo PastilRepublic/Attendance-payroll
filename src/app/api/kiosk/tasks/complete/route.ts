@@ -31,11 +31,8 @@ export async function POST(request: Request) {
     // Any active employee can claim and sign off for the team -- not just
     // whoever (if anyone) was pre-assigned. Re-verify the PIN belongs to a
     // real active employee, never trust a client-supplied id alone.
-    const { matched, locked } = await resolveEmployeeOrLocked(pin, employeeId);
-    if (locked) return locked;
-    if (!matched) {
-      return NextResponse.json({ error: "PIN not recognized" }, { status: 401 });
-    }
+    const { matched, rejection } = await resolveEmployeeOrLocked(pin, employeeId);
+    if (rejection) return rejection;
     // "Supervisor unavailable" -- nobody is around to check the work, so a
     // photo has to come with the tick.
     let photoUrl: string | undefined;

@@ -152,33 +152,25 @@ export default function EmployeeClient() {
     setChecking(true);
     setPinError(null);
     try {
-      const [attRes, paySlipRes] = await Promise.all([
-        fetch("/api/employee/attendance", {
+      const post = (url: string) =>
+        fetch(url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ pin: enteredPin, employeeId: employee.id }),
-        }),
-        fetch("/api/employee/payslips", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ pin: enteredPin, employeeId: employee.id }),
-        }),
-      ]);
-
-      if (attRes.status === 429 || paySlipRes.status === 429) {
-        const locked = attRes.status === 429 ? attRes : paySlipRes;
-        const data = await locked.json().catch(() => null);
-        setPinError(data?.error ?? "Too many wrong PIN attempts. Try again later.");
+        });
+      // One after the other, so a wrong PIN is only counted as one attempt.
+      const attRes = await post("/api/employee/attendance");
+      if (attRes.status === 429 || attRes.status === 401) {
+        const data = await attRes.json().catch(() => null);
+        setPinError(
+          data?.error ??
+            (attRes.status === 429 ? "Too many wrong PIN attempts. Try again later." : "PIN not recognized. Try again.")
+        );
         setPin("");
         setChecking(false);
         return;
       }
-      if (attRes.status === 401 || paySlipRes.status === 401) {
-        setPinError("PIN not recognized. Try again.");
-        setPin("");
-        setChecking(false);
-        return;
-      }
+      const paySlipRes = await post("/api/employee/payslips");
       if (!attRes.ok || !paySlipRes.ok) {
         setLoadError("Something went wrong loading your data. Please try again.");
         setChecking(false);

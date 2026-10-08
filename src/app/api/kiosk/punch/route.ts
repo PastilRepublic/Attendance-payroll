@@ -50,11 +50,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "PIN is required" }, { status: 400 });
   }
 
-  const { matched, locked } = await resolveEmployeeOrLocked(pin, employeeId);
-  if (locked) return locked;
-  if (!matched) {
-    return NextResponse.json({ error: "PIN not recognized" }, { status: 401 });
-  }
+  const { matched, rejection } = await resolveEmployeeOrLocked(pin, employeeId);
+  if (rejection) return rejection;
 
   if (deviceId) {
     await prisma.device.upsert({

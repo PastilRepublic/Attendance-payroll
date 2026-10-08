@@ -36,8 +36,8 @@ export async function POST(request: Request) {
         { status: 409 }
       );
     }
-    const { matched, locked } = await resolveEmployeeOrLocked(pin, employeeId);
-    if (locked) return locked;
+    const { matched, rejection } = await resolveEmployeeOrLocked(pin, employeeId);
+    if (rejection) return rejection;
     if (!matched || matched.id !== assignment.employeeId) {
       return NextResponse.json({ error: "PIN not recognized" }, { status: 401 });
     }
