@@ -285,6 +285,19 @@ export default function KioskClient({
     [resetToIdle, goHome]
   );
 
+  // After a wrong PIN, go back to the PIN pad for the SAME person. A full
+  // reset would clear the chosen name, and a PIN pad with no name accepts
+  // any employee's PIN -- so a retry could sign in as someone else.
+  const scheduleRetrySamePerson = useCallback((ms: number = AUTO_RESET_MS) => {
+    if (resetTimer.current) clearTimeout(resetTimer.current);
+    resetTimer.current = setTimeout(() => {
+      setScreen("home");
+      setPin("");
+      setErrorMessage("");
+      setErrorNeedsAck(false);
+    }, ms);
+  }, []);
+
   const finishAfterConfirm = useCallback(() => {
     if (resetTimer.current) clearTimeout(resetTimer.current);
     resetTimer.current = setTimeout(() => {
@@ -454,7 +467,7 @@ export default function KioskClient({
           setErrorMessage(data?.error ?? "Too many wrong PIN attempts. Try again later.");
           setErrorNeedsAck(false);
           setScreen("error");
-          scheduleReset();
+          scheduleReset(AUTO_RESET_MS, true);
         } else if (res.status === 409) {
           const data = await res.json().catch(() => null);
           setErrorMessage(
@@ -504,20 +517,21 @@ export default function KioskClient({
         setErrorMessage("PIN not recognized. Please try again.");
         setErrorNeedsAck(false);
         setScreen("error");
-        scheduleReset();
+        if (selectedEmployee) scheduleRetrySamePerson();
+        else scheduleReset();
       } else if (res.status === 429) {
         const data = await res.json().catch(() => null);
         setErrorMessage(data?.error ?? "Too many wrong PIN attempts. Try again later.");
         setErrorNeedsAck(false);
         setScreen("error");
-        scheduleReset();
+        scheduleReset(AUTO_RESET_MS, true);
       } else {
         showServerError();
       }
     } catch {
       queueOffline(pin, null);
     }
-  }, [pin, queueOffline, scheduleReset, selectedEmployee, showServerError]);
+  }, [pin, queueOffline, scheduleReset, scheduleRetrySamePerson, selectedEmployee, showServerError]);
 
   const proceedWithAction = useCallback(
     (type: PunchType) => {
