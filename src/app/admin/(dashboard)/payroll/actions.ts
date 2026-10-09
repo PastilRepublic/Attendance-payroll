@@ -7,7 +7,8 @@ import { runForm, type FormState } from "@/lib/formAction";
 import { prisma } from "@/lib/prisma";
 import { requireOwner } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
-import { nextWeeklyPeriod, isEarlyOutDay, localDateKey } from "@/lib/payroll";
+import { isEarlyOutDay, localDateKey } from "@/lib/payroll";
+import { nextPeriodToCreate } from "@/lib/payPeriods";
 import {
   getOrRefreshDraftPayslip,
   getPeriodDailyResults,
@@ -21,8 +22,18 @@ export async function createNextPayPeriod() {
   const admin = await requireOwner();
 
   const latest = await prisma.payPeriod.findFirst({ orderBy: { endDate: "desc" } });
-  const after = latest ? new Date(latest.endDate.getTime() + 86400000) : new Date();
-  const { start, end } = nextWeeklyPeriod(after);
+  const { start, end, canCreate } = nextPeriodToCreate(latest?.endDate ?? null);
+  // A week can only be added once it has begun, so repeated clicks can't pile up future periods.
+  if (!canCreate) {
+    throw new Error(`The next pay period (${start} to ${end}) can be created from ${start}.`);
+  }
+  const existing = await prisma.payPeriod.findFirst({
+    where: { startDate: new Date(`${start}T00:00:00.000Z`) },
+    select: { id: true },
+  });
+  if (existing) {
+    throw new Error("That pay period already exists.");
+  }
 
   const period = await prisma.payPeriod.create({
     data: {
@@ -661,4 +672,10 @@ export async function dismissLateSuggestionForm(_prev: FormState, formData: Form
 
 export async function dismissHalfDaySuggestionForm(_prev: FormState, formData: FormData): Promise<FormState> {
   return runForm(() => dismissHalfDaySuggestion(formData));
+}
+
+export async function createNextPayPeriodForm(_prev: FormState, _formData: FormData): Promise<FormState> {
+  void _prev;
+  void _formData;
+  return runForm(() => createNextPayPeriod());
 }
