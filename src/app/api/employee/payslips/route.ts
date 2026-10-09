@@ -58,6 +58,8 @@ export async function POST(request: Request) {
         daysWorked: breakdownLines(p.payBreakdown)
           ? breakdownLines(p.payBreakdown)!.reduce((sum, l) => sum + l.days, 0)
           : Number(p.regularHours) / hoursPerDay,
+        // How the pay was worked out for per-day staff: e.g. 2 x Cooking day @ 400.00.
+        breakdown: breakdownLines(p.payBreakdown) ?? [],
         overtimeHours: Number(p.overtimeHours),
         basePay: Number(p.basePay),
         grossPay: Number(p.grossPay),

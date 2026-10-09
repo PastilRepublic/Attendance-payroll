@@ -43,6 +43,8 @@ interface Payslip {
   lateMinutes: number;
   overtimeHours: number;
   grossPay: number;
+  /** Pay lines for staff paid per day, e.g. 2 x Cooking day @ 400. Empty for hourly/daily. */
+  breakdown: { label: string; days: number; rate: number; amount: number }[];
   adjustments: PayslipAdjustment[];
   adjustmentsTotal: number;
   totalPay: number;
@@ -590,6 +592,23 @@ export default function EmployeeClient() {
                         <p className="text-slate-800">{peso(p.grossPay)}</p>
                       </div>
                     </div>
+                    {p.breakdown.length > 0 && (
+                      <div className="mb-2 overflow-hidden rounded-2xl border border-slate-200 text-sm">
+                        {p.breakdown.map((l) => (
+                          <div
+                            key={l.label + "-" + l.rate}
+                            className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-2.5 last:border-0"
+                          >
+                            <span className="text-slate-700">
+                              {l.days} × {l.label}
+                            </span>
+                            <span className="text-right text-slate-600">
+                              @ {peso(l.rate)} = <span className="font-medium text-slate-900">{peso(l.amount)}</span>
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                     {(p.absentDays > 0 || p.lateCount > 0) && (
                       <div className="flex flex-wrap gap-2 mb-2 text-sm">
                         {p.absentDays > 0 && (
