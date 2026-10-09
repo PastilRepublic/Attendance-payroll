@@ -17,10 +17,10 @@ import { localDateKey, type PayBreakdownLine } from "@/lib/payroll";
 import { getSettings, getOperationDayOverrides } from "@/lib/settings";
 import { rotationDayForDate } from "@/lib/operationDay";
 import {
-  removeAdjustment,
-  dismissBonusSuggestion,
-  dismissLateSuggestion,
-  dismissHalfDaySuggestion,
+  removeAdjustmentForm,
+  dismissBonusSuggestionForm,
+  dismissLateSuggestionForm,
+  dismissHalfDaySuggestionForm,
   finalizePeriodForm,
   setPeriodDayTypeForm,
   addSanitationBonusForm,
@@ -304,12 +304,12 @@ export default async function PayPeriodDetailPage({
                                 {Math.abs(amount).toFixed(2)}
                               </span>
                               {payslip.status !== "FINALIZED" && (
-                                <form action={removeAdjustment}>
+                                <ActionForm compactError action={removeAdjustmentForm}>
                                   <input type="hidden" name="adjustmentId" value={adj.id} />
                                   <button className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-medium text-rose-700 hover:bg-rose-100">
                                     Remove
                                   </button>
-                                </form>
+                                </ActionForm>
                               )}
                             </div>
                           </li>
@@ -358,14 +358,14 @@ export default async function PayPeriodDetailPage({
                           Add to payslip
                         </button>
                       </ActionForm>
-                      <form action={dismissBonusSuggestion}>
+                      <ActionForm compactError action={dismissBonusSuggestionForm}>
                         <input type="hidden" name="kind" value="SANITATION" />
                         <input type="hidden" name="assignmentId" value={a.id} />
                         <input type="hidden" name="payPeriodId" value={period.id} />
                         <button className="rounded-full border border-slate-300 bg-slate-100 text-slate-700 px-3.5 py-1.5 text-xs font-medium hover:bg-slate-200">
                           Skip
                         </button>
-                      </form>
+                      </ActionForm>
                       </div>
                     </div>
                   ))}
@@ -413,14 +413,14 @@ export default async function PayPeriodDetailPage({
                             Deduct from payslip
                           </button>
                         </ActionForm>
-                        <form action={dismissHalfDaySuggestion}>
+                        <ActionForm compactError action={dismissHalfDaySuggestionForm}>
                           <input type="hidden" name="employeeId" value={employee.id} />
                           <input type="hidden" name="date" value={d.date} />
                           <input type="hidden" name="payPeriodId" value={period.id} />
                           <button className="rounded-full border border-slate-300 bg-slate-100 text-slate-700 px-3.5 py-1.5 text-xs font-medium hover:bg-slate-200">
                             Skip
                           </button>
-                        </form>
+                        </ActionForm>
                       </div>
                     </div>
                   ))}
@@ -455,14 +455,14 @@ export default async function PayPeriodDetailPage({
                             Deduct from payslip
                           </button>
                         </ActionForm>
-                        <form action={dismissLateSuggestion}>
+                        <ActionForm compactError action={dismissLateSuggestionForm}>
                           <input type="hidden" name="employeeId" value={employee.id} />
                           <input type="hidden" name="date" value={l.date} />
                           <input type="hidden" name="payPeriodId" value={period.id} />
                           <button className="rounded-full border border-slate-300 bg-slate-100 text-slate-700 px-3.5 py-1.5 text-xs font-medium hover:bg-slate-200">
                             Skip
                           </button>
-                        </form>
+                        </ActionForm>
                       </div>
                     </div>
                   ))}

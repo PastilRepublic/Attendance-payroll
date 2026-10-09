@@ -646,3 +646,19 @@ export async function addAdjustmentForm(_prev: FormState, formData: FormData): P
 export async function unlockPayslipForm(_prev: FormState, formData: FormData): Promise<FormState> {
   return runForm(() => unlockPayslip(formData));
 }
+
+export async function removeAdjustmentForm(_prev: FormState, formData: FormData): Promise<FormState> {
+  return runForm(() => removeAdjustment(formData));
+}
+
+export async function dismissBonusSuggestionForm(_prev: FormState, formData: FormData): Promise<FormState> {
+  return runForm(() => dismissBonusSuggestion(formData));
+}
+
+export async function dismissLateSuggestionForm(_prev: FormState, formData: FormData): Promise<FormState> {
+  return runForm(() => dismissLateSuggestion(formData));
+}
+
+export async function dismissHalfDaySuggestionForm(_prev: FormState, formData: FormData): Promise<FormState> {
+  return runForm(() => dismissHalfDaySuggestion(formData));
+}

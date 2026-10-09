@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { PAY_BASIS_LABELS } from "@/lib/payroll";
-import { setEmployeeActive } from "./actions";
+import { setEmployeeActiveForm } from "./actions";
+import ActionForm from "@/components/ActionForm";
 import Badge from "@/components/Badge";
 import Avatar from "@/components/Avatar";
 import SoftHeader from "@/components/ui/SoftHeader";
@@ -67,14 +68,14 @@ export default async function EmployeesPage() {
                   <Link href={`/admin/employees/${emp.id}`} className={pillClass("secondary", "sm")}>
                     Edit
                   </Link>
-                  <form action={setEmployeeActive.bind(null, emp.id, !emp.active)}>
+                  <ActionForm compactError action={setEmployeeActiveForm.bind(null, emp.id, !emp.active)}>
                     <button
                       type="submit"
                       className={pillClass(emp.active ? "destructive" : "secondary", "sm")}
                     >
                       {emp.active ? "Deactivate" : "Activate"}
                     </button>
-                  </form>
+                  </ActionForm>
                 </div>
               </li>
             ))}

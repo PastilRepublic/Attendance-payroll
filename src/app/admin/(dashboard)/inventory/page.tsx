@@ -5,7 +5,6 @@ import ConfirmSubmitButton from "@/components/ConfirmSubmitButton";
 import {
   createItemForm,
   recordStockMovementForm,
-  setItemActive,
   setItemActiveForm,
   updateItemForm,
 } from "./actions";
@@ -211,7 +210,7 @@ export default async function InventoryPage() {
                 >
                   History
                 </Link>
-                <form action={setItemActive}>
+                <ActionForm compactError action={setItemActiveForm}>
                   <input type="hidden" name="itemId" value={item.id} />
                   <input type="hidden" name="active" value="false" />
                   <ConfirmSubmitButton
@@ -220,7 +219,7 @@ export default async function InventoryPage() {
                   >
                     Deactivate
                   </ConfirmSubmitButton>
-                </form>
+                </ActionForm>
               </div>
             </SoftCard>
           );

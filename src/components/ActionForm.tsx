@@ -1,6 +1,6 @@
 "use client";
 
-import { startTransition, useActionState, useEffect, useRef, type FormEvent, type ReactNode } from "react";
+import { startTransition, useActionState, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import type { FormState } from "@/lib/formAction";
 
 /**
@@ -15,6 +15,7 @@ export default function ActionForm({
   successMessage,
   resetOnSuccess = false,
   closeDialogOnSuccess = false,
+  compactError = false,
 }: {
   action: (prev: FormState, formData: FormData) => Promise<FormState>;
   className?: string;
@@ -25,8 +26,11 @@ export default function ActionForm({
   resetOnSuccess?: boolean;
   /** For a form inside a <dialog>: close the popup after a successful save (it stays open to show an error). */
   closeDialogOnSuccess?: boolean;
+  /** For a small button (Remove, Dismiss, Activate...): show the error as a floating note under the button instead of in the layout. */
+  compactError?: boolean;
 }) {
   const [state, formAction, pending] = useActionState<FormState, FormData>(action, {});
+  const [dismissed, setDismissed] = useState<FormState | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
@@ -42,11 +46,30 @@ export default function ActionForm({
   }
 
   return (
-    <form ref={formRef} onSubmit={onSubmit} className={className}>
+    <form
+      ref={formRef}
+      onSubmit={onSubmit}
+      className={compactError ? `relative ${className ?? ""}`.trim() : className}
+    >
       <fieldset disabled={pending} className="contents">
         {children}
       </fieldset>
-      {state.error && (
+      {compactError && state.error && dismissed !== state && (
+        <div
+          role="alert"
+          className="absolute right-0 top-full z-20 mt-1.5 w-60 max-w-[80vw] rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-left text-xs text-rose-800 shadow-md"
+        >
+          {state.error}
+          <button
+            type="button"
+            onClick={() => setDismissed(state)}
+            className="ml-2 font-medium underline"
+          >
+            OK
+          </button>
+        </div>
+      )}
+      {!compactError && state.error && (
         <p role="alert" className="basis-full w-full text-xs text-red-600 mt-1">
           {state.error}
         </p>

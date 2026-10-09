@@ -369,3 +369,21 @@ export async function updateSupervisorAccessForm(employeeId: string, _prev: Form
 export async function grantSupervisorAccessForm(employeeId: string, _prev: FormState, formData: FormData): Promise<FormState> {
   return runForm(() => grantSupervisorAccess(employeeId, formData));
 }
+
+export async function setEmployeeActiveForm(
+  employeeId: string,
+  active: boolean,
+  ...formArgs: [FormState, FormData]
+): Promise<FormState> {
+  void formArgs;
+  return runForm(() => setEmployeeActive(employeeId, active));
+}
+
+export async function setSupervisorAccessActiveForm(
+  employeeId: string,
+  active: boolean,
+  ...formArgs: [FormState, FormData]
+): Promise<FormState> {
+  void formArgs;
+  return runForm(() => setSupervisorAccessActive(employeeId, active));
+}

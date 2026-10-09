@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import ActionForm from "@/components/ActionForm";
 import { prisma } from "@/lib/prisma";
-import { updateEmployeeForm, resetEmployeePinForm, grantSupervisorAccessForm, updateSupervisorAccessForm, setSupervisorAccessActive
+import { updateEmployeeForm, resetEmployeePinForm, grantSupervisorAccessForm, updateSupervisorAccessForm, setSupervisorAccessActiveForm
 } from "../actions";
 import PasswordInput from "@/components/PasswordInput";
 import PayBasisFields from "@/components/PayBasisFields";
@@ -27,7 +27,7 @@ export default async function EditEmployeePage({
   const resetPinWithId = resetEmployeePinForm.bind(null, employee.id);
   const grantAccessWithId = grantSupervisorAccessForm.bind(null, employee.id);
   const updateAccessWithId = updateSupervisorAccessForm.bind(null, employee.id);
-  const setAccessActiveWithId = setSupervisorAccessActive.bind(
+  const setAccessActiveWithId = setSupervisorAccessActiveForm.bind(
     null,
     employee.id,
     !employee.adminAccount?.active
@@ -130,7 +130,7 @@ export default async function EditEmployeePage({
             <PillButton type="submit" variant="secondary" className="w-full">Save Login Changes</PillButton>
           </ActionForm>
 
-          <form action={setAccessActiveWithId}>
+          <ActionForm compactError action={setAccessActiveWithId}>
             <button
               type="submit"
               className={`w-full rounded-md text-sm font-medium py-2 ${
@@ -146,7 +146,7 @@ export default async function EditEmployeePage({
                 They keep punching in/out normally -- this only removes their admin dashboard login.
               </p>
             )}
-          </form>
+          </ActionForm>
         </SoftCard>
       ) : (
         <SoftCard>
