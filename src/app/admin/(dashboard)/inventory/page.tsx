@@ -119,7 +119,7 @@ export default async function InventoryPage() {
               </div>
 
               <details className="mt-3">
-                <summary className="text-xs text-slate-500 cursor-pointer hover:underline">
+                <summary className="list-none [&::-webkit-details-marker]:hidden inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-slate-300 bg-slate-100 px-3.5 py-1.5 text-xs font-medium text-slate-800 hover:bg-slate-200">
                   + Record stock in/out
                 </summary>
                 <ActionForm
@@ -161,7 +161,7 @@ export default async function InventoryPage() {
               </details>
 
               <details className="mt-2">
-                <summary className="text-xs text-slate-500 cursor-pointer hover:underline">
+                <summary className="list-none [&::-webkit-details-marker]:hidden inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-slate-300 bg-slate-100 px-3.5 py-1.5 text-xs font-medium text-slate-800 hover:bg-slate-200">
                   Edit item
                 </summary>
                 <ActionForm
