@@ -3,6 +3,7 @@ import ActionForm from "@/components/ActionForm";
 import Badge from "@/components/Badge";
 import { formatInTimeZone } from "date-fns-tz";
 import { pillClass } from "@/components/ui/styles";
+import PeriodSummary from "./PeriodSummary";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import {
@@ -127,6 +128,20 @@ export default async function PayPeriodDetailPage({
             ))}
         </div>
       </div>
+
+      <PeriodSummary
+        grossTotal={payslips.reduce((sum, r) => sum + Number(r.payslip.grossPay), 0)}
+        bonusTotal={payslips.reduce(
+          (sum, r) => sum + r.payslip.adjustments.reduce((a, x) => a + Math.max(Number(x.amount), 0), 0),
+          0
+        )}
+        deductionTotal={payslips.reduce(
+          (sum, r) => sum + r.payslip.adjustments.reduce((a, x) => a + Math.abs(Math.min(Number(x.amount), 0)), 0),
+          0
+        )}
+        openItems={issues.byEmployee.reduce((n, e) => n + e.issues.length, 0) + (unsetOffDays.length > 0 ? 1 : 0)}
+        employeeCount={payslips.length}
+      />
 
       {period.status === "OPEN" && openIssues && (
         <div className="mb-4 rounded-2xl bg-rose-50 border border-rose-200 p-4 text-sm text-rose-900">
