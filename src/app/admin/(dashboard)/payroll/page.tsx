@@ -11,7 +11,7 @@ import Banner from "@/components/ui/Banner";
 import EmptyState from "@/components/ui/EmptyState";
 import { pillClass } from "@/components/ui/styles";
 import { currentMonthKey, isMonthKey, monthLabel, monthRange, nextPeriodToCreate } from "@/lib/payPeriods";
-import MonthPicker from "./MonthPicker";
+import MonthPicker from "@/components/ui/MonthPicker";
 
 // Pay period dates are stored as plain dates (UTC midnight), so format them in UTC.
 const fmt = (d: Date, pattern: string) => formatInTimeZone(d, "UTC", pattern);

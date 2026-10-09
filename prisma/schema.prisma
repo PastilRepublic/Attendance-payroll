@@ -109,6 +109,8 @@ model AdminUser {
   assignedTasks    TaskAssignment[] @relation("TaskAssignmentAssignedByAdmin")
   assignedSanitation  SanitationAssignment[] @relation("SanitationAssignmentAssignedByAdmin")
   inspectedSanitation SanitationAssignment[] @relation("SanitationAssignmentInspectedByAdmin")
+  financeEntriesCreated FinanceEntry[] @relation("FinanceEntryCreatedBy")
+  financeEntriesVoided  FinanceEntry[] @relation("FinanceEntryVoidedBy")
 }
 
 model Employee {
@@ -539,4 +541,52 @@ model SanitationAssignment {
 
   @@index([employeeId, date])
   @@index([date])
+}
+
+/** What a Finance ledger line is. More kinds (card payments, owner draws) are added as later steps ship. */
+enum FinanceKind {
+  OPENING_BANK
+  OPENING_CASH
+  INCOME
+  EXPENSE
+  CASH_WITHDRAWAL
+}
+
+/** Where an expense was paid from. */
+enum FinancePaidWith {
+  CASH
+  BANK
+}
+
+/**
+ * One line in the owners' money ledger. Everything -- money received, expenses,
+ * cash taken out of the bank, starting balances -- is a line here, so the bank
+ * balance, the production cash balance and the monthly numbers are all worked
+ * out from the same list. Lines are never deleted: a wrong one is voided with a
+ * reason and stays visible.
+ */
+model FinanceEntry {
+  id       String          @id @default(cuid())
+  date     DateTime        @db.Date
+  kind     FinanceKind
+  amount   Decimal         @db.Decimal(12, 2)
+  /** INCOME: the sales channel code (SHOPEE, TIKTOK...). EXPENSE: the category code (CHICKEN, OIL...). */
+  category String?
+  /** EXPENSE only: CASH comes out of the production cash, BANK out of the bank. */
+  paidWith FinancePaidWith?
+  note     String?
+
+  createdByAdminId String?
+  createdByAdmin   AdminUser? @relation("FinanceEntryCreatedBy", fields: [createdByAdminId], references: [id])
+
+  voided          Boolean    @default(false)
+  voidedAt        DateTime?
+  voidedByAdminId String?
+  voidedByAdmin   AdminUser? @relation("FinanceEntryVoidedBy", fields: [voidedByAdminId], references: [id])
+  voidReason      String?
+
+  createdAt DateTime @default(now())
+
+  @@index([date])
+  @@index([kind, voided])
 }

@@ -186,3 +186,52 @@ export async function changePasswordForm(_prev: FormState, formData: FormData): 
 export async function setAdminPinForm(_prev: FormState, formData: FormData): Promise<FormState> {
   return runForm(() => setAdminPin(formData));
 }
+
+const addOwnerSchema = z.object({
+  name: z.string().trim().min(1, "Name is required"),
+  email: z.string().trim().toLowerCase().email("Valid email is required"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+});
+
+/**
+ * Gives another owner their own login, so Finance and Payroll show who added or
+ * changed what. The new owner can change the password after signing in.
+ */
+export async function addOwnerAccount(formData: FormData) {
+  const admin = await requireAdmin();
+  if (admin.role !== "OWNER") throw new Error("Only an owner can add another owner.");
+  const parsed = addOwnerSchema.parse({
+    name: formData.get("name"),
+    email: formData.get("email"),
+    password: formData.get("password"),
+  });
+
+  const existing = await prisma.adminUser.findFirst({
+    where: { email: { equals: parsed.email, mode: "insensitive" } },
+    select: { id: true },
+  });
+  if (existing) throw new Error("An admin account with this email already exists.");
+
+  const created = await prisma.adminUser.create({
+    data: {
+      name: parsed.name,
+      email: parsed.email,
+      passwordHash: await hashPassword(parsed.password),
+      role: "OWNER",
+    },
+  });
+
+  await logAudit({
+    actorAdminId: admin.id,
+    action: "ADD_OWNER_ACCOUNT",
+    targetTable: "AdminUser",
+    targetId: created.id,
+    after: { name: created.name, email: created.email },
+  });
+
+  revalidatePath("/admin/settings");
+}
+
+export async function addOwnerAccountForm(_prev: FormState, formData: FormData): Promise<FormState> {
+  return runForm(() => addOwnerAccount(formData));
+}

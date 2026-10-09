@@ -19,7 +19,7 @@ export default function StatTile({
     <div className={`rounded-2xl p-4 sm:p-5 ${t.box}`}>
       {icon && <div className={`mb-2 ${t.label}`}>{icon}</div>}
       <div className={`text-sm font-medium ${t.label}`}>{label}</div>
-      <div className={`mt-1 text-2xl font-extrabold tracking-tight sm:text-3xl ${t.value}`}>{value}</div>
+      <div className={`mt-1 text-lg font-extrabold tracking-tight sm:text-3xl ${t.value}`}>{value}</div>
       {hint && <div className={`mt-1 text-xs ${t.label}`}>{hint}</div>}
     </div>
   );

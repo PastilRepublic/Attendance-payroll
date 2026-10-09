@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import ActionForm from "@/components/ActionForm";
 import { auth } from "@/lib/auth";
-import { updateSettingsForm, changePasswordForm, setAdminPinForm } from "./actions";
+import { updateSettingsForm, changePasswordForm, setAdminPinForm, addOwnerAccountForm } from "./actions";
 import PasswordInput from "@/components/PasswordInput";
 import SoftHeader from "@/components/ui/SoftHeader";
 import SoftCard from "@/components/ui/SoftCard";
@@ -23,6 +23,13 @@ export default async function SettingsPage() {
     ? await prisma.adminUser.findUnique({ where: { id: session.user.id }, select: { pinHash: true } })
     : null;
   const hasPin = !!me?.pinHash;
+  const owners = isOwner
+    ? await prisma.adminUser.findMany({
+        where: { role: "OWNER" },
+        orderBy: { createdAt: "asc" },
+        select: { id: true, name: true, email: true, active: true },
+      })
+    : [];
 
   return (
     <div className="max-w-xl">
@@ -224,6 +231,49 @@ export default async function SettingsPage() {
         </PillButton>
       </ActionForm>
       </SoftCard>
+
+      {isOwner && (
+        <SoftCard className="mt-6">
+          <h2 className="text-lg font-medium text-slate-900">Owner logins</h2>
+          <p className="mt-0.5 text-sm text-slate-500">
+            Each owner signs in with their own account, so Finance shows who added or voided every entry.
+          </p>
+          <ul className="mt-4 divide-y divide-slate-100 rounded-2xl border border-slate-200">
+            {owners.map((o) => (
+              <li key={o.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm">
+                <span className="font-medium text-slate-800">{o.name}</span>
+                <span className="text-slate-500">{o.email}</span>
+              </li>
+            ))}
+          </ul>
+          <ActionForm action={addOwnerAccountForm} resetOnSuccess successMessage="Owner login added" className="mt-5 space-y-3">
+            <div className="text-sm font-medium text-slate-800">Add another owner</div>
+            <input
+              name="name"
+              required
+              placeholder="Name"
+              className="w-full rounded-full border border-slate-300 bg-slate-100 px-4 py-2.5 text-sm focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-200"
+            />
+            <input
+              name="email"
+              type="email"
+              required
+              placeholder="Login email"
+              className="w-full rounded-full border border-slate-300 bg-slate-100 px-4 py-2.5 text-sm focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-200"
+            />
+            <PasswordInput
+              name="password"
+              label="Temporary password"
+              autoComplete="new-password"
+              minLength={8}
+              helperText="They can change it after signing in."
+            />
+            <PillButton type="submit" variant="secondary" className="w-full">
+              Add owner login
+            </PillButton>
+          </ActionForm>
+        </SoftCard>
+      )}
     </div>
   );
 }

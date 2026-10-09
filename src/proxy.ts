@@ -7,7 +7,7 @@ const { auth } = NextAuth(authConfig);
 // Owner-only route prefixes -- a SUPERVISOR is redirected away even from
 // just viewing these, since e.g. Employees shows pay rates in the page
 // itself, not just in a restricted action.
-const OWNER_ONLY_PREFIXES = ["/admin/employees", "/admin/payroll", "/admin/payslip", "/admin/tasks"];
+const OWNER_ONLY_PREFIXES = ["/admin/employees", "/admin/payroll", "/admin/payslip", "/admin/tasks", "/admin/finance"];
 
 export default auth((req) => {
   const { pathname } = req.nextUrl;
