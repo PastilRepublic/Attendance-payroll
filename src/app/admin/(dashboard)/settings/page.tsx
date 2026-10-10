@@ -7,8 +7,6 @@ import SoftHeader from "@/components/ui/SoftHeader";
 import SoftCard from "@/components/ui/SoftCard";
 import PillButton from "@/components/ui/PillButton";
 
-const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-
 export default async function SettingsPage() {
   const session = await auth();
   const isOwner = session?.user?.role === "OWNER";
@@ -35,8 +33,19 @@ export default async function SettingsPage() {
     <div className="max-w-xl">
       <SoftHeader title="Settings" />
 
+      <div className="mb-3 mt-2">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Work day and pay rules</h2>
+        <p className="mt-0.5 text-sm text-slate-500">These apply to everyone. Press Save Settings once after changing any of them.</p>
+      </div>
+
       <SoftCard>
       <ActionForm action={updateSettingsForm} successMessage="Saved" className="space-y-5">
+        <div>
+          <h3 className="text-sm font-semibold text-slate-900">Normal shift</h3>
+          <p className="mt-0.5 text-xs text-slate-500">
+            The usual start and end time. A different time for one day is set on the Attendance page.
+          </p>
+        </div>
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-800">
@@ -114,26 +123,6 @@ export default async function SettingsPage() {
               />
             </div>
 
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-800">
-                Pay period starts on
-              </label>
-              <select
-                name="payPeriodStartDay"
-                defaultValue={settings.payPeriodStartDay}
-                className="w-full rounded-full border border-slate-300 bg-slate-100 px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-200"
-              >
-                {dayNames.map((d, i) => (
-                  <option key={d} value={i + 1}>
-                    {d}
-                  </option>
-                ))}
-              </select>
-              <p className="text-xs text-slate-500 mt-1">
-                Pay periods are weekly, starting on this day.
-              </p>
-            </div>
-
             <div className="border-t border-slate-200 pt-5">
               <h2 className="text-sm font-semibold text-slate-900 mb-1">
                 Production pay (by operation day)
@@ -167,6 +156,8 @@ export default async function SettingsPage() {
           </>
         )}
 
+        <div className="border-t border-slate-200 pt-5">
+          <h3 className="mb-2 text-sm font-semibold text-slate-900">Kiosk</h3>
         <label className="flex items-center gap-2 text-sm text-slate-700">
           <input
             type="checkbox"
@@ -176,12 +167,18 @@ export default async function SettingsPage() {
           />
           Require a photo at each kiosk punch
         </label>
+        </div>
 
         <PillButton type="submit" className="w-full">Save Settings</PillButton>
       </ActionForm>
       </SoftCard>
 
-      <SoftCard className="mt-6">
+      <div className="mb-3 mt-10 first:mt-0">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">My account</h2>
+        <p className="mt-0.5 text-sm text-slate-500">Your own name, password and PIN.</p>
+      </div>
+
+      <SoftCard>
         <h2 className="text-lg font-medium text-slate-900">Your name</h2>
         <p className="mt-0.5 text-sm text-slate-500">
           Shown next to everything you add or void in Finance, and on the owners&apos; share.
@@ -253,7 +250,12 @@ export default async function SettingsPage() {
       </SoftCard>
 
       {isOwner && (
-        <SoftCard className="mt-6">
+        <>
+        <div className="mb-3 mt-10">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Owners</h2>
+          <p className="mt-0.5 text-sm text-slate-500">Who can sign in as an owner.</p>
+        </div>
+        <SoftCard>
           <h2 className="text-lg font-medium text-slate-900">Owner logins</h2>
           <p className="mt-0.5 text-sm text-slate-500">
             Each owner signs in with their own account, so Finance shows who added or voided every entry.
@@ -293,6 +295,7 @@ export default async function SettingsPage() {
             </PillButton>
           </ActionForm>
         </SoftCard>
+        </>
       )}
     </div>
   );

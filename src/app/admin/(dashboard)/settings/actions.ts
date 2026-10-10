@@ -34,7 +34,6 @@ const ownerOnlySettingsSchema = z.object({
   gracePeriodMinutes: z.coerce.number().int().min(0).max(120, "Grace period can be at most 120 minutes"),
   unpaidLunchMinutes: z.coerce.number().int().min(0).max(180, "Unpaid lunch can be at most 180 minutes"),
   regularHoursCapPerDay: z.coerce.number().min(1, "Regular hours per day must be 1 to 24").max(24, "Regular hours per day must be 1 to 24"),
-  payPeriodStartDay: z.coerce.number().int().min(1).max(7),
   cookingDayRate: dayRate,
   jarFillingDayRate: dayRate,
 });
@@ -56,7 +55,6 @@ export async function updateSettings(formData: FormData) {
         gracePeriodMinutes: formData.get("gracePeriodMinutes"),
         unpaidLunchMinutes: formData.get("unpaidLunchMinutes"),
         regularHoursCapPerDay: formData.get("regularHoursCapPerDay"),
-        payPeriodStartDay: formData.get("payPeriodStartDay"),
         cookingDayRate: formData.get("cookingDayRate"),
         jarFillingDayRate: formData.get("jarFillingDayRate"),
       })
@@ -64,7 +62,6 @@ export async function updateSettings(formData: FormData) {
         gracePeriodMinutes: before?.gracePeriodMinutes ?? 10,
         unpaidLunchMinutes: before?.unpaidLunchMinutes ?? 60,
         regularHoursCapPerDay: before?.regularHoursCapPerDay ?? 8,
-        payPeriodStartDay: before?.payPeriodStartDay ?? 1,
         cookingDayRate: before?.cookingDayRate ?? 400,
         jarFillingDayRate: before?.jarFillingDayRate ?? 350,
       };
