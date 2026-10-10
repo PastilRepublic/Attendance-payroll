@@ -41,6 +41,7 @@ import { inputClass, labelClass, pillClass } from "@/components/ui/styles";
 import PaidWithFields from "./PaidWithFields";
 import PaydayFields from "./PaydayFields";
 import ReminderTicker, { type Reminder } from "./ReminderTicker";
+import CreditCardFace from "./CreditCardFace";
 import {
   addCardForm,
   addCashWithdrawalForm,
@@ -458,47 +459,39 @@ export default async function FinancePage({
         <div>
           <div>
             <h2 className="text-lg font-medium text-slate-900">Credit cards</h2>
-            <p className="mt-0.5 text-sm text-slate-500">What is owed on each card and when the bill is due.</p>
+            <p className="mt-0.5 text-sm text-slate-500">What is due on each card and when the bill is due.</p>
             {cardRows.length === 0 ? (
               <div className="mt-4">
                 <EmptyState>No credit card added yet.</EmptyState>
               </div>
             ) : (
-              <ul className="mt-4 divide-y divide-slate-100">
+              <ul className="mt-5 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                 {cardRows.map((c) => (
-                  <li key={c.id} className="py-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="text-sm font-medium text-slate-800">{c.name}</div>
-                        {c.overdue ? (
-                          <div className="text-xs font-medium text-rose-700">
-                            Overdue since {fmtDate(c.overdue.since, "MMM d")}
-                          </div>
-                        ) : c.dueAmount > 0 ? (
-                          <div className={`text-xs ${c.days <= 7 ? "font-medium text-amber-700" : "text-slate-500"}`}>
-                            Due {fmtDate(c.dueDate, "MMM d")} ·{" "}
-                            {c.days === 0 ? "today" : c.days === 1 ? "tomorrow" : `in ${c.days} days`}
-                          </div>
-                        ) : (
-                          <div className="text-xs text-slate-500">
-                            {c.statementDay ? "Nothing due right now" : `Due day ${fmtDate(c.dueDate, "MMM d")}`}
-                          </div>
-                        )}
-                      </div>
-                      <div className="text-right">
-                        <div className={`text-lg font-semibold ${c.dueAmount > 0 ? "text-rose-700" : "text-slate-500"}`}>
-                          {formatPeso(c.dueAmount)}
-                        </div>
-                        <div className="text-xs text-slate-500">{c.statementDay ? "due on the bill" : "owed"}</div>
-                      </div>
-                    </div>
+                  <li key={c.id} className="min-w-0">
+                    <CreditCardFace
+                      name={c.name}
+                      amount={formatPeso(c.dueAmount)}
+                      amountLabel={c.statementDay ? "Due on the bill" : "Owed"}
+                      status={c.overdue ? "overdue" : c.dueAmount > 0 ? (c.days <= 7 ? "soon" : "due") : "clear"}
+                      statusText={
+                        c.overdue
+                          ? `Overdue since ${fmtDate(c.overdue.since, "MMM d")}`
+                          : c.dueAmount > 0
+                            ? `Due ${fmtDate(c.dueDate, "MMM d")} · ${
+                                c.days === 0 ? "today" : c.days === 1 ? "tomorrow" : `in ${c.days} days`
+                              }`
+                            : c.statementDay
+                              ? "Nothing due right now"
+                              : `Due day ${fmtDate(c.dueDate, "MMM d")}`
+                      }
+                    />
                     {c.notYetBilled > 0 && (
-                      <p className="mt-1 text-xs text-slate-500">
+                      <p className="mt-2 text-xs text-slate-500">
                         {formatPeso(c.notYetBilled)} charged since the {c.statementDay}th, on next month&apos;s bill.
                         Total owed {formatPeso(c.owed)}.
                       </p>
                     )}
-                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
                       {c.owed > 0 && (
                         <FormDialog
                           size="sm"
