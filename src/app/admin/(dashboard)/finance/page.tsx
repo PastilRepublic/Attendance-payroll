@@ -626,151 +626,6 @@ export default async function FinancePage({
         )}
       </SoftCard>
 
-      <SoftCard className="sm:!p-8">
-        <h2 className="text-lg font-medium text-slate-900">Monthly bills</h2>
-        <p className="mt-0.5 text-sm text-slate-500">
-          Rent, internet, electricity and the like. Save each once, then record it with one tap every month.
-        </p>
-        {billRows.length === 0 ? (
-          <div className="mt-4">
-            <EmptyState>No monthly bills saved yet.</EmptyState>
-          </div>
-        ) : (
-          <ul className="mt-4 divide-y divide-slate-100">
-            {billRows.map((b) => (
-              <li key={b.id} className="py-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium text-slate-800">{b.name}</div>
-                    <div className="text-xs text-slate-500">
-                      {categoryLabel(b.category)} · paid with {b.paidLabel}
-                    </div>
-                    {b.status.state === "recorded" ? (
-                      <div className="mt-0.5 text-xs font-medium text-emerald-700">Recorded for {monthLabel(current)}</div>
-                    ) : b.status.state === "overdue" ? (
-                      <div className="mt-0.5 text-xs font-medium text-rose-700">
-                        Was due {fmtDate(b.status.dueDate, "MMM d")}
-                      </div>
-                    ) : (
-                      <div
-                        className={`mt-0.5 text-xs ${b.status.state === "dueSoon" ? "font-medium text-amber-700" : "text-slate-500"}`}
-                      >
-                        Due {fmtDate(b.status.dueDate, "MMM d")}
-                      </div>
-                    )}
-                  </div>
-                  <div className="text-right text-base font-semibold text-slate-900">{formatPeso(b.amount)}</div>
-                </div>
-                <div className="mt-2 flex flex-wrap items-center gap-2">
-                  {b.status.state !== "recorded" && (
-                    <FormDialog
-                      size="sm"
-                      variant="primary"
-                      triggerLabel="Record this month"
-                      title={`Record ${b.name}`}
-                      description={`Saved as an expense, paid with ${b.paidLabel}. Change the amount if this month is different.`}
-                    >
-                      <ActionForm action={recordBillForm} closeDialogOnSuccess className="space-y-3">
-                        <input type="hidden" name="billId" value={b.id} />
-                        <TodayField today={today} />
-                        <div>
-                          <label className={labelClass}>Amount (₱)</label>
-                          <NumberInput name="amount" required defaultValue={b.amount} className={inputClass} />
-                        </div>
-                        <NoteField />
-                        <PillButton className="w-full">Record {b.name}</PillButton>
-                      </ActionForm>
-                    </FormDialog>
-                  )}
-                  <FormDialog
-                    size="sm"
-                    triggerLabel="Edit"
-                    title={`Edit ${b.name}`}
-                    description="Change the usual amount or the day it is due. Past records stay as they are."
-                  >
-                    <ActionForm action={updateBillForm} closeDialogOnSuccess className="space-y-3">
-                      <input type="hidden" name="billId" value={b.id} />
-                      <div>
-                        <label className={labelClass}>Usual amount (₱)</label>
-                        <NumberInput name="amount" required defaultValue={b.amount} className={inputClass} />
-                      </div>
-                      <div>
-                        <label className={labelClass}>Due day of the month</label>
-                        <input
-                          name="dueDay"
-                          type="number"
-                          min={1}
-                          max={31}
-                          required
-                          inputMode="numeric"
-                          defaultValue={b.dueDay}
-                          className={inputClass}
-                        />
-                      </div>
-                      <PillButton className="w-full">Save changes</PillButton>
-                    </ActionForm>
-                  </FormDialog>
-                  <ActionForm action={setBillActiveForm} compactError>
-                    <input type="hidden" name="billId" value={b.id} />
-                    <input type="hidden" name="active" value="false" />
-                    <button type="submit" className="text-xs text-slate-500 underline hover:text-slate-800">
-                      Remove
-                    </button>
-                  </ActionForm>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-        <div className="mt-4">
-          <FormDialog
-            size="sm"
-            triggerLabel="+ Add monthly bill"
-            title="Add a monthly bill"
-            description="Something you pay every month. You can change the amount each time you record it."
-          >
-            <ActionForm action={addBillForm} closeDialogOnSuccess className="space-y-3">
-              <div>
-                <label className={labelClass}>Name</label>
-                <input name="name" required maxLength={40} placeholder="e.g. Rent" className={inputClass} />
-              </div>
-              <div>
-                <label className={labelClass}>Kind of bill</label>
-                <select name="category" required defaultValue="" className={inputClass}>
-                  <option value="" disabled>
-                    Choose…
-                  </option>
-                  {EXPENSE_CATEGORIES.map((c) => (
-                    <option key={c.code} value={c.code}>
-                      {c.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className={labelClass}>Usual amount (₱)</label>
-                <NumberInput name="amount" required placeholder="0.00" className={inputClass} />
-              </div>
-              <div>
-                <label className={labelClass}>Due day of the month</label>
-                <input
-                  name="dueDay"
-                  type="number"
-                  min={1}
-                  max={31}
-                  required
-                  inputMode="numeric"
-                  placeholder="e.g. 5"
-                  className={inputClass}
-                />
-              </div>
-              <PaidWithFields cards={cards.map((c) => ({ id: c.id, name: c.name }))} defaultPaidWith="BANK" />
-              <PillButton className="w-full">Add bill</PillButton>
-            </ActionForm>
-          </FormDialog>
-        </div>
-      </SoftCard>
-
       <Banner
         title={month === current ? "This month" : monthLabel(month)}
         description={`Money received and spent in ${monthLabel(month)}. Pick another month to look back.`}
@@ -911,6 +766,170 @@ export default async function FinancePage({
             </ul>
           )}
         </div>
+      </SoftCard>
+
+      <SoftCard padded={false}>
+        <details className="group">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 sm:px-7 sm:py-5 [&::-webkit-details-marker]:hidden">
+            <div className="min-w-0">
+              <h2 className="text-lg font-medium text-slate-900">Monthly bills</h2>
+              <p className="mt-0.5 text-sm text-slate-500">
+                {billRows.length === 0
+                  ? "Rent, internet, electricity: save each once."
+                  : `${billRows.filter((b) => b.status.state === "recorded").length} of ${billRows.length} recorded this month`}
+                {billAlerts.length > 0 && (
+                  <span className="font-medium text-amber-700"> · {billAlerts.length} need attention</span>
+                )}
+              </p>
+            </div>
+            <span className="shrink-0 text-sm font-medium text-accent-800 group-open:hidden">Show</span>
+            <span className="hidden shrink-0 text-sm font-medium text-accent-800 group-open:inline">Hide</span>
+          </summary>
+          <div className="border-t border-slate-100 px-5 pb-5 pt-1 sm:px-7 sm:pb-7">
+            <p className="mt-3 text-sm text-slate-500">
+              Rent, internet, electricity and the like. Save each once, then record it with one tap every month.
+            </p>
+            {billRows.length === 0 ? (
+              <div className="mt-4">
+                <EmptyState>No monthly bills saved yet.</EmptyState>
+              </div>
+            ) : (
+              <ul className="mt-4 divide-y divide-slate-100">
+                {billRows.map((b) => (
+                  <li key={b.id} className="py-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium text-slate-800">{b.name}</div>
+                        <div className="text-xs text-slate-500">
+                          {categoryLabel(b.category)} · paid with {b.paidLabel}
+                        </div>
+                        {b.status.state === "recorded" ? (
+                          <div className="mt-0.5 text-xs font-medium text-emerald-700">Recorded for {monthLabel(current)}</div>
+                        ) : b.status.state === "overdue" ? (
+                          <div className="mt-0.5 text-xs font-medium text-rose-700">
+                            Was due {fmtDate(b.status.dueDate, "MMM d")}
+                          </div>
+                        ) : (
+                          <div
+                            className={`mt-0.5 text-xs ${b.status.state === "dueSoon" ? "font-medium text-amber-700" : "text-slate-500"}`}
+                          >
+                            Due {fmtDate(b.status.dueDate, "MMM d")}
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-right text-base font-semibold text-slate-900">{formatPeso(b.amount)}</div>
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      {b.status.state !== "recorded" && (
+                        <FormDialog
+                          size="sm"
+                          variant="primary"
+                          triggerLabel="Record this month"
+                          title={`Record ${b.name}`}
+                          description={`Saved as an expense, paid with ${b.paidLabel}. Change the amount if this month is different.`}
+                        >
+                          <ActionForm action={recordBillForm} closeDialogOnSuccess className="space-y-3">
+                            <input type="hidden" name="billId" value={b.id} />
+                            <TodayField today={today} />
+                            <div>
+                              <label className={labelClass}>Amount (₱)</label>
+                              <NumberInput name="amount" required defaultValue={b.amount} className={inputClass} />
+                            </div>
+                            <NoteField />
+                            <PillButton className="w-full">Record {b.name}</PillButton>
+                          </ActionForm>
+                        </FormDialog>
+                      )}
+                      <FormDialog
+                        size="sm"
+                        triggerLabel="Edit"
+                        title={`Edit ${b.name}`}
+                        description="Change the usual amount or the day it is due. Past records stay as they are."
+                      >
+                        <ActionForm action={updateBillForm} closeDialogOnSuccess className="space-y-3">
+                          <input type="hidden" name="billId" value={b.id} />
+                          <div>
+                            <label className={labelClass}>Usual amount (₱)</label>
+                            <NumberInput name="amount" required defaultValue={b.amount} className={inputClass} />
+                          </div>
+                          <div>
+                            <label className={labelClass}>Due day of the month</label>
+                            <input
+                              name="dueDay"
+                              type="number"
+                              min={1}
+                              max={31}
+                              required
+                              inputMode="numeric"
+                              defaultValue={b.dueDay}
+                              className={inputClass}
+                            />
+                          </div>
+                          <PillButton className="w-full">Save changes</PillButton>
+                        </ActionForm>
+                      </FormDialog>
+                      <ActionForm action={setBillActiveForm} compactError>
+                        <input type="hidden" name="billId" value={b.id} />
+                        <input type="hidden" name="active" value="false" />
+                        <button type="submit" className="text-xs text-slate-500 underline hover:text-slate-800">
+                          Remove
+                        </button>
+                      </ActionForm>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className="mt-4">
+              <FormDialog
+                size="sm"
+                triggerLabel="+ Add monthly bill"
+                title="Add a monthly bill"
+                description="Something you pay every month. You can change the amount each time you record it."
+              >
+                <ActionForm action={addBillForm} closeDialogOnSuccess className="space-y-3">
+                  <div>
+                    <label className={labelClass}>Name</label>
+                    <input name="name" required maxLength={40} placeholder="e.g. Rent" className={inputClass} />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Kind of bill</label>
+                    <select name="category" required defaultValue="" className={inputClass}>
+                      <option value="" disabled>
+                        Choose…
+                      </option>
+                      {EXPENSE_CATEGORIES.map((c) => (
+                        <option key={c.code} value={c.code}>
+                          {c.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className={labelClass}>Usual amount (₱)</label>
+                    <NumberInput name="amount" required placeholder="0.00" className={inputClass} />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Due day of the month</label>
+                    <input
+                      name="dueDay"
+                      type="number"
+                      min={1}
+                      max={31}
+                      required
+                      inputMode="numeric"
+                      placeholder="e.g. 5"
+                      className={inputClass}
+                    />
+                  </div>
+                  <PaidWithFields cards={cards.map((c) => ({ id: c.id, name: c.name }))} defaultPaidWith="BANK" />
+                  <PillButton className="w-full">Add bill</PillButton>
+                </ActionForm>
+              </FormDialog>
+            </div>
+
+          </div>
+        </details>
       </SoftCard>
 
       <SoftCard padded={false}>
