@@ -5,7 +5,6 @@ import {
   computeBalances,
   daysBetween,
   nextDueDate,
-  platformWaiting,
   summarizeMonth,
   type FinanceRow,
 } from "./finance";
@@ -136,22 +135,6 @@ describe("due dates", () => {
     expect(daysBetween("2026-10-10", "2026-10-13")).toBe(3);
     expect(daysBetween("2026-10-10", "2026-10-10")).toBe(0);
     expect(daysBetween("2026-12-30", "2027-01-02")).toBe(3);
-  });
-});
-
-describe("platformWaiting", () => {
-  it("uses the latest snapshot for each platform and leaves the bank alone", () => {
-    const rows = [
-      row({ kind: "PLATFORM_BALANCE", amount: 50000, category: "TIKTOK", date: "2026-10-01" }),
-      row({ kind: "PLATFORM_BALANCE", amount: 76731.5, category: "TIKTOK", date: "2026-10-10" }),
-      row({ kind: "PLATFORM_BALANCE", amount: 9000, category: "SHOPEE", date: "2026-10-05" }),
-      row({ kind: "PLATFORM_BALANCE", amount: 1, category: "SHOPEE", date: "2026-10-09", voided: true }),
-    ];
-    expect(platformWaiting(rows).sort((a, b) => a.channel.localeCompare(b.channel))).toEqual([
-      { channel: "SHOPEE", amount: 9000, asOf: "2026-10-05" },
-      { channel: "TIKTOK", amount: 76731.5, asOf: "2026-10-10" },
-    ]);
-    expect(computeBalances(rows).total).toBe(0);
   });
 });
 

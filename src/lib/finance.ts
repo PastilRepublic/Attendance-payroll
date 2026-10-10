@@ -9,8 +9,6 @@
  *   comes out of the bank. Neither is ever taken off twice.
  * - An expense charged to a CARD changes neither: it adds to what is owed on that card. The
  *   bank drops only when the card is paid (a card payment).
- * - A platform balance (what TikTok/Shopee holds, "available to withdraw") is a snapshot and
- *   is not part of the bank.
  * - Voided lines count for nothing but stay visible in the records.
  */
 
@@ -20,8 +18,7 @@ export type FinanceKindCode =
   | "INCOME"
   | "EXPENSE"
   | "CASH_WITHDRAWAL"
-  | "CARD_PAYMENT"
-  | "PLATFORM_BALANCE";
+  | "CARD_PAYMENT";
 export type PaidWithCode = "CASH" | "BANK" | "CARD";
 
 export interface FinanceRow {
@@ -244,21 +241,4 @@ export function daysBetween(fromKey: string, toKey: string): number {
     return Date.UTC(y, m - 1, d);
   };
   return Math.round((toTime(toKey) - toTime(fromKey)) / 86400000);
-}
-
-export interface PlatformWaiting {
-  channel: string;
-  amount: number;
-  /** The date the balance was read from the platform. */
-  asOf: string;
-}
-
-/** The latest "available to withdraw" figure recorded for each platform. */
-export function platformWaiting(rows: FinanceRow[]): PlatformWaiting[] {
-  const latest = new Map<string, FinanceRow>();
-  for (const r of live(rows).filter((x) => x.kind === "PLATFORM_BALANCE" && x.category)) {
-    const cur = latest.get(r.category!);
-    if (!cur || r.date > cur.date || (r.date === cur.date && r.createdAt > cur.createdAt)) latest.set(r.category!, r);
-  }
-  return [...latest.values()].map((r) => ({ channel: r.category!, amount: r.amount, asOf: r.date }));
 }

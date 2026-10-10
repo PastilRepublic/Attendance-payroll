@@ -15,7 +15,6 @@ import {
   computeBalances,
   daysBetween,
   nextDueDate,
-  platformWaiting,
   summarizeMonth,
   type FinanceRow,
 } from "@/lib/finance";
@@ -39,7 +38,6 @@ import {
   payCardForm,
   setCardActiveForm,
   setOpeningBalancesForm,
-  setPlatformBalanceForm,
   voidFinanceEntryForm,
 } from "./actions";
 
@@ -55,7 +53,6 @@ const KIND_LABEL: Record<string, string> = {
   EXPENSE: "Expense",
   CASH_WITHDRAWAL: "Cash withdrawal",
   CARD_PAYMENT: "Card payment",
-  PLATFORM_BALANCE: "Platform balance",
 };
 
 function TodayField({ today }: { today: string }) {
@@ -140,9 +137,7 @@ export default async function FinancePage({
   });
   const totalOwed = cardRows.reduce((sum, c) => sum + c.owed, 0);
   const dueSoon = cardRows.filter((c) => c.owed > 0 && c.days <= 7);
-  const waiting = platformWaiting(rows);
-  const totalWaiting = waiting.reduce((sum, w) => sum + w.amount, 0);
-  const afterAll = Math.round((balances.total + totalWaiting - totalOwed) * 100) / 100;
+  const afterCards = Math.round((balances.total - totalOwed) * 100) / 100;
 
   return (
     <div className="space-y-8">
@@ -293,52 +288,8 @@ export default async function FinancePage({
       </SoftCard>
 
       <SoftCard className="sm:!p-8">
-        <div className="grid gap-8 lg:grid-cols-2 lg:gap-10">
+        <div>
           <div>
-            <h2 className="text-lg font-medium text-slate-900">Waiting at platforms</h2>
-            <p className="mt-0.5 text-sm text-slate-500">
-              What TikTok and Shopee show as available to withdraw. Update it whenever you check.
-            </p>
-            <ul className="mt-4 divide-y divide-slate-100">
-              {(["TIKTOK", "SHOPEE"] as const).map((code) => {
-                const w = waiting.find((x) => x.channel === code);
-                return (
-                  <li key={code} className="flex items-center justify-between gap-3 py-3">
-                    <div>
-                      <div className="text-sm font-medium text-slate-800">{channelLabel(code)}</div>
-                      <div className="text-xs text-slate-500">
-                        {w ? `as of ${fmtDate(w.asOf, "MMM d")}` : "not entered yet"}
-                      </div>
-                    </div>
-                    <div className="text-lg font-semibold text-emerald-700">{w ? formatPeso(w.amount) : "—"}</div>
-                  </li>
-                );
-              })}
-            </ul>
-            <div className="mt-4">
-              <FormDialog
-                size="sm"
-                triggerLabel="Update platform balance"
-                title="Platform balance"
-                description="Type the amount shown as Available to withdraw."
-              >
-                <ActionForm action={setPlatformBalanceForm} closeDialogOnSuccess className="space-y-3">
-                  <div>
-                    <label className={labelClass}>Platform</label>
-                    <select name="channel" required defaultValue="TIKTOK" className={inputClass}>
-                      <option value="TIKTOK">TikTok Shop</option>
-                      <option value="SHOPEE">Shopee</option>
-                    </select>
-                  </div>
-                  <TodayField today={today} />
-                  <AmountField label="Available to withdraw (₱)" />
-                  <PillButton className="w-full">Save balance</PillButton>
-                </ActionForm>
-              </FormDialog>
-            </div>
-          </div>
-
-          <div className="lg:border-l lg:border-slate-200 lg:pl-10">
             <h2 className="text-lg font-medium text-slate-900">Credit cards</h2>
             <p className="mt-0.5 text-sm text-slate-500">What is owed on each card and when the bill is due.</p>
             {cardRows.length === 0 ? (
@@ -426,10 +377,12 @@ export default async function FinancePage({
             </div>
           </div>
         </div>
-        <p className="mt-6 border-t border-slate-100 pt-4 text-sm text-slate-500">
-          After the platforms pay out and the cards are paid, we would have{" "}
-          <span className="font-medium text-slate-800">{formatPeso(afterAll)}</span>.
-        </p>
+        {totalOwed > 0 && (
+          <p className="mt-6 border-t border-slate-100 pt-4 text-sm text-slate-500">
+            After the cards are paid we would have{" "}
+            <span className="font-medium text-slate-800">{formatPeso(afterCards)}</span>.
+          </p>
+        )}
       </SoftCard>
 
       <Banner
@@ -585,9 +538,7 @@ export default async function FinancePage({
                       }`
                       : e.kind === "CARD_PAYMENT"
                         ? (cardName.get(e.cardId ?? "") ?? "card")
-                        : e.kind === "PLATFORM_BALANCE"
-                          ? channelLabel(e.category)
-                          : KIND_LABEL[e.kind];
+                        : KIND_LABEL[e.kind];
                 return (
                   <li key={e.id} className={`px-5 py-4 sm:px-7 ${e.voided ? "bg-slate-50" : ""}`}>
                     <div className="flex flex-wrap items-start justify-between gap-3">

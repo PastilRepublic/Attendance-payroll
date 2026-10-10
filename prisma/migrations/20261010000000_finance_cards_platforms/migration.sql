@@ -1,6 +1,5 @@
 -- AlterEnum
 ALTER TYPE "FinanceKind" ADD VALUE 'CARD_PAYMENT';
-ALTER TYPE "FinanceKind" ADD VALUE 'PLATFORM_BALANCE';
 
 -- AlterEnum
 ALTER TYPE "FinancePaidWith" ADD VALUE 'CARD';

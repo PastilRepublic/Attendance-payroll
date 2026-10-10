@@ -552,8 +552,6 @@ enum FinanceKind {
   CASH_WITHDRAWAL
   /** Money paid from the bank towards a credit card's balance. */
   CARD_PAYMENT
-  /** A snapshot of the "available to withdraw" balance a platform is holding (category = channel code). Not part of the bank. */
-  PLATFORM_BALANCE
 }
 
 /** Where an expense was paid from. */

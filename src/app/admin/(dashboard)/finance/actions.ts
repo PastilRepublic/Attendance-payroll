@@ -368,45 +368,6 @@ export async function payCard(formData: FormData) {
   return `${card.name} · ${formatPeso(parsed.amount)} paid`;
 }
 
-const platformBalanceSchema = z.object({
-  channel: z.enum(["TIKTOK", "SHOPEE"], "Choose the platform."),
-  date: dateField,
-  amount: z.coerce
-    .number()
-    .min(0, "The balance can't be negative.")
-    .max(MAX_AMOUNT, "Amount must be ₱10,000,000 or less.")
-    .transform(round2),
-});
-
-/** A snapshot of what a platform shows as "available to withdraw". The latest one for each platform is used. */
-export async function setPlatformBalance(formData: FormData) {
-  const admin = await requireOwner();
-  const parsed = platformBalanceSchema.parse({
-    channel: formData.get("channel"),
-    date: formData.get("date"),
-    amount: numberText(formData.get("amount")) || "0",
-  });
-
-  const entry = await prisma.financeEntry.create({
-    data: {
-      date: new Date(`${parsed.date}T00:00:00.000Z`),
-      kind: "PLATFORM_BALANCE",
-      amount: parsed.amount,
-      category: parsed.channel,
-      createdByAdminId: admin.id,
-    },
-  });
-  await logAudit({
-    actorAdminId: admin.id,
-    action: "SET_FINANCE_PLATFORM_BALANCE",
-    targetTable: "FinanceEntry",
-    targetId: entry.id,
-    after: { date: parsed.date, amount: parsed.amount, channel: parsed.channel },
-  });
-  revalidateFinance();
-  return `${channelLabel(parsed.channel)} · ${formatPeso(parsed.amount)} waiting`;
-}
-
 // Form versions of the actions above (see ActionForm): they return the problem to the form.
 export async function addExpenseForm(_prev: FormState, formData: FormData): Promise<FormState> {
   return runForm(() => addExpense(formData));
@@ -440,6 +401,3 @@ export async function payCardForm(_prev: FormState, formData: FormData): Promise
   return runForm(() => payCard(formData));
 }
 
-export async function setPlatformBalanceForm(_prev: FormState, formData: FormData): Promise<FormState> {
-  return runForm(() => setPlatformBalance(formData));
-}
