@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { formatInTimeZone } from "date-fns-tz";
 import { prisma } from "@/lib/prisma";
+import { formatQty } from "@/lib/format";
 import { TIMEZONE } from "@/lib/payroll";
 import SoftHeader from "@/components/ui/SoftHeader";
 import SoftCard from "@/components/ui/SoftCard";
@@ -35,7 +36,7 @@ export default async function InventoryHistoryPage({
       <div className="mt-3">
         <SoftHeader
           title={`${item.name} history`}
-          description={`${Number(item.quantity)} ${item.unit} on hand${item.active ? "" : " · inactive"}`}
+          description={`${formatQty(Number(item.quantity))} ${item.unit} on hand${item.active ? "" : " · inactive"}`}
         />
       </div>
 
@@ -61,7 +62,7 @@ export default async function InventoryHistoryPage({
                   }`}
                 >
                   {m.type === "IN" ? "+" : "−"}
-                  {Number(m.quantity)} {item.unit}
+                  {formatQty(Number(m.quantity))} {item.unit}
                 </td>
                 <td className="px-4 py-2 text-slate-700">{m.reason}</td>
                 <td className="px-4 py-2 whitespace-nowrap text-slate-500">

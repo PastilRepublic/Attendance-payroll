@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { formatQty } from "@/lib/format";
 import ActionForm from "@/components/ActionForm";
 import ConfirmSubmitButton from "@/components/ConfirmSubmitButton";
 import {
@@ -9,6 +10,7 @@ import {
   updateItemForm,
 } from "./actions";
 import SoftHeader from "@/components/ui/SoftHeader";
+import NumberInput from "@/components/ui/NumberInput";
 import SoftCard from "@/components/ui/SoftCard";
 import Badge from "@/components/Badge";
 import EmptyState from "@/components/ui/EmptyState";
@@ -66,22 +68,16 @@ export default async function InventoryPage() {
           </div>
           <div>
             <label className="block text-xs text-slate-500 mb-1">Starting quantity</label>
-            <input
+            <NumberInput
               name="initialQuantity"
-              type="number"
-              step="0.01"
-              min="0"
               defaultValue={0}
               className={`w-28 ${INPUT}`}
             />
           </div>
           <div>
             <label className="block text-xs text-slate-500 mb-1">Low-stock threshold</label>
-            <input
+            <NumberInput
               name="lowStockThreshold"
-              type="number"
-              step="0.01"
-              min="0"
               defaultValue={0}
               className={`w-28 ${INPUT}`}
             />
@@ -109,10 +105,10 @@ export default async function InventoryPage() {
                 </div>
                 <div className="text-right">
                   <div className="font-semibold text-slate-900">
-                    {Number(item.quantity)} {item.unit}
+                    {formatQty(Number(item.quantity))} {item.unit}
                   </div>
                   <div className="text-xs text-slate-400">
-                    threshold: {Number(item.lowStockThreshold)} {item.unit}
+                    threshold: {formatQty(Number(item.lowStockThreshold))} {item.unit}
                   </div>
                 </div>
               </div>
@@ -136,11 +132,8 @@ export default async function InventoryPage() {
                   </div>
                   <div>
                     <label className="block text-xs text-slate-500">Quantity ({item.unit})</label>
-                    <input
+                    <NumberInput
                       name="quantity"
-                      type="number"
-                      step="0.01"
-                      min="0.01"
                       required
                       className={`w-24 ${INPUT_SM}`}
                     />
@@ -187,11 +180,8 @@ export default async function InventoryPage() {
                   </div>
                   <div>
                     <label className="block text-xs text-slate-500">Low-stock threshold</label>
-                    <input
+                    <NumberInput
                       name="lowStockThreshold"
-                      type="number"
-                      step="0.01"
-                      min="0"
                       defaultValue={Number(item.lowStockThreshold)}
                       className={`w-24 ${INPUT_SM}`}
                     />
@@ -243,7 +233,7 @@ export default async function InventoryPage() {
                 <div>
                   <span className="text-sm text-slate-700">{item.name}</span>
                   <span className="text-xs text-slate-400 ml-2">
-                    {Number(item.quantity)} {item.unit}
+                    {formatQty(Number(item.quantity))} {item.unit}
                   </span>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">

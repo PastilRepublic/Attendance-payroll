@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
 import { runForm, type FormState } from "@/lib/formAction";
+import { numberText } from "@/lib/numberInput";
 
 const MAX_QUANTITY = 1_000_000;
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -45,8 +46,8 @@ export async function createItem(formData: FormData) {
     name: formData.get("name"),
     category: formData.get("category"),
     unit: formData.get("unit"),
-    lowStockThreshold: formData.get("lowStockThreshold"),
-    initialQuantity: formData.get("initialQuantity"),
+    lowStockThreshold: numberText(formData.get("lowStockThreshold")),
+    initialQuantity: numberText(formData.get("initialQuantity")),
   });
 
   await assertNameAvailable(parsed.name);
@@ -104,7 +105,7 @@ export async function recordStockMovement(formData: FormData) {
   const parsed = stockMovementSchema.parse({
     itemId: formData.get("itemId"),
     type: formData.get("type"),
-    quantity: formData.get("quantity"),
+    quantity: numberText(formData.get("quantity")),
     reason: formData.get("reason"),
   });
 
@@ -176,7 +177,7 @@ export async function updateItem(formData: FormData) {
     name: formData.get("name"),
     category: formData.get("category"),
     unit: formData.get("unit"),
-    lowStockThreshold: formData.get("lowStockThreshold"),
+    lowStockThreshold: numberText(formData.get("lowStockThreshold")),
   });
 
   const before = await prisma.inventoryItem.findUniqueOrThrow({ where: { id: parsed.itemId } });

@@ -3,6 +3,8 @@ import ActionForm from "@/components/ActionForm";
 import Badge from "@/components/Badge";
 import { formatInTimeZone } from "date-fns-tz";
 import { pillClass } from "@/components/ui/styles";
+import { formatPeso, formatAmount } from "@/lib/format";
+import NumberInput from "@/components/ui/NumberInput";
 import PeriodSummary from "./PeriodSummary";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -245,14 +247,14 @@ export default async function PayPeriodDetailPage({
                 </div>
                 <div className="text-right">
                   <div className={`text-2xl font-extrabold tracking-tight ${total < 0 ? "text-rose-700" : "text-slate-900"}`}>
-                    {total < 0 ? "-" : ""}₱{Math.abs(total).toFixed(2)}
+                    {formatPeso(total)}
                   </div>
                   {total < 0 && (
                     <div className="text-xs font-medium text-red-700">Below zero — check deductions</div>
                   )}
                   <div className="text-xs text-slate-500">
-                    gross ₱{Number(payslip.grossPay).toFixed(2)}
-                    {adjTotal !== 0 && ` ${adjTotal > 0 ? "+" : ""}${adjTotal.toFixed(2)} adj.`}
+                    gross {formatPeso(Number(payslip.grossPay))}
+                    {adjTotal !== 0 && ` ${adjTotal > 0 ? "+" : "−"}${formatAmount(adjTotal)} adj.`}
                   </div>
                 </div>
               </div>
@@ -261,7 +263,7 @@ export default async function PayPeriodDetailPage({
                 <ul className="mb-2 text-xs text-slate-600 space-y-0.5">
                   {breakdownLines.map((l) => (
                     <li key={`${l.label}-${l.rate}`}>
-                      {l.days} × {l.label} @ ₱{l.rate.toFixed(2)} = ₱{l.amount.toFixed(2)}
+                      {l.days} × {l.label} @ {formatPeso(l.rate)} = {formatPeso(l.amount)}
                     </li>
                   ))}
                 </ul>
@@ -301,7 +303,7 @@ export default async function PayPeriodDetailPage({
                                 className={`text-sm font-semibold ${isBonus ? "text-emerald-700" : "text-rose-700"}`}
                               >
                                 {isBonus ? "+" : "−"}
-                                {Math.abs(amount).toFixed(2)}
+                                {formatAmount(amount)}
                               </span>
                               {payslip.status !== "FINALIZED" && (
                                 <ActionForm compactError action={removeAdjustmentForm}>
@@ -320,7 +322,7 @@ export default async function PayPeriodDetailPage({
                       <span className="text-slate-600">Net adjustments</span>
                       <span className={netTotal >= 0 ? "text-emerald-700" : "text-rose-700"}>
                         {netTotal >= 0 ? "+" : "−"}
-                        {Math.abs(netTotal).toFixed(2)}
+                        {formatAmount(netTotal)}
                       </span>
                     </div>
                   </div>
@@ -345,11 +347,8 @@ export default async function PayPeriodDetailPage({
                         <input type="hidden" name="payslipId" value={payslip.id} />
                         <input type="hidden" name="sanitationAssignmentId" value={a.id} />
                         <span className="text-slate-500">₱</span>
-                        <input
+                        <NumberInput
                           name="amount"
-                          type="number"
-                          step="0.01"
-                          min="0.01"
                           required
                           defaultValue={Number(a.procedure.bonusAmount).toFixed(2)}
                           className="w-24 rounded-full border border-slate-300 bg-slate-100 px-3 py-1.5 text-xs focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-200"
@@ -400,11 +399,8 @@ export default async function PayPeriodDetailPage({
                           <input type="hidden" name="payslipId" value={payslip.id} />
                           <input type="hidden" name="date" value={d.date} />
                           <span className="text-slate-500">₱</span>
-                          <input
+                          <NumberInput
                             name="amount"
-                            type="number"
-                            step="0.01"
-                            min="0.01"
                             required
                             placeholder="Amount"
                             className="w-24 rounded-full border border-slate-300 bg-slate-100 px-3 py-1.5 text-xs focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-200"
@@ -442,11 +438,8 @@ export default async function PayPeriodDetailPage({
                           <input type="hidden" name="payslipId" value={payslip.id} />
                           <input type="hidden" name="date" value={l.date} />
                           <span className="text-slate-500">₱</span>
-                          <input
+                          <NumberInput
                             name="amount"
-                            type="number"
-                            step="0.01"
-                            min="0.01"
                             required
                             defaultValue={l.amount.toFixed(2)}
                             className="w-24 rounded-full border border-slate-300 bg-slate-100 px-3 py-1.5 text-xs focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-200"
@@ -496,11 +489,8 @@ export default async function PayPeriodDetailPage({
                     </div>
                     <div>
                       <label className="block text-xs text-slate-500">Amount</label>
-                      <input
+                      <NumberInput
                         name="amount"
-                        type="number"
-                        step="0.01"
-                        min="0.01"
                         required
                         placeholder="500"
                         className="w-28 rounded-full border border-slate-300 bg-slate-100 px-3 py-1.5 text-xs focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-200"

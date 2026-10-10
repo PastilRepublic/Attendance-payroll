@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { runForm, type FormState } from "@/lib/formAction";
+import { numberText } from "@/lib/numberInput";
 import { prisma } from "@/lib/prisma";
 import { requireOwner } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
@@ -134,7 +135,7 @@ export async function addAdjustment(formData: FormData) {
   const parsed = adjustmentSchema.parse({
     payslipId: formData.get("payslipId"),
     label: formData.get("label"),
-    amount: formData.get("amount"),
+    amount: numberText(formData.get("amount")),
     note: formData.get("note") || undefined,
   });
 
@@ -301,7 +302,7 @@ export async function addSanitationBonusToPayslip(formData: FormData) {
   const parsed = addSanitationBonusSchema.parse({
     payslipId: formData.get("payslipId"),
     sanitationAssignmentId: formData.get("sanitationAssignmentId"),
-    amount: formData.get("amount"),
+    amount: numberText(formData.get("amount")),
   });
 
   const payslip = await prisma.payslip.findUniqueOrThrow({ where: { id: parsed.payslipId } });
@@ -418,7 +419,7 @@ export async function addLateDeductionToPayslip(formData: FormData) {
   const parsed = lateDeductionSchema.parse({
     payslipId: formData.get("payslipId"),
     date: formData.get("date"),
-    amount: formData.get("amount"),
+    amount: numberText(formData.get("amount")),
   });
 
   const payslip = await prisma.payslip.findUniqueOrThrow({
@@ -527,7 +528,7 @@ export async function addHalfDayDeductionToPayslip(formData: FormData) {
   const parsed = halfDayDeductionSchema.parse({
     payslipId: formData.get("payslipId"),
     date: formData.get("date"),
-    amount: formData.get("amount"),
+    amount: numberText(formData.get("amount")),
   });
 
   const payslip = await prisma.payslip.findUniqueOrThrow({

@@ -21,6 +21,7 @@ import Banner from "@/components/ui/Banner";
 import EmptyState from "@/components/ui/EmptyState";
 import MonthPicker from "@/components/ui/MonthPicker";
 import FormDialog from "@/components/ui/FormDialog";
+import NumberInput from "@/components/ui/NumberInput";
 import PillButton from "@/components/ui/PillButton";
 import { inputClass, labelClass, pillClass, smallLabelClass } from "@/components/ui/styles";
 import {
@@ -57,12 +58,8 @@ function AmountField({ label = "Amount (₱)" }: { label?: string }) {
   return (
     <div>
       <label className={labelClass}>{label}</label>
-      <input
-        type="number"
+      <NumberInput
         name="amount"
-        step="0.01"
-        min="0.01"
-        inputMode="decimal"
         required
         placeholder="0.00"
         className={inputClass}
@@ -231,11 +228,11 @@ export default async function FinancePage({
             <TodayField today={today} />
             <div>
               <label className={labelClass}>In the bank (₱)</label>
-              <input type="number" name="bank" step="0.01" min="0" defaultValue="0" className={inputClass} />
+              <NumberInput name="bank" defaultValue="0" className={inputClass} />
             </div>
             <div>
               <label className={labelClass}>Cash on hand (₱)</label>
-              <input type="number" name="cash" step="0.01" min="0" defaultValue="0" className={inputClass} />
+              <NumberInput name="cash" defaultValue="0" className={inputClass} />
             </div>
             <PillButton>Save starting balances</PillButton>
           </ActionForm>

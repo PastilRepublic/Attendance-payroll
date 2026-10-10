@@ -8,6 +8,7 @@ import { logAudit } from "@/lib/audit";
 import { localDateKey } from "@/lib/payroll";
 import { isRealDateKey } from "@/lib/punchRules";
 import { runForm, type FormState } from "@/lib/formAction";
+import { numberText } from "@/lib/numberInput";
 import { EXPENSE_CATEGORIES, INCOME_CHANNELS, categoryLabel, channelLabel } from "@/lib/finance";
 import { formatPeso } from "@/lib/format";
 
@@ -51,7 +52,7 @@ export async function addExpense(formData: FormData) {
   const admin = await requireOwner();
   const parsed = expenseSchema.parse({
     date: formData.get("date"),
-    amount: formData.get("amount"),
+    amount: numberText(formData.get("amount")),
     category: formData.get("category"),
     paidWith: formData.get("paidWith"),
     note: formData.get("note") || undefined,
@@ -91,7 +92,7 @@ export async function addIncome(formData: FormData) {
   const admin = await requireOwner();
   const parsed = incomeSchema.parse({
     date: formData.get("date"),
-    amount: formData.get("amount"),
+    amount: numberText(formData.get("amount")),
     channel: formData.get("channel"),
     note: formData.get("note") || undefined,
   });
@@ -128,7 +129,7 @@ export async function addCashWithdrawal(formData: FormData) {
   const admin = await requireOwner();
   const parsed = withdrawalSchema.parse({
     date: formData.get("date"),
-    amount: formData.get("amount"),
+    amount: numberText(formData.get("amount")),
     note: formData.get("note") || undefined,
   });
 
@@ -164,8 +165,8 @@ export async function setOpeningBalances(formData: FormData) {
   const admin = await requireOwner();
   const parsed = openingSchema.parse({
     date: formData.get("date"),
-    bank: formData.get("bank") || "0",
-    cash: formData.get("cash") || "0",
+    bank: numberText(formData.get("bank")) || "0",
+    cash: numberText(formData.get("cash")) || "0",
   });
 
   const existing = await prisma.financeEntry.count({
