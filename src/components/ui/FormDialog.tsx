@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { pillClass, type PillVariant } from "./styles";
+import { pillClass, type PillSize, type PillVariant } from "./styles";
 
 /**
  * A pill button that opens a form in a pop-up. Put an <ActionForm closeDialogOnSuccess>
@@ -13,12 +13,14 @@ export default function FormDialog({
   title,
   description,
   variant = "secondary",
+  size = "md",
   children,
 }: {
   triggerLabel: React.ReactNode;
   title: string;
   description?: string;
   variant?: PillVariant;
+  size?: PillSize;
   children: React.ReactNode;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -32,7 +34,7 @@ export default function FormDialog({
           setFreshKey((k) => k + 1);
           dialogRef.current?.showModal();
         }}
-        className={pillClass(variant)}
+        className={pillClass(variant, size)}
       >
         {triggerLabel}
       </button>

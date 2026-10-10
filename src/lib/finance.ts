@@ -7,11 +7,22 @@
  *   expense -- the expense is when the cash is spent.
  * - An expense paid with CASH comes out of the production cash; one paid from the BANK
  *   comes out of the bank. Neither is ever taken off twice.
+ * - An expense charged to a CARD changes neither: it adds to what is owed on that card. The
+ *   bank drops only when the card is paid (a card payment).
+ * - A platform balance (what TikTok/Shopee holds, "available to withdraw") is a snapshot and
+ *   is not part of the bank.
  * - Voided lines count for nothing but stay visible in the records.
  */
 
-export type FinanceKindCode = "OPENING_BANK" | "OPENING_CASH" | "INCOME" | "EXPENSE" | "CASH_WITHDRAWAL";
-export type PaidWithCode = "CASH" | "BANK";
+export type FinanceKindCode =
+  | "OPENING_BANK"
+  | "OPENING_CASH"
+  | "INCOME"
+  | "EXPENSE"
+  | "CASH_WITHDRAWAL"
+  | "CARD_PAYMENT"
+  | "PLATFORM_BALANCE";
+export type PaidWithCode = "CASH" | "BANK" | "CARD";
 
 export interface FinanceRow {
   id: string;
@@ -21,6 +32,8 @@ export interface FinanceRow {
   amount: number;
   category: string | null;
   paidWith: PaidWithCode | null;
+  /** Which card an expense was charged to, or a card payment went to. */
+  cardId: string | null;
   voided: boolean;
   /** Creation time in milliseconds, to put same-day lines in the order they were entered. */
   createdAt: number;
@@ -60,6 +73,8 @@ export const EXPENSE_CATEGORIES = [
   { code: "RENT", label: "Rent" },
   { code: "UTILITIES", label: "Electricity & water" },
   { code: "SALARIES", label: "Salaries" },
+  { code: "ADVERTISING", label: "Advertising" },
+  { code: "TAXES", label: "Taxes (VAT, other)" },
   { code: "OTHER", label: "Other" },
 ] as const;
 
@@ -91,9 +106,12 @@ export function computeBalances(rows: FinanceRow[]): Balances {
     else if (r.kind === "CASH_WITHDRAWAL") {
       bank -= r.amount;
       cash += r.amount;
+    } else if (r.kind === "CARD_PAYMENT") {
+      bank -= r.amount;
     } else if (r.kind === "EXPENSE") {
       if (r.paidWith === "CASH") cash -= r.amount;
-      else bank -= r.amount;
+      else if (r.paidWith !== "CARD") bank -= r.amount;
+      // CARD: owed on the card for now; see cardBalances.
     }
   }
   return { bank: round2(bank), cash: round2(cash), total: round2(bank + cash) };
@@ -180,4 +198,67 @@ export function cashLog(rows: FinanceRow[]): CashLogLine[] {
       balanceAfter: balance,
     };
   });
+}
+
+export interface CardBalance {
+  cardId: string;
+  /** Charged to the card and not yet paid. */
+  owed: number;
+}
+
+/** What is owed on each card: everything charged to it minus what has been paid toward it. */
+export function cardBalances(rows: FinanceRow[], cardIds: string[]): CardBalance[] {
+  const owed = new Map<string, number>(cardIds.map((id) => [id, 0]));
+  for (const r of live(rows)) {
+    if (!r.cardId || !owed.has(r.cardId)) continue;
+    if (r.kind === "EXPENSE" && r.paidWith === "CARD") owed.set(r.cardId, owed.get(r.cardId)! + r.amount);
+    else if (r.kind === "CARD_PAYMENT") owed.set(r.cardId, owed.get(r.cardId)! - r.amount);
+  }
+  return cardIds.map((cardId) => ({ cardId, owed: round2(owed.get(cardId) ?? 0) }));
+}
+
+/** The last day of a month, given its year and 1-based month. */
+function daysInMonth(year: number, month: number): number {
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
+/**
+ * The next date (YYYY-MM-DD) a card bill is due: this month's due day if it has not passed
+ * yet (today counts), otherwise next month's. A due day of 31 in a short month falls on that
+ * month's last day.
+ */
+export function nextDueDate(dueDay: number, todayKey: string): string {
+  const [y, m, d] = todayKey.split("-").map(Number);
+  const dueThisMonth = Math.min(dueDay, daysInMonth(y, m));
+  if (d <= dueThisMonth) return `${todayKey.slice(0, 8)}${String(dueThisMonth).padStart(2, "0")}`;
+  const ny = m === 12 ? y + 1 : y;
+  const nm = m === 12 ? 1 : m + 1;
+  const due = Math.min(dueDay, daysInMonth(ny, nm));
+  return `${ny}-${String(nm).padStart(2, "0")}-${String(due).padStart(2, "0")}`;
+}
+
+/** Whole days from one date to another (negative if the second is earlier). */
+export function daysBetween(fromKey: string, toKey: string): number {
+  const toTime = (key: string) => {
+    const [y, m, d] = key.split("-").map(Number);
+    return Date.UTC(y, m - 1, d);
+  };
+  return Math.round((toTime(toKey) - toTime(fromKey)) / 86400000);
+}
+
+export interface PlatformWaiting {
+  channel: string;
+  amount: number;
+  /** The date the balance was read from the platform. */
+  asOf: string;
+}
+
+/** The latest "available to withdraw" figure recorded for each platform. */
+export function platformWaiting(rows: FinanceRow[]): PlatformWaiting[] {
+  const latest = new Map<string, FinanceRow>();
+  for (const r of live(rows).filter((x) => x.kind === "PLATFORM_BALANCE" && x.category)) {
+    const cur = latest.get(r.category!);
+    if (!cur || r.date > cur.date || (r.date === cur.date && r.createdAt > cur.createdAt)) latest.set(r.category!, r);
+  }
+  return [...latest.values()].map((r) => ({ channel: r.category!, amount: r.amount, asOf: r.date }));
 }

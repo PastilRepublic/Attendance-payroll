@@ -8,10 +8,14 @@ import {
   CHANNEL_STYLE,
   INCOME_CHANNELS,
   NEUTRAL_CHANNEL_STYLE,
+  cardBalances,
   cashLog,
   categoryLabel,
   channelLabel,
   computeBalances,
+  daysBetween,
+  nextDueDate,
+  platformWaiting,
   summarizeMonth,
   type FinanceRow,
 } from "@/lib/finance";
@@ -26,11 +30,16 @@ import FormDialog from "@/components/ui/FormDialog";
 import NumberInput from "@/components/ui/NumberInput";
 import PillButton from "@/components/ui/PillButton";
 import { inputClass, labelClass, pillClass } from "@/components/ui/styles";
+import PaidWithFields from "./PaidWithFields";
 import {
+  addCardForm,
   addCashWithdrawalForm,
   addExpenseForm,
   addIncomeForm,
+  payCardForm,
+  setCardActiveForm,
   setOpeningBalancesForm,
+  setPlatformBalanceForm,
   voidFinanceEntryForm,
 } from "./actions";
 
@@ -45,6 +54,8 @@ const KIND_LABEL: Record<string, string> = {
   INCOME: "Money received",
   EXPENSE: "Expense",
   CASH_WITHDRAWAL: "Cash withdrawal",
+  CARD_PAYMENT: "Card payment",
+  PLATFORM_BALANCE: "Platform balance",
 };
 
 function TodayField({ today }: { today: string }) {
@@ -97,6 +108,10 @@ export default async function FinancePage({
     },
   });
 
+  const allCards = await prisma.financeCard.findMany({ orderBy: { createdAt: "asc" } });
+  const cards = allCards.filter((c) => c.active);
+  const cardName = new Map(allCards.map((c) => [c.id, c.name]));
+
   const rows: FinanceRow[] = entries.map((e) => ({
     id: e.id,
     date: e.date.toISOString().slice(0, 10),
@@ -104,6 +119,7 @@ export default async function FinancePage({
     amount: Number(e.amount),
     category: e.category,
     paidWith: e.paidWith,
+    cardId: e.cardId,
     voided: e.voided,
     createdAt: e.createdAt.getTime(),
   }));
@@ -115,6 +131,18 @@ export default async function FinancePage({
   const monthEntries = entries.filter((e) => e.date.toISOString().slice(0, 10).startsWith(month));
   const biggestSpend = summary.byCategory[0]?.amount ?? 0;
   const cashLow = balances.cash < 0;
+
+  // Credit cards: what is owed and when each bill is due, and the platform balances.
+  const owedByCard = new Map(cardBalances(rows, cards.map((c) => c.id)).map((b) => [b.cardId, b.owed]));
+  const cardRows = cards.map((c) => {
+    const due = nextDueDate(c.dueDay, today);
+    return { id: c.id, name: c.name, owed: owedByCard.get(c.id) ?? 0, due, days: daysBetween(today, due) };
+  });
+  const totalOwed = cardRows.reduce((sum, c) => sum + c.owed, 0);
+  const dueSoon = cardRows.filter((c) => c.owed > 0 && c.days <= 7);
+  const waiting = platformWaiting(rows);
+  const totalWaiting = waiting.reduce((sum, w) => sum + w.amount, 0);
+  const afterAll = Math.round((balances.total + totalWaiting - totalOwed) * 100) / 100;
 
   return (
     <div className="space-y-8">
@@ -178,13 +206,7 @@ export default async function FinancePage({
                     ))}
                   </select>
                 </div>
-                <div>
-                  <label className={labelClass}>Paid with</label>
-                  <select name="paidWith" required defaultValue="CASH" className={inputClass}>
-                    <option value="CASH">Production cash</option>
-                    <option value="BANK">Bank</option>
-                  </select>
-                </div>
+                <PaidWithFields cards={cards.map((c) => ({ id: c.id, name: c.name }))} />
                 <NoteField />
                 <div className="flex flex-col gap-2 sm:flex-row">
                   <PillButton name="after" value="again" className="flex-1">
@@ -219,6 +241,18 @@ export default async function FinancePage({
           </>
         }
       />
+
+      {dueSoon.length > 0 && (
+        <div className="space-y-2" role="status">
+          {dueSoon.map((c) => (
+            <div key={c.id} className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900">
+              <span className="font-semibold">{c.name}</span> is due{" "}
+              {c.days === 0 ? "today" : c.days === 1 ? "tomorrow" : `in ${c.days} days`} ({fmtDate(c.due, "MMM d")}):{" "}
+              <span className="font-semibold">{formatPeso(c.owed)}</span> owed.
+            </div>
+          ))}
+        </div>
+      )}
 
       {!hasOpening && (
         <SoftCard accent="amber">
@@ -256,6 +290,146 @@ export default async function FinancePage({
             />
           </div>
         </div>
+      </SoftCard>
+
+      <SoftCard className="sm:!p-8">
+        <div className="grid gap-8 lg:grid-cols-2 lg:gap-10">
+          <div>
+            <h2 className="text-lg font-medium text-slate-900">Waiting at platforms</h2>
+            <p className="mt-0.5 text-sm text-slate-500">
+              What TikTok and Shopee show as available to withdraw. Update it whenever you check.
+            </p>
+            <ul className="mt-4 divide-y divide-slate-100">
+              {(["TIKTOK", "SHOPEE"] as const).map((code) => {
+                const w = waiting.find((x) => x.channel === code);
+                return (
+                  <li key={code} className="flex items-center justify-between gap-3 py-3">
+                    <div>
+                      <div className="text-sm font-medium text-slate-800">{channelLabel(code)}</div>
+                      <div className="text-xs text-slate-500">
+                        {w ? `as of ${fmtDate(w.asOf, "MMM d")}` : "not entered yet"}
+                      </div>
+                    </div>
+                    <div className="text-lg font-semibold text-emerald-700">{w ? formatPeso(w.amount) : "—"}</div>
+                  </li>
+                );
+              })}
+            </ul>
+            <div className="mt-4">
+              <FormDialog
+                size="sm"
+                triggerLabel="Update platform balance"
+                title="Platform balance"
+                description="Type the amount shown as Available to withdraw."
+              >
+                <ActionForm action={setPlatformBalanceForm} closeDialogOnSuccess className="space-y-3">
+                  <div>
+                    <label className={labelClass}>Platform</label>
+                    <select name="channel" required defaultValue="TIKTOK" className={inputClass}>
+                      <option value="TIKTOK">TikTok Shop</option>
+                      <option value="SHOPEE">Shopee</option>
+                    </select>
+                  </div>
+                  <TodayField today={today} />
+                  <AmountField label="Available to withdraw (₱)" />
+                  <PillButton className="w-full">Save balance</PillButton>
+                </ActionForm>
+              </FormDialog>
+            </div>
+          </div>
+
+          <div className="lg:border-l lg:border-slate-200 lg:pl-10">
+            <h2 className="text-lg font-medium text-slate-900">Credit cards</h2>
+            <p className="mt-0.5 text-sm text-slate-500">What is owed on each card and when the bill is due.</p>
+            {cardRows.length === 0 ? (
+              <div className="mt-4">
+                <EmptyState>No credit card added yet.</EmptyState>
+              </div>
+            ) : (
+              <ul className="mt-4 divide-y divide-slate-100">
+                {cardRows.map((c) => (
+                  <li key={c.id} className="py-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium text-slate-800">{c.name}</div>
+                        <div className={`text-xs ${c.owed > 0 && c.days <= 7 ? "font-medium text-amber-700" : "text-slate-500"}`}>
+                          Due {fmtDate(c.due, "MMM d")} ·{" "}
+                          {c.days === 0 ? "today" : c.days === 1 ? "tomorrow" : `in ${c.days} days`}
+                        </div>
+                      </div>
+                      <div className={`text-lg font-semibold ${c.owed > 0 ? "text-rose-700" : "text-slate-500"}`}>
+                        {formatPeso(c.owed)}
+                      </div>
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      {c.owed > 0 && (
+                        <FormDialog
+                          size="sm"
+                          triggerLabel="Pay this card"
+                          title={`Pay ${c.name}`}
+                          description={`${formatPeso(c.owed)} is owed. The payment comes out of the bank.`}
+                        >
+                          <ActionForm action={payCardForm} closeDialogOnSuccess className="space-y-3">
+                            <input type="hidden" name="cardId" value={c.id} />
+                            <TodayField today={today} />
+                            <div>
+                              <label className={labelClass}>Amount paid (₱)</label>
+                              <NumberInput name="amount" required defaultValue={c.owed} className={inputClass} />
+                            </div>
+                            <NoteField />
+                            <PillButton className="w-full">Record payment</PillButton>
+                          </ActionForm>
+                        </FormDialog>
+                      )}
+                      {c.owed === 0 && (
+                        <ActionForm action={setCardActiveForm} compactError>
+                          <input type="hidden" name="cardId" value={c.id} />
+                          <input type="hidden" name="active" value="false" />
+                          <button type="submit" className="text-xs text-slate-500 underline hover:text-slate-800">
+                            Remove card
+                          </button>
+                        </ActionForm>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className="mt-4">
+              <FormDialog
+                size="sm"
+                triggerLabel="+ Add card"
+                title="Add a credit card"
+                description="Just a name and the day of the month the bill is due."
+              >
+                <ActionForm action={addCardForm} closeDialogOnSuccess className="space-y-3">
+                  <div>
+                    <label className={labelClass}>Card name</label>
+                    <input name="name" required maxLength={40} placeholder="e.g. Metrobank" className={inputClass} />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Due day of the month</label>
+                    <input
+                      name="dueDay"
+                      type="number"
+                      min={1}
+                      max={31}
+                      required
+                      inputMode="numeric"
+                      placeholder="e.g. 25"
+                      className={inputClass}
+                    />
+                  </div>
+                  <PillButton className="w-full">Add card</PillButton>
+                </ActionForm>
+              </FormDialog>
+            </div>
+          </div>
+        </div>
+        <p className="mt-6 border-t border-slate-100 pt-4 text-sm text-slate-500">
+          After the platforms pay out and the cards are paid, we would have{" "}
+          <span className="font-medium text-slate-800">{formatPeso(afterAll)}</span>.
+        </p>
       </SoftCard>
 
       <Banner
@@ -402,8 +576,18 @@ export default async function FinancePage({
                   e.kind === "INCOME"
                     ? channelLabel(e.category)
                     : e.kind === "EXPENSE"
-                      ? `${categoryLabel(e.category)} · paid with ${e.paidWith === "CASH" ? "production cash" : "bank"}`
-                      : KIND_LABEL[e.kind];
+                      ? `${categoryLabel(e.category)} · paid with ${
+                        e.paidWith === "CASH"
+                          ? "production cash"
+                          : e.paidWith === "CARD"
+                            ? `card ${cardName.get(e.cardId ?? "") ?? ""}`.trim()
+                            : "bank"
+                      }`
+                      : e.kind === "CARD_PAYMENT"
+                        ? (cardName.get(e.cardId ?? "") ?? "card")
+                        : e.kind === "PLATFORM_BALANCE"
+                          ? channelLabel(e.category)
+                          : KIND_LABEL[e.kind];
                 return (
                   <li key={e.id} className={`px-5 py-4 sm:px-7 ${e.voided ? "bg-slate-50" : ""}`}>
                     <div className="flex flex-wrap items-start justify-between gap-3">

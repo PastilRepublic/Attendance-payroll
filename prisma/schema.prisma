@@ -550,12 +550,18 @@ enum FinanceKind {
   INCOME
   EXPENSE
   CASH_WITHDRAWAL
+  /** Money paid from the bank towards a credit card's balance. */
+  CARD_PAYMENT
+  /** A snapshot of the "available to withdraw" balance a platform is holding (category = channel code). Not part of the bank. */
+  PLATFORM_BALANCE
 }
 
 /** Where an expense was paid from. */
 enum FinancePaidWith {
   CASH
   BANK
+  /** Charged to a credit card (cardId says which); the bank only drops when the card is paid. */
+  CARD
 }
 
 /**
@@ -574,6 +580,9 @@ model FinanceEntry {
   category String?
   /** EXPENSE only: CASH comes out of the production cash, BANK out of the bank. */
   paidWith FinancePaidWith?
+  /** EXPENSE paid with CARD, and CARD_PAYMENT: which card. */
+  cardId   String?
+  card     FinanceCard?    @relation(fields: [cardId], references: [id])
   note     String?
 
   createdByAdminId String?
@@ -589,4 +598,17 @@ model FinanceEntry {
 
   @@index([date])
   @@index([kind, voided])
+  @@index([cardId])
+}
+
+/** A credit card the owners pay supplies and platform charges with. What is owed on it is worked out from the ledger. */
+model FinanceCard {
+  id        String   @id @default(cuid())
+  name      String
+  /** Day of the month the bill is due (1-31; short months use their last day). */
+  dueDay    Int
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  entries FinanceEntry[]
 }
