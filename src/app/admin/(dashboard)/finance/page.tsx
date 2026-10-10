@@ -18,9 +18,9 @@ import SoftHeader from "@/components/ui/SoftHeader";
 import SoftCard from "@/components/ui/SoftCard";
 import StatTile from "@/components/ui/StatTile";
 import Banner from "@/components/ui/Banner";
-import IconChip from "@/components/ui/IconChip";
 import EmptyState from "@/components/ui/EmptyState";
 import MonthPicker from "@/components/ui/MonthPicker";
+import FormDialog from "@/components/ui/FormDialog";
 import PillButton from "@/components/ui/PillButton";
 import { inputClass, labelClass, pillClass, smallLabelClass } from "@/components/ui/styles";
 import {
@@ -43,31 +43,6 @@ const KIND_LABEL: Record<string, string> = {
   EXPENSE: "Expense",
   CASH_WITHDRAWAL: "Cash withdrawal",
 };
-
-const ICON = "h-6 w-6";
-const svg = { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, className: ICON } as const;
-
-function ReceiptIcon() {
-  return (
-    <svg {...svg} aria-hidden>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Zm3 5h6m-6 4h6" />
-    </svg>
-  );
-}
-function InIcon() {
-  return (
-    <svg {...svg} aria-hidden>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v12m0 0-4-4m4 4 4-4M5 20h14" />
-    </svg>
-  );
-}
-function CashIcon() {
-  return (
-    <svg {...svg} aria-hidden>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M3 7h18v10H3V7Zm9 7.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM6 10v4m12-4v4" />
-    </svg>
-  );
-}
 
 function TodayField({ today }: { today: string }) {
   return (
@@ -147,6 +122,82 @@ export default async function FinancePage({
       <SoftHeader
         title="Finance"
         description="Where our money comes from and where it goes. Owners only."
+        actions={
+          <>
+            <FormDialog
+              variant="primary"
+              triggerLabel="+ Money received"
+              title="Money received"
+              description="A payout or payment that reached the bank."
+            >
+              <ActionForm action={addIncomeForm} closeDialogOnSuccess className="space-y-3">
+                <TodayField today={today} />
+                <AmountField label="Amount received (₱)" />
+                <div>
+                  <label className={labelClass}>From</label>
+                  <select name="channel" required defaultValue="" className={inputClass}>
+                    <option value="" disabled>
+                      Choose…
+                    </option>
+                    {INCOME_CHANNELS.map((c) => (
+                      <option key={c.code} value={c.code}>
+                        {c.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <NoteField />
+                <PillButton className="w-full">Add money received</PillButton>
+              </ActionForm>
+            </FormDialog>
+
+            <FormDialog
+              triggerLabel="+ Add expense"
+              title="Add expense"
+              description="Chicken, oil, gas, anything we spend on."
+            >
+              <ActionForm action={addExpenseForm} closeDialogOnSuccess className="space-y-3">
+                <TodayField today={today} />
+                <AmountField />
+                <div>
+                  <label className={labelClass}>Spent on</label>
+                  <select name="category" required defaultValue="" className={inputClass}>
+                    <option value="" disabled>
+                      Choose…
+                    </option>
+                    {EXPENSE_CATEGORIES.map((c) => (
+                      <option key={c.code} value={c.code}>
+                        {c.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className={labelClass}>Paid with</label>
+                  <select name="paidWith" required defaultValue="CASH" className={inputClass}>
+                    <option value="CASH">Production cash</option>
+                    <option value="BANK">Bank</option>
+                  </select>
+                </div>
+                <NoteField />
+                <PillButton className="w-full">Add expense</PillButton>
+              </ActionForm>
+            </FormDialog>
+
+            <FormDialog
+              triggerLabel="Cash withdrawal"
+              title="Cash withdrawal"
+              description="Cash taken from the bank for production. Not an expense."
+            >
+              <ActionForm action={addCashWithdrawalForm} closeDialogOnSuccess className="space-y-3">
+                <TodayField today={today} />
+                <AmountField label="Amount withdrawn (₱)" />
+                <NoteField />
+                <PillButton className="w-full">Add withdrawal</PillButton>
+              </ActionForm>
+            </FormDialog>
+          </>
+        }
       />
 
       {!hasOpening && (
@@ -181,83 +232,6 @@ export default async function FinancePage({
         <div className="col-span-2 lg:col-span-1">
           <StatTile tone="dark" label="Total money" value={formatPeso(balances.total)} hint="Bank + cash" />
         </div>
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-3">
-        <SoftCard>
-          <IconChip tone="red">
-            <ReceiptIcon />
-          </IconChip>
-          <h2 className="text-lg font-medium text-slate-900">Add expense</h2>
-          <p className="mt-0.5 text-sm text-slate-500">Chicken, oil, gas, anything we spend on.</p>
-          <ActionForm action={addExpenseForm} resetOnSuccess className="mt-5 space-y-3">
-            <TodayField today={today} />
-            <AmountField />
-            <div>
-              <label className={labelClass}>Spent on</label>
-              <select name="category" required defaultValue="" className={inputClass}>
-                <option value="" disabled>
-                  Choose…
-                </option>
-                {EXPENSE_CATEGORIES.map((c) => (
-                  <option key={c.code} value={c.code}>
-                    {c.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className={labelClass}>Paid with</label>
-              <select name="paidWith" required defaultValue="CASH" className={inputClass}>
-                <option value="CASH">Production cash</option>
-                <option value="BANK">Bank</option>
-              </select>
-            </div>
-            <NoteField />
-            <PillButton className="w-full">Add expense</PillButton>
-          </ActionForm>
-        </SoftCard>
-
-        <SoftCard>
-          <IconChip tone="green">
-            <InIcon />
-          </IconChip>
-          <h2 className="text-lg font-medium text-slate-900">Money received</h2>
-          <p className="mt-0.5 text-sm text-slate-500">A payout or payment that reached the bank.</p>
-          <ActionForm action={addIncomeForm} resetOnSuccess className="mt-5 space-y-3">
-            <TodayField today={today} />
-            <AmountField label="Amount received (₱)" />
-            <div>
-              <label className={labelClass}>From</label>
-              <select name="channel" required defaultValue="" className={inputClass}>
-                <option value="" disabled>
-                  Choose…
-                </option>
-                {INCOME_CHANNELS.map((c) => (
-                  <option key={c.code} value={c.code}>
-                    {c.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <NoteField />
-            <PillButton className="w-full">Add money received</PillButton>
-          </ActionForm>
-        </SoftCard>
-
-        <SoftCard>
-          <IconChip tone="amber">
-            <CashIcon />
-          </IconChip>
-          <h2 className="text-lg font-medium text-slate-900">Cash withdrawal</h2>
-          <p className="mt-0.5 text-sm text-slate-500">Cash taken from the bank for production. Not an expense.</p>
-          <ActionForm action={addCashWithdrawalForm} resetOnSuccess className="mt-5 space-y-3">
-            <TodayField today={today} />
-            <AmountField label="Amount withdrawn (₱)" />
-            <NoteField />
-            <PillButton className="w-full">Add withdrawal</PillButton>
-          </ActionForm>
-        </SoftCard>
       </div>
 
       <Banner
