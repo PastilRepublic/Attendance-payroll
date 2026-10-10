@@ -702,3 +702,187 @@ export async function recordPaydayForm(_prev: FormState, formData: FormData): Pr
 export async function voidPaydayForm(_prev: FormState, formData: FormData): Promise<FormState> {
   return runForm(() => voidPayday(formData));
 }
+
+// ---- Monthly bills: rent, internet, electricity... saved once, recorded each month ----
+
+const billSchema = z
+  .object({
+    name: z.string().trim().min(1, "Give the bill a name, like Rent.").max(40, "Keep the name under 40 characters."),
+    category: z.enum(codes(EXPENSE_CATEGORIES), "Choose what kind of bill it is."),
+    amount: amountField,
+    dueDay: dayOfMonth("due day"),
+    paidWith: z.enum(["CASH", "BANK", "CARD"], "Choose how it is paid."),
+    cardId: z.string().optional(),
+  })
+  .refine((v) => v.paidWith !== "CARD" || !!v.cardId, {
+    message: "Choose which credit card it is charged to.",
+    path: ["cardId"],
+  });
+
+async function activeCardOrThrow(cardId: string) {
+  const card = await prisma.financeCard.findFirst({ where: { id: cardId, active: true }, select: { id: true, name: true } });
+  if (!card) throw new Error("That credit card is no longer in use.");
+  return card;
+}
+
+/** Saves a bill that comes every month, so it only has to be recorded with one tap. */
+export async function addBill(formData: FormData) {
+  const admin = await requireOwner();
+  const parsed = billSchema.parse({
+    name: formData.get("name"),
+    category: formData.get("category"),
+    amount: numberText(formData.get("amount")),
+    dueDay: formData.get("dueDay"),
+    paidWith: formData.get("paidWith"),
+    cardId: formData.get("cardId") || undefined,
+  });
+
+  const duplicate = await prisma.financeBill.findFirst({
+    where: { active: true, name: { equals: parsed.name, mode: "insensitive" } },
+    select: { id: true },
+  });
+  if (duplicate) throw new Error("You already have a monthly bill with that name.");
+  const card = parsed.paidWith === "CARD" ? await activeCardOrThrow(parsed.cardId!) : null;
+
+  const bill = await prisma.financeBill.create({
+    data: {
+      name: parsed.name,
+      category: parsed.category,
+      amount: parsed.amount,
+      dueDay: parsed.dueDay,
+      paidWith: parsed.paidWith,
+      cardId: card?.id,
+    },
+  });
+  await logAudit({
+    actorAdminId: admin.id,
+    action: "ADD_FINANCE_BILL",
+    targetTable: "FinanceBill",
+    targetId: bill.id,
+    after: { name: bill.name, category: bill.category, amount: parsed.amount, dueDay: bill.dueDay, paidWith: bill.paidWith },
+  });
+  revalidateFinance();
+  return `${bill.name} added: ${formatPeso(parsed.amount)} on the ${bill.dueDay}th of every month`;
+}
+
+const updateBillSchema = z.object({
+  billId: z.string().min(1),
+  amount: amountField,
+  dueDay: dayOfMonth("due day"),
+});
+
+/** Changes a bill's usual amount and due day (past records are not touched). */
+export async function updateBill(formData: FormData) {
+  const admin = await requireOwner();
+  const parsed = updateBillSchema.parse({
+    billId: formData.get("billId"),
+    amount: numberText(formData.get("amount")),
+    dueDay: formData.get("dueDay"),
+  });
+  const bill = await prisma.financeBill.findUnique({ where: { id: parsed.billId } });
+  if (!bill) throw new Error("That bill no longer exists.");
+
+  await prisma.financeBill.update({ where: { id: bill.id }, data: { amount: parsed.amount, dueDay: parsed.dueDay } });
+  await logAudit({
+    actorAdminId: admin.id,
+    action: "UPDATE_FINANCE_BILL",
+    targetTable: "FinanceBill",
+    targetId: bill.id,
+    before: { amount: Number(bill.amount), dueDay: bill.dueDay },
+    after: { amount: parsed.amount, dueDay: parsed.dueDay },
+  });
+  revalidateFinance();
+}
+
+/** Stops a monthly bill (it stays in the records it already made). */
+export async function setBillActive(formData: FormData) {
+  const admin = await requireOwner();
+  const billId = z.string().min(1).parse(formData.get("billId"));
+  const active = formData.get("active") === "true";
+  const bill = await prisma.financeBill.findUnique({ where: { id: billId } });
+  if (!bill) throw new Error("That bill no longer exists.");
+
+  await prisma.financeBill.update({ where: { id: billId }, data: { active } });
+  await logAudit({
+    actorAdminId: admin.id,
+    action: active ? "REACTIVATE_FINANCE_BILL" : "DEACTIVATE_FINANCE_BILL",
+    targetTable: "FinanceBill",
+    targetId: billId,
+  });
+  revalidateFinance();
+}
+
+const recordBillSchema = z.object({
+  billId: z.string().min(1),
+  date: dateField,
+  amount: amountField,
+  note: noteField,
+});
+
+/** Records one month's bill as an ordinary expense. Once per bill per month. */
+export async function recordBill(formData: FormData) {
+  const admin = await requireOwner();
+  const parsed = recordBillSchema.parse({
+    billId: formData.get("billId"),
+    date: formData.get("date"),
+    amount: numberText(formData.get("amount")),
+    note: formData.get("note") || undefined,
+  });
+
+  const bill = await prisma.financeBill.findUnique({ where: { id: parsed.billId } });
+  if (!bill || !bill.active) throw new Error("That bill is no longer in use.");
+  const card = bill.paidWith === "CARD" && bill.cardId ? await activeCardOrThrow(bill.cardId) : null;
+  if (bill.paidWith === "CARD" && !card) throw new Error("Choose a card for this bill first.");
+
+  const month = parsed.date.slice(0, 7);
+  const already = await prisma.financeEntry.findFirst({
+    where: {
+      billId: bill.id,
+      voided: false,
+      date: { gte: new Date(`${month}-01T00:00:00.000Z`), lt: new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 1)) },
+    },
+    select: { id: true },
+  });
+  if (already) {
+    throw new Error(`${bill.name} is already recorded for that month. Void that record first if it was wrong.`);
+  }
+
+  const entry = await prisma.financeEntry.create({
+    data: {
+      date: new Date(`${parsed.date}T00:00:00.000Z`),
+      kind: "EXPENSE",
+      amount: parsed.amount,
+      category: bill.category,
+      paidWith: bill.paidWith,
+      cardId: card?.id,
+      billId: bill.id,
+      note: parsed.note ?? `Monthly bill: ${bill.name}`,
+      createdByAdminId: admin.id,
+    },
+  });
+  await logAudit({
+    actorAdminId: admin.id,
+    action: "RECORD_FINANCE_BILL",
+    targetTable: "FinanceEntry",
+    targetId: entry.id,
+    after: { bill: bill.name, date: parsed.date, amount: parsed.amount },
+  });
+  revalidateFinance();
+  return `${bill.name} · ${formatPeso(parsed.amount)} recorded`;
+}
+
+export async function addBillForm(_prev: FormState, formData: FormData): Promise<FormState> {
+  return runForm(() => addBill(formData));
+}
+
+export async function updateBillForm(_prev: FormState, formData: FormData): Promise<FormState> {
+  return runForm(() => updateBill(formData));
+}
+
+export async function setBillActiveForm(_prev: FormState, formData: FormData): Promise<FormState> {
+  return runForm(() => setBillActive(formData));
+}
+
+export async function recordBillForm(_prev: FormState, formData: FormData): Promise<FormState> {
+  return runForm(() => recordBill(formData));
+}

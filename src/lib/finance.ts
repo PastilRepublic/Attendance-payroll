@@ -83,6 +83,12 @@ export const EXPENSE_CATEGORIES = [
   { code: "OTHER", label: "Other" },
 ] as const;
 
+/**
+ * What it costs to make and sell the product, as opposed to the costs of running the business.
+ * Anything not listed here (including a category added later) counts as an operating cost.
+ */
+export const PRODUCTION_COST_CODES: readonly string[] = ["CHICKEN", "INGREDIENTS", "OIL", "GAS", "PACKAGING", "DELIVERY"];
+
 export const channelLabel = (code: string | null) =>
   INCOME_CHANNELS.find((c) => c.code === code)?.label ?? code ?? "Other";
 export const categoryLabel = (code: string | null) =>
@@ -131,6 +137,10 @@ export interface MonthSummary {
   withdrawn: number;
   /** Money owners took out of the bank this month (not an expense). */
   drawn: number;
+  /** Spending on making and selling: chicken, ingredients, oil, gas, jars, delivery. */
+  productionCosts: number;
+  /** Spending on running the business: rent, bills, salaries, ads, taxes, other. */
+  operatingCosts: number;
   byChannel: { code: string; label: string; amount: number }[];
   byCategory: { code: string; label: string; amount: number }[];
 }
@@ -142,6 +152,11 @@ export function summarizeMonth(rows: FinanceRow[], monthKey: string): MonthSumma
     round2(inMonth.filter((r) => r.kind === kind).reduce((s, r) => s + r.amount, 0));
   const received = sum("INCOME");
   const spent = sum("EXPENSE");
+  const productionCosts = round2(
+    inMonth
+      .filter((r) => r.kind === "EXPENSE" && r.category && PRODUCTION_COST_CODES.includes(r.category))
+      .reduce((t, r) => t + r.amount, 0)
+  );
 
   const group = (kind: FinanceKindCode, codes: readonly { code: string; label: string }[]) => {
     const totals = new Map<string, number>();
@@ -163,6 +178,8 @@ export function summarizeMonth(rows: FinanceRow[], monthKey: string): MonthSumma
     profit: round2(received - spent),
     withdrawn: sum("CASH_WITHDRAWAL"),
     drawn: sum("OWNER_DRAW"),
+    productionCosts,
+    operatingCosts: round2(spent - productionCosts),
     byChannel: group("INCOME", INCOME_CHANNELS),
     byCategory: group("EXPENSE", EXPENSE_CATEGORIES),
   };
@@ -462,3 +479,22 @@ export function sharePlan(
 
 /** The biggest percentage that can be given to each of the owners (they can't add up past 100). */
 export const maxPercentEach = (ownerCount: number) => (ownerCount > 0 ? Math.floor((10000 / ownerCount)) / 100 : 0);
+
+// ---- Monthly bills ----
+
+export interface BillStatus {
+  /** When this month's bill is due. */
+  dueDate: string;
+  /** Days from today to the due date (negative once it has passed). */
+  days: number;
+  state: "recorded" | "overdue" | "dueSoon" | "later";
+}
+
+/** Where a monthly bill stands this month: already recorded, overdue, due within 3 days, or later. */
+export function billStatus(dueDay: number, recordedThisMonth: boolean, todayKey: string): BillStatus {
+  const [y, m] = todayKey.split("-").map(Number);
+  const dueDate = dateKey(y, m, clampDay(y, m, dueDay));
+  const days = daysBetween(todayKey, dueDate);
+  const state = recordedThisMonth ? "recorded" : days < 0 ? "overdue" : days <= 3 ? "dueSoon" : "later";
+  return { dueDate, days, state };
+}

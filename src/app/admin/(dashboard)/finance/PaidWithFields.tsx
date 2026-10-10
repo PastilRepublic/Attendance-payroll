@@ -8,8 +8,14 @@ import { inputClass, labelClass } from "@/components/ui/styles";
  * card shows a second field for which card. The choice stays between entries, so a run of
  * card charges doesn't need re-picking.
  */
-export default function PaidWithFields({ cards }: { cards: { id: string; name: string }[] }) {
-  const [paidWith, setPaidWith] = useState("CASH");
+export default function PaidWithFields({
+  cards,
+  defaultPaidWith = "CASH",
+}: {
+  cards: { id: string; name: string }[];
+  defaultPaidWith?: "CASH" | "BANK" | "CARD";
+}) {
+  const [paidWith, setPaidWith] = useState<string>(defaultPaidWith);
 
   return (
     <>

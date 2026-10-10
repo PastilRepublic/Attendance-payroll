@@ -592,6 +592,9 @@ model FinanceEntry {
   /** The payday this share or payout belongs to. */
   paydayId String?
   payday   FinancePayday?  @relation(fields: [paydayId], references: [id])
+  /** EXPENSE recorded from a monthly bill: which one (so the bill shows as done for that month). */
+  billId   String?
+  bill     FinanceBill?    @relation(fields: [billId], references: [id])
   note     String?
 
   createdByAdminId String?
@@ -610,6 +613,7 @@ model FinanceEntry {
   @@index([cardId])
   @@index([ownerId])
   @@index([paydayId])
+  @@index([billId])
 }
 
 /** A credit card the owners pay supplies and platform charges with. What is owed on it is worked out from the ledger. */
@@ -624,6 +628,7 @@ model FinanceCard {
   createdAt DateTime @default(now())
 
   entries FinanceEntry[]
+  bills   FinanceBill[]
 }
 
 /**
@@ -650,4 +655,26 @@ model FinancePayday {
   entries FinanceEntry[]
 
   @@index([date])
+}
+
+/**
+ * A bill that comes every month (rent, internet, electricity). Saved once; each month it is
+ * recorded as an ordinary EXPENSE line with one tap, and shows as done for that month.
+ */
+model FinanceBill {
+  id       String          @id @default(cuid())
+  name     String
+  /** An expense category code (RENT, UTILITIES...). */
+  category String
+  /** The usual amount; it can be changed when the bill is recorded. */
+  amount   Decimal         @db.Decimal(12, 2)
+  /** Day of the month it is due (1-31; short months use their last day). */
+  dueDay   Int
+  paidWith FinancePaidWith
+  cardId   String?
+  card     FinanceCard?    @relation(fields: [cardId], references: [id])
+  active   Boolean         @default(true)
+  createdAt DateTime       @default(now())
+
+  entries FinanceEntry[]
 }

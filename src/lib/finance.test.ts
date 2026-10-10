@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  billStatus,
   cardBalances,
   cashLog,
   computeBalances,
@@ -406,5 +407,33 @@ describe("owner draws and paydays", () => {
     expect(maxPercentEach(2)).toBe(50);
     expect(maxPercentEach(3)).toBe(33.33);
     expect(maxPercentEach(0)).toBe(0);
+  });
+});
+
+describe("cost groups and monthly bills", () => {
+  it("splits spending into making-and-selling costs and operating costs", () => {
+    const rows = [
+      row({ kind: "INCOME", amount: 100000, category: "SHOPEE" }),
+      row({ kind: "EXPENSE", amount: 30000, category: "CHICKEN", paidWith: "CASH" }),
+      row({ kind: "EXPENSE", amount: 5000, category: "PACKAGING", paidWith: "BANK" }),
+      row({ kind: "EXPENSE", amount: 12000, category: "RENT", paidWith: "BANK" }),
+      row({ kind: "EXPENSE", amount: 8000, category: "ADVERTISING", paidWith: "CARD", cardId: "c1" }),
+      row({ kind: "EXPENSE", amount: 999, category: "CHICKEN", paidWith: "CASH", voided: true }),
+      row({ kind: "EXPENSE", amount: 700, category: "SOMETHING_NEW", paidWith: "BANK" }),
+    ];
+    const s = summarizeMonth(rows, "2026-10");
+    expect(s.productionCosts).toBe(35000);
+    expect(s.operatingCosts).toBe(20700);
+    expect(s.productionCosts + s.operatingCosts).toBe(s.spent);
+  });
+
+  it("works out where a monthly bill stands", () => {
+    expect(billStatus(5, true, "2026-10-10").state).toBe("recorded");
+    expect(billStatus(5, false, "2026-10-10")).toEqual({ dueDate: "2026-10-05", days: -5, state: "overdue" });
+    expect(billStatus(12, false, "2026-10-10")).toEqual({ dueDate: "2026-10-12", days: 2, state: "dueSoon" });
+    expect(billStatus(10, false, "2026-10-10").state).toBe("dueSoon");
+    expect(billStatus(25, false, "2026-10-10").state).toBe("later");
+    // A 31st in a short month falls on its last day.
+    expect(billStatus(31, false, "2026-02-10").dueDate).toBe("2026-02-28");
   });
 });

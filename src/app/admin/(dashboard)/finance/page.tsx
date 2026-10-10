@@ -11,6 +11,7 @@ import {
   NEUTRAL_CHANNEL_STYLE,
   cardBalances,
   cardDue,
+  billStatus,
   cashLog,
   categoryLabel,
   channelLabel,
@@ -44,8 +45,12 @@ import {
   addCashWithdrawalForm,
   addExpenseForm,
   addIncomeForm,
+  addBillForm,
   addOwnerDrawForm,
   payCardForm,
+  recordBillForm,
+  setBillActiveForm,
+  updateBillForm,
   recordPaydayForm,
   setCardActiveForm,
   setCardStatementDayForm,
@@ -120,6 +125,7 @@ export default async function FinancePage({
       owner: { select: { name: true } },
     },
   });
+  const bills = await prisma.financeBill.findMany({ where: { active: true }, orderBy: [{ dueDay: "asc" }, { name: "asc" }] });
   const session = await auth();
   const owners = await prisma.adminUser.findMany({
     where: { role: "OWNER", active: true },
@@ -177,6 +183,20 @@ export default async function FinancePage({
   const overdueCards = cardRows.filter((c) => c.overdue);
   const dueSoon = cardRows.filter((c) => !c.overdue && c.dueAmount > 0 && c.days <= 7);
   const afterCards = Math.round((balances.total - totalOwed) * 100) / 100;
+
+  // Monthly bills: which ones are already recorded this month, and which are due or late.
+  const recordedBills = new Set(
+    entries
+      .filter((e) => e.billId && !e.voided && e.date.toISOString().slice(0, 7) === current)
+      .map((e) => e.billId as string)
+  );
+  const billRows = bills.map((b) => ({
+    ...b,
+    amount: Number(b.amount),
+    status: billStatus(b.dueDay, recordedBills.has(b.id), today),
+    paidLabel: b.paidWith === "CASH" ? "production cash" : b.paidWith === "CARD" ? `card ${cardName.get(b.cardId ?? "") ?? ""}`.trim() : "bank",
+  }));
+  const billAlerts = billRows.filter((b) => b.status.state === "overdue" || b.status.state === "dueSoon");
 
   // Owners: what each is owed, and the payday that is ready to record.
   const ownerBal = ownerBalances(rows, owners.map((o) => o.id));
@@ -384,6 +404,25 @@ export default async function FinancePage({
         </div>
       )}
 
+      {billAlerts.length > 0 && (
+        <div className="space-y-2" role="status">
+          {billAlerts.map((b) =>
+            b.status.state === "overdue" ? (
+              <div key={b.id} className="rounded-2xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-900">
+                <span className="font-semibold">{b.name}</span> was due {fmtDate(b.status.dueDate, "MMM d")} and is not
+                recorded yet.
+              </div>
+            ) : (
+              <div key={b.id} className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900">
+                <span className="font-semibold">{b.name}</span> is due{" "}
+                {b.status.days === 0 ? "today" : b.status.days === 1 ? "tomorrow" : `in ${b.status.days} days`} (
+                {fmtDate(b.status.dueDate, "MMM d")}): about <span className="font-semibold">{formatPeso(b.amount)}</span>.
+              </div>
+            )
+          )}
+        </div>
+      )}
+
       {!hasOpening && (
         <SoftCard accent="amber">
           <h2 className="text-lg font-medium text-slate-900">Set your starting balances</h2>
@@ -587,6 +626,151 @@ export default async function FinancePage({
         )}
       </SoftCard>
 
+      <SoftCard className="sm:!p-8">
+        <h2 className="text-lg font-medium text-slate-900">Monthly bills</h2>
+        <p className="mt-0.5 text-sm text-slate-500">
+          Rent, internet, electricity and the like. Save each once, then record it with one tap every month.
+        </p>
+        {billRows.length === 0 ? (
+          <div className="mt-4">
+            <EmptyState>No monthly bills saved yet.</EmptyState>
+          </div>
+        ) : (
+          <ul className="mt-4 divide-y divide-slate-100">
+            {billRows.map((b) => (
+              <li key={b.id} className="py-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium text-slate-800">{b.name}</div>
+                    <div className="text-xs text-slate-500">
+                      {categoryLabel(b.category)} · paid with {b.paidLabel}
+                    </div>
+                    {b.status.state === "recorded" ? (
+                      <div className="mt-0.5 text-xs font-medium text-emerald-700">Recorded for {monthLabel(current)}</div>
+                    ) : b.status.state === "overdue" ? (
+                      <div className="mt-0.5 text-xs font-medium text-rose-700">
+                        Was due {fmtDate(b.status.dueDate, "MMM d")}
+                      </div>
+                    ) : (
+                      <div
+                        className={`mt-0.5 text-xs ${b.status.state === "dueSoon" ? "font-medium text-amber-700" : "text-slate-500"}`}
+                      >
+                        Due {fmtDate(b.status.dueDate, "MMM d")}
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-right text-base font-semibold text-slate-900">{formatPeso(b.amount)}</div>
+                </div>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  {b.status.state !== "recorded" && (
+                    <FormDialog
+                      size="sm"
+                      variant="primary"
+                      triggerLabel="Record this month"
+                      title={`Record ${b.name}`}
+                      description={`Saved as an expense, paid with ${b.paidLabel}. Change the amount if this month is different.`}
+                    >
+                      <ActionForm action={recordBillForm} closeDialogOnSuccess className="space-y-3">
+                        <input type="hidden" name="billId" value={b.id} />
+                        <TodayField today={today} />
+                        <div>
+                          <label className={labelClass}>Amount (₱)</label>
+                          <NumberInput name="amount" required defaultValue={b.amount} className={inputClass} />
+                        </div>
+                        <NoteField />
+                        <PillButton className="w-full">Record {b.name}</PillButton>
+                      </ActionForm>
+                    </FormDialog>
+                  )}
+                  <FormDialog
+                    size="sm"
+                    triggerLabel="Edit"
+                    title={`Edit ${b.name}`}
+                    description="Change the usual amount or the day it is due. Past records stay as they are."
+                  >
+                    <ActionForm action={updateBillForm} closeDialogOnSuccess className="space-y-3">
+                      <input type="hidden" name="billId" value={b.id} />
+                      <div>
+                        <label className={labelClass}>Usual amount (₱)</label>
+                        <NumberInput name="amount" required defaultValue={b.amount} className={inputClass} />
+                      </div>
+                      <div>
+                        <label className={labelClass}>Due day of the month</label>
+                        <input
+                          name="dueDay"
+                          type="number"
+                          min={1}
+                          max={31}
+                          required
+                          inputMode="numeric"
+                          defaultValue={b.dueDay}
+                          className={inputClass}
+                        />
+                      </div>
+                      <PillButton className="w-full">Save changes</PillButton>
+                    </ActionForm>
+                  </FormDialog>
+                  <ActionForm action={setBillActiveForm} compactError>
+                    <input type="hidden" name="billId" value={b.id} />
+                    <input type="hidden" name="active" value="false" />
+                    <button type="submit" className="text-xs text-slate-500 underline hover:text-slate-800">
+                      Remove
+                    </button>
+                  </ActionForm>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="mt-4">
+          <FormDialog
+            size="sm"
+            triggerLabel="+ Add monthly bill"
+            title="Add a monthly bill"
+            description="Something you pay every month. You can change the amount each time you record it."
+          >
+            <ActionForm action={addBillForm} closeDialogOnSuccess className="space-y-3">
+              <div>
+                <label className={labelClass}>Name</label>
+                <input name="name" required maxLength={40} placeholder="e.g. Rent" className={inputClass} />
+              </div>
+              <div>
+                <label className={labelClass}>Kind of bill</label>
+                <select name="category" required defaultValue="" className={inputClass}>
+                  <option value="" disabled>
+                    Choose…
+                  </option>
+                  {EXPENSE_CATEGORIES.map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {c.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className={labelClass}>Usual amount (₱)</label>
+                <NumberInput name="amount" required placeholder="0.00" className={inputClass} />
+              </div>
+              <div>
+                <label className={labelClass}>Due day of the month</label>
+                <input
+                  name="dueDay"
+                  type="number"
+                  min={1}
+                  max={31}
+                  required
+                  inputMode="numeric"
+                  placeholder="e.g. 5"
+                  className={inputClass}
+                />
+              </div>
+              <PaidWithFields cards={cards.map((c) => ({ id: c.id, name: c.name }))} defaultPaidWith="BANK" />
+              <PillButton className="w-full">Add bill</PillButton>
+            </ActionForm>
+          </FormDialog>
+        </div>
+      </SoftCard>
+
       <Banner
         title={month === current ? "This month" : monthLabel(month)}
         description={`Money received and spent in ${monthLabel(month)}. Pick another month to look back.`}
@@ -610,7 +794,19 @@ export default async function FinancePage({
             />
           </div>
         </div>
-        <p className="mt-6 border-t border-slate-100 pt-4 text-sm text-slate-500">
+        <div className="mt-6 grid gap-4 border-t border-slate-100 pt-4 sm:grid-cols-2 sm:gap-8">
+          <div>
+            <div className="text-sm text-slate-500">Making and selling</div>
+            <div className="text-lg font-semibold text-slate-800">{formatPeso(summary.productionCosts)}</div>
+            <div className="text-xs text-slate-400">Chicken, ingredients, oil, gas, jars, delivery</div>
+          </div>
+          <div className="sm:border-l sm:border-slate-200 sm:pl-8">
+            <div className="text-sm text-slate-500">Operating costs</div>
+            <div className="text-lg font-semibold text-slate-800">{formatPeso(summary.operatingCosts)}</div>
+            <div className="text-xs text-slate-400">Rent, bills, salaries, ads, taxes, other</div>
+          </div>
+        </div>
+        <p className="mt-4 border-t border-slate-100 pt-4 text-sm text-slate-500">
           Cash taken out of the bank this month: {formatPeso(summary.withdrawn)}{" "}
           <span className="text-slate-400">(moved to production cash, not counted as spending)</span>
         </p>
