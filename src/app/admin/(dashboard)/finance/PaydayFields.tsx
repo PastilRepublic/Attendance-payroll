@@ -11,14 +11,11 @@ import { inputClass, labelClass } from "@/components/ui/styles";
  */
 export default function PaydayFields({
   profit,
-  received,
   owners,
   maxPercent,
   defaultPercent,
 }: {
   profit: number;
-  /** Money received over the same period, to show the payout as a share of it. */
-  received: number;
   owners: { id: string; name: string; before: number }[];
   maxPercent: number;
   defaultPercent?: number;
@@ -70,10 +67,10 @@ export default function PaydayFields({
             );
           })}
         </ul>
-        {received > 0 && (
+        {profit > 0 && (
           <p className="text-xs text-slate-500">
             Together the owners are paid {formatPeso(totalPaid)}, which is{" "}
-            {Math.round((totalPaid / received) * 1000) / 10}% of the {formatPeso(received)} received.
+            {Math.round((totalPaid / profit) * 1000) / 10}% of the {formatPeso(profit)} net profit.
           </p>
         )}
         </>

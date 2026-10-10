@@ -979,11 +979,11 @@ export default async function FinancePage({
           What each owner has taken, and the payday on the 15th and 30th.
         </p>
 
-        {summary.drawn > 0 && summary.received > 0 && (
+        {summary.drawn > 0 && summary.profit > 0 && (
           <p className="mt-4 text-sm text-slate-600">
             In {monthLabel(month)} the owners took{" "}
             <span className="font-semibold text-slate-900">{formatPeso(summary.drawn)}</span>, which is{" "}
-            {Math.round((summary.drawn / summary.received) * 1000) / 10}% of the {formatPeso(summary.received)} received.
+            {Math.round((summary.drawn / summary.profit) * 1000) / 10}% of the {formatPeso(summary.profit)} net profit.
           </p>
         )}
 
@@ -1014,7 +1014,6 @@ export default async function FinancePage({
               <input type="hidden" name="paydayDate" value={paydayDay} />
               <PaydayFields
                 profit={paydayPeriod.profit}
-                received={paydayPeriod.received}
                 owners={owners.map((o) => ({ id: o.id, name: o.name, before: ownerBal.get(o.id) ?? 0 }))}
                 maxPercent={maxPercent}
                 defaultPercent={paydays[0] ? Number(paydays[0].percent) : undefined}
@@ -1105,10 +1104,6 @@ export default async function FinancePage({
                   share: d.entries.filter((e) => e.ownerId === o.id && e.kind === "OWNER_SHARE").reduce((t, e) => t + Number(e.amount), 0),
                   paid: d.entries.filter((e) => e.ownerId === o.id && e.kind === "OWNER_DRAW").reduce((t, e) => t + Number(e.amount), 0),
                 }));
-                const dayKey = (x: Date) => x.toISOString().slice(0, 10);
-                const received = rows
-                  .filter((r) => r.kind === "INCOME" && !r.voided && r.date >= dayKey(d.periodStart) && r.date <= dayKey(d.periodEnd))
-                  .reduce((t, r) => t + r.amount, 0);
                 const paidTotal = perOwner.reduce((t, o) => t + o.paid, 0);
                 return (
                   <li key={d.id} className="rounded-2xl border border-slate-200 p-4">
@@ -1120,10 +1115,10 @@ export default async function FinancePage({
                         <div className="text-xs text-slate-500">
                           Profit {formatPeso(Number(d.profit))} · {Number(d.percent)}% each
                         </div>
-                        {received > 0 && (
+                        {Number(d.profit) > 0 && (
                           <div className="text-xs text-slate-500">
-                            Paid out {formatPeso(paidTotal)} · {Math.round((paidTotal / received) * 1000) / 10}% of the{" "}
-                            {formatPeso(received)} received
+                            Paid out {formatPeso(paidTotal)} · {Math.round((paidTotal / Number(d.profit)) * 1000) / 10}% of
+                            the net profit
                           </div>
                         )}
                       </div>
