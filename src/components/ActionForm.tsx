@@ -82,13 +82,23 @@ export default function ActionForm({
     startTransition(() => formAction(fd));
   }
 
+  // The fields sit inside a <fieldset> (it disables them while saving). Flex and grid forms
+  // work through it because it is "display: contents", but a vertical-spacing class
+  // (space-y-*) only reaches direct children -- so that class moves onto the fieldset.
+  const classes = (className ?? "").split(/\s+/).filter(Boolean);
+  const spacing = classes.find((c) => c.startsWith("space-y-"));
+  const formClass = classes.filter((c) => c !== spacing).join(" ");
+
   return (
     <form
       ref={formRef}
       onSubmit={onSubmit}
-      className={compactError ? `relative ${className ?? ""}`.trim() : className}
+      className={compactError ? `relative ${formClass}`.trim() : formClass || undefined}
     >
-      <fieldset disabled={pending} className="contents">
+      <fieldset
+        disabled={pending}
+        className={spacing ? `${spacing} m-0 min-w-0 border-0 p-0` : "contents"}
+      >
         {children}
       </fieldset>
       {compactError && state.error && dismissed !== state && (
