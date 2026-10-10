@@ -59,9 +59,9 @@ export const INCOME_CHANNELS = [
  */
 export const CHANNEL_STYLE: Record<string, { box: string; label: string; value: string }> = {
   SHOPEE: { box: "bg-orange-50", label: "text-orange-800", value: "text-orange-950" },
-  TIKTOK: { box: "bg-sky-50", label: "text-sky-800", value: "text-sky-950" },
+  TIKTOK: { box: "bg-violet-50", label: "text-violet-800", value: "text-violet-950" },
   DIRECT: { box: "bg-emerald-50", label: "text-emerald-800", value: "text-emerald-950" },
-  RESELLER: { box: "bg-violet-50", label: "text-violet-800", value: "text-violet-950" },
+  RESELLER: { box: "bg-sky-50", label: "text-sky-800", value: "text-sky-950" },
   REBRANDING: { box: "bg-amber-50", label: "text-amber-800", value: "text-amber-950" },
 };
 
