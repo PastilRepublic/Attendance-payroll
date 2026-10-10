@@ -40,6 +40,7 @@ import PillButton from "@/components/ui/PillButton";
 import { inputClass, labelClass, pillClass } from "@/components/ui/styles";
 import PaidWithFields from "./PaidWithFields";
 import PaydayFields from "./PaydayFields";
+import ReminderTicker, { type Reminder } from "./ReminderTicker";
 import {
   addCardForm,
   addCashWithdrawalForm,
@@ -198,6 +199,39 @@ export default async function FinancePage({
   }));
   const billAlerts = billRows.filter((b) => b.status.state === "overdue" || b.status.state === "dueSoon");
 
+  // Everything that needs a look, for the sliding banner at the top: late things first.
+  const when = (days: number) => (days === 0 ? "today" : days === 1 ? "tomorrow" : `in ${days} days`);
+  const reminders: Reminder[] = [
+    ...overdueCards.map((c) => ({
+      key: `card-late-${c.id}`,
+      tone: "overdue" as const,
+      name: c.name,
+      rest: `bill was due ${fmtDate(c.overdue!.since, "MMM d")}: ${formatPeso(c.overdue!.amount)} is still unpaid.`,
+    })),
+    ...billAlerts
+      .filter((b) => b.status.state === "overdue")
+      .map((b) => ({
+        key: `bill-late-${b.id}`,
+        tone: "overdue" as const,
+        name: b.name,
+        rest: `was due ${fmtDate(b.status.dueDate, "MMM d")} and is not recorded yet.`,
+      })),
+    ...dueSoon.map((c) => ({
+      key: `card-soon-${c.id}`,
+      tone: "soon" as const,
+      name: c.name,
+      rest: `is due ${when(c.days)} (${fmtDate(c.dueDate, "MMM d")}): ${formatPeso(c.dueAmount)} to pay.`,
+    })),
+    ...billAlerts
+      .filter((b) => b.status.state === "dueSoon")
+      .map((b) => ({
+        key: `bill-soon-${b.id}`,
+        tone: "soon" as const,
+        name: b.name,
+        rest: `is due ${when(b.status.days)} (${fmtDate(b.status.dueDate, "MMM d")}): about ${formatPeso(b.amount)}.`,
+      })),
+  ];
+
   // Owners: what each is owed, and the payday that is ready to record.
   const ownerBal = ownerBalances(rows, owners.map((o) => o.id));
   const lastPaydayKey = paydays[0] ? paydays[0].date.toISOString().slice(0, 10) : null;
@@ -284,6 +318,8 @@ export default async function FinancePage({
 
   return (
     <div className="space-y-8">
+      <ReminderTicker reminders={reminders} />
+
       <SoftHeader
         title="Finance"
         description="Where our money comes from and where it goes. Owners only."
@@ -379,49 +415,6 @@ export default async function FinancePage({
           </>
         }
       />
-
-      {(overdueCards.length > 0 || dueSoon.length > 0) && (
-        <div className="space-y-2" role="status">
-          {overdueCards.map((c) => (
-            <div key={c.id} className="rounded-2xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-900">
-              <span className="font-semibold">{c.name}</span> bill was due {fmtDate(c.overdue!.since, "MMM d")}:{" "}
-              <span className="font-semibold">{formatPeso(c.overdue!.amount)}</span> is still unpaid.
-            </div>
-          ))}
-          {dueSoon.map((c) => (
-            <div key={c.id} className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900">
-              <span className="font-semibold">{c.name}</span> is due{" "}
-              {c.days === 0 ? "today" : c.days === 1 ? "tomorrow" : `in ${c.days} days`} ({fmtDate(c.dueDate, "MMM d")}):{" "}
-              <span className="font-semibold">{formatPeso(c.dueAmount)}</span> to pay.
-              {c.notYetBilled > 0 && (
-                <span className="text-amber-800">
-                  {" "}
-                  A further {formatPeso(c.notYetBilled)} charged since the statement is on next month&apos;s bill.
-                </span>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {billAlerts.length > 0 && (
-        <div className="space-y-2" role="status">
-          {billAlerts.map((b) =>
-            b.status.state === "overdue" ? (
-              <div key={b.id} className="rounded-2xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-900">
-                <span className="font-semibold">{b.name}</span> was due {fmtDate(b.status.dueDate, "MMM d")} and is not
-                recorded yet.
-              </div>
-            ) : (
-              <div key={b.id} className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900">
-                <span className="font-semibold">{b.name}</span> is due{" "}
-                {b.status.days === 0 ? "today" : b.status.days === 1 ? "tomorrow" : `in ${b.status.days} days`} (
-                {fmtDate(b.status.dueDate, "MMM d")}): about <span className="font-semibold">{formatPeso(b.amount)}</span>.
-              </div>
-            )
-          )}
-        </div>
-      )}
 
       {!hasOpening && (
         <SoftCard accent="amber">

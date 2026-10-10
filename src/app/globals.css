@@ -40,3 +40,51 @@ select,
 textarea {
   color: var(--foreground);
 }
+
+/* Sliding reminder banner (Finance). Six copies side by side; the track slides left by one copy
+   and starts over, so it loops with no jump. Paused on hover/press, and plain lines when the
+   device asks for reduced motion. */
+.ticker {
+  overflow: hidden;
+}
+.ticker-track {
+  display: flex;
+  width: max-content;
+  animation: ticker-slide var(--ticker-seconds, 30s) linear infinite;
+}
+.ticker:hover .ticker-track,
+.ticker:active .ticker-track,
+.ticker:focus-within .ticker-track {
+  animation-play-state: paused;
+}
+.ticker-copy {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 3rem;
+  padding-right: 3rem;
+  min-width: 50vw;
+  white-space: nowrap;
+  list-style: none;
+  margin: 0;
+}
+@keyframes ticker-slide {
+  to {
+    transform: translateX(calc(-100% / 6));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ticker-track {
+    animation: none;
+    width: auto;
+  }
+  .ticker-copy {
+    flex-wrap: wrap;
+    min-width: 0;
+    white-space: normal;
+    gap: 0.25rem 1.5rem;
+  }
+  .ticker-copy[aria-hidden="true"] {
+    display: none;
+  }
+}
