@@ -242,3 +242,99 @@ export function daysBetween(fromKey: string, toKey: string): number {
   };
   return Math.round((toTime(toKey) - toTime(fromKey)) / 86400000);
 }
+
+const pad2 = (n: number) => String(n).padStart(2, "0");
+const dateKey = (y: number, m: number, d: number) => `${y}-${pad2(m)}-${pad2(d)}`;
+const clampDay = (y: number, m: number, day: number) => Math.min(day, daysInMonth(y, m));
+
+/**
+ * The date of the latest statement on or before today: this month's statement day if it has
+ * come (today counts), otherwise last month's. Charges dated up to and including it are on
+ * that bill; later ones wait for the next.
+ */
+export function lastStatementDate(statementDay: number, todayKey: string): string {
+  const [y, m, d] = todayKey.split("-").map(Number);
+  const thisMonth = clampDay(y, m, statementDay);
+  if (d >= thisMonth) return dateKey(y, m, thisMonth);
+  const py = m === 1 ? y - 1 : y;
+  const pm = m === 1 ? 12 : m - 1;
+  return dateKey(py, pm, clampDay(py, pm, statementDay));
+}
+
+/** The statement date one month before the given one. */
+export function previousStatementDate(statementDay: number, statementDate: string): string {
+  const [y, m] = statementDate.split("-").map(Number);
+  const py = m === 1 ? y - 1 : y;
+  const pm = m === 1 ? 12 : m - 1;
+  return dateKey(py, pm, clampDay(py, pm, statementDay));
+}
+
+/**
+ * When the bill for a statement is due: the same month if the due day comes after the
+ * statement day, otherwise the next month (statement on the 17th, due on the 5th means the
+ * 5th of next month).
+ */
+export function dueDateFor(statementDate: string, dueDay: number): string {
+  const [y, m, d] = statementDate.split("-").map(Number);
+  if (dueDay > d) return dateKey(y, m, clampDay(y, m, dueDay));
+  const ny = m === 12 ? y + 1 : y;
+  const nm = m === 12 ? 1 : m + 1;
+  return dateKey(ny, nm, clampDay(ny, nm, dueDay));
+}
+
+export interface CardDue {
+  /** Everything charged to the card minus everything paid. */
+  owed: number;
+  /** The latest statement date, and when its bill is due. */
+  statementDate: string;
+  dueDate: string;
+  /** What is still due on that statement (charges up to the statement date, minus payments since). */
+  dueAmount: number;
+  /** Charged after the statement date: on next month's bill. */
+  notYetBilled: number;
+  /** Set when a bill's due date has passed with money still unpaid. */
+  overdue: { amount: number; since: string } | null;
+}
+
+/**
+ * Splits one card's balance into "due on the latest bill" and "not billed yet", and spots a
+ * bill that is past its due date. Charges count by the date they were made.
+ */
+export function cardDue(
+  rows: FinanceRow[],
+  cardId: string,
+  statementDay: number,
+  dueDay: number,
+  todayKey: string
+): CardDue {
+  const mine = live(rows).filter((r) => r.cardId === cardId);
+  const total = (kind: "EXPENSE" | "CARD_PAYMENT", until?: string) =>
+    mine
+      .filter((r) => r.kind === kind && (kind === "CARD_PAYMENT" || r.paidWith === "CARD") && (!until || r.date <= until))
+      .reduce((sum, r) => sum + r.amount, 0);
+
+  const owed = round2(total("EXPENSE") - total("CARD_PAYMENT"));
+  const dueOn = (statementDate: string) => {
+    const billed = total("EXPENSE", statementDate) - total("CARD_PAYMENT", statementDate);
+    const paidSince = total("CARD_PAYMENT") - total("CARD_PAYMENT", statementDate);
+    return Math.max(round2(billed - paidSince), 0);
+  };
+
+  const statementDate = lastStatementDate(statementDay, todayKey);
+  const dueDate = dueDateFor(statementDate, dueDay);
+  const dueAmount = dueOn(statementDate);
+  const notYetBilled = Math.max(round2(owed - dueAmount), 0);
+
+  let overdue: CardDue["overdue"] = null;
+  if (dueAmount > 0 && todayKey > dueDate) {
+    overdue = { amount: dueAmount, since: dueDate };
+  } else {
+    // The bill before this one: its due date may have passed with money still unpaid.
+    const prevStatement = previousStatementDate(statementDay, statementDate);
+    const prevDue = dueDateFor(prevStatement, dueDay);
+    const prevAmount = dueOn(prevStatement);
+    if (prevAmount > 0 && todayKey > prevDue) overdue = { amount: prevAmount, since: prevDue };
+  }
+
+  return { owed, statementDate, dueDate, dueAmount, notYetBilled, overdue };
+}

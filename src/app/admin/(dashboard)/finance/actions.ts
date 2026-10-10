@@ -267,18 +267,31 @@ async function amountOwed(cardId: string): Promise<number> {
   return cardBalances(rows, [cardId])[0].owed;
 }
 
-const addCardSchema = z.object({
-  name: z.string().trim().min(1, "Give the card a name, like Metrobank.").max(40, "Keep the name under 40 characters."),
-  dueDay: z.coerce
+const dayOfMonth = (label: string) =>
+  z.coerce
     .number()
-    .int("The due day must be a whole number.")
-    .min(1, "The due day is 1 to 31.")
-    .max(31, "The due day is 1 to 31."),
-});
+    .int(`The ${label} must be a whole number.`)
+    .min(1, `The ${label} is 1 to 31.`)
+    .max(31, `The ${label} is 1 to 31.`);
+
+const addCardSchema = z
+  .object({
+    name: z.string().trim().min(1, "Give the card a name, like Metrobank.").max(40, "Keep the name under 40 characters."),
+    statementDay: dayOfMonth("statement day"),
+    dueDay: dayOfMonth("due day"),
+  })
+  .refine((v) => v.statementDay !== v.dueDay, {
+    message: "The due day can't be the same as the statement day.",
+    path: ["dueDay"],
+  });
 
 export async function addCard(formData: FormData) {
   const admin = await requireOwner();
-  const parsed = addCardSchema.parse({ name: formData.get("name"), dueDay: formData.get("dueDay") });
+  const parsed = addCardSchema.parse({
+    name: formData.get("name"),
+    statementDay: formData.get("statementDay"),
+    dueDay: formData.get("dueDay"),
+  });
 
   const duplicate = await prisma.financeCard.findFirst({
     where: { active: true, name: { equals: parsed.name, mode: "insensitive" } },
@@ -286,16 +299,48 @@ export async function addCard(formData: FormData) {
   });
   if (duplicate) throw new Error("You already have a card with that name.");
 
-  const card = await prisma.financeCard.create({ data: { name: parsed.name, dueDay: parsed.dueDay } });
+  const card = await prisma.financeCard.create({
+    data: { name: parsed.name, statementDay: parsed.statementDay, dueDay: parsed.dueDay },
+  });
   await logAudit({
     actorAdminId: admin.id,
     action: "ADD_FINANCE_CARD",
     targetTable: "FinanceCard",
     targetId: card.id,
-    after: { name: card.name, dueDay: card.dueDay },
+    after: { name: card.name, statementDay: card.statementDay, dueDay: card.dueDay },
   });
   revalidateFinance();
-  return `${card.name} added, due on day ${card.dueDay}`;
+  return `${card.name} added: statement on the ${card.statementDay}th, due on the ${card.dueDay}th`;
+}
+
+const statementDaySchema = z.object({
+  cardId: z.string().min(1),
+  statementDay: dayOfMonth("statement day"),
+});
+
+/** Sets (or changes) the day of the month a card's statement is printed. */
+export async function setCardStatementDay(formData: FormData) {
+  const admin = await requireOwner();
+  const parsed = statementDaySchema.parse({
+    cardId: formData.get("cardId"),
+    statementDay: formData.get("statementDay"),
+  });
+
+  const card = await prisma.financeCard.findUnique({ where: { id: parsed.cardId } });
+  if (!card) throw new Error("That card no longer exists.");
+  if (card.dueDay === parsed.statementDay) throw new Error("The statement day can't be the same as the due day.");
+
+  await prisma.financeCard.update({ where: { id: card.id }, data: { statementDay: parsed.statementDay } });
+  await logAudit({
+    actorAdminId: admin.id,
+    action: "SET_FINANCE_CARD_STATEMENT_DAY",
+    targetTable: "FinanceCard",
+    targetId: card.id,
+    before: { statementDay: card.statementDay },
+    after: { statementDay: parsed.statementDay },
+  });
+  revalidateFinance();
+  return `${card.name}: statement on the ${parsed.statementDay}th`;
 }
 
 /** A card with something still owed can't be removed from the list. */
@@ -401,3 +446,6 @@ export async function payCardForm(_prev: FormState, formData: FormData): Promise
   return runForm(() => payCard(formData));
 }
 
+export async function setCardStatementDayForm(_prev: FormState, formData: FormData): Promise<FormState> {
+  return runForm(() => setCardStatementDay(formData));
+}

@@ -9,6 +9,7 @@ import {
   INCOME_CHANNELS,
   NEUTRAL_CHANNEL_STYLE,
   cardBalances,
+  cardDue,
   cashLog,
   categoryLabel,
   channelLabel,
@@ -16,6 +17,7 @@ import {
   daysBetween,
   nextDueDate,
   summarizeMonth,
+  type CardDue,
   type FinanceRow,
 } from "@/lib/finance";
 import ActionForm from "@/components/ActionForm";
@@ -37,6 +39,7 @@ import {
   addIncomeForm,
   payCardForm,
   setCardActiveForm,
+  setCardStatementDayForm,
   setOpeningBalancesForm,
   voidFinanceEntryForm,
 } from "./actions";
@@ -129,14 +132,21 @@ export default async function FinancePage({
   const biggestSpend = summary.byCategory[0]?.amount ?? 0;
   const cashLow = balances.cash < 0;
 
-  // Credit cards: what is owed and when each bill is due, and the platform balances.
-  const owedByCard = new Map(cardBalances(rows, cards.map((c) => c.id)).map((b) => [b.cardId, b.owed]));
+  // Credit cards: what is due on the latest bill, what isn't billed yet, and what is overdue.
   const cardRows = cards.map((c) => {
-    const due = nextDueDate(c.dueDay, today);
-    return { id: c.id, name: c.name, owed: owedByCard.get(c.id) ?? 0, due, days: daysBetween(today, due) };
+    let info: CardDue;
+    if (c.statementDay) {
+      info = cardDue(rows, c.id, c.statementDay, c.dueDay, today);
+    } else {
+      // A card added before statement days existed: one balance and the next due day.
+      const owed = cardBalances(rows, [c.id])[0].owed;
+      info = { owed, statementDate: "", dueDate: nextDueDate(c.dueDay, today), dueAmount: owed, notYetBilled: 0, overdue: null };
+    }
+    return { id: c.id, name: c.name, statementDay: c.statementDay, ...info, days: daysBetween(today, info.dueDate) };
   });
   const totalOwed = cardRows.reduce((sum, c) => sum + c.owed, 0);
-  const dueSoon = cardRows.filter((c) => c.owed > 0 && c.days <= 7);
+  const overdueCards = cardRows.filter((c) => c.overdue);
+  const dueSoon = cardRows.filter((c) => !c.overdue && c.dueAmount > 0 && c.days <= 7);
   const afterCards = Math.round((balances.total - totalOwed) * 100) / 100;
 
   return (
@@ -237,13 +247,25 @@ export default async function FinancePage({
         }
       />
 
-      {dueSoon.length > 0 && (
+      {(overdueCards.length > 0 || dueSoon.length > 0) && (
         <div className="space-y-2" role="status">
+          {overdueCards.map((c) => (
+            <div key={c.id} className="rounded-2xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-900">
+              <span className="font-semibold">{c.name}</span> bill was due {fmtDate(c.overdue!.since, "MMM d")}:{" "}
+              <span className="font-semibold">{formatPeso(c.overdue!.amount)}</span> is still unpaid.
+            </div>
+          ))}
           {dueSoon.map((c) => (
             <div key={c.id} className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900">
               <span className="font-semibold">{c.name}</span> is due{" "}
-              {c.days === 0 ? "today" : c.days === 1 ? "tomorrow" : `in ${c.days} days`} ({fmtDate(c.due, "MMM d")}):{" "}
-              <span className="font-semibold">{formatPeso(c.owed)}</span> owed.
+              {c.days === 0 ? "today" : c.days === 1 ? "tomorrow" : `in ${c.days} days`} ({fmtDate(c.dueDate, "MMM d")}):{" "}
+              <span className="font-semibold">{formatPeso(c.dueAmount)}</span> to pay.
+              {c.notYetBilled > 0 && (
+                <span className="text-amber-800">
+                  {" "}
+                  A further {formatPeso(c.notYetBilled)} charged since the statement is on next month&apos;s bill.
+                </span>
+              )}
             </div>
           ))}
         </div>
@@ -303,32 +325,86 @@ export default async function FinancePage({
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <div className="text-sm font-medium text-slate-800">{c.name}</div>
-                        <div className={`text-xs ${c.owed > 0 && c.days <= 7 ? "font-medium text-amber-700" : "text-slate-500"}`}>
-                          Due {fmtDate(c.due, "MMM d")} ·{" "}
-                          {c.days === 0 ? "today" : c.days === 1 ? "tomorrow" : `in ${c.days} days`}
-                        </div>
+                        {c.overdue ? (
+                          <div className="text-xs font-medium text-rose-700">
+                            Overdue since {fmtDate(c.overdue.since, "MMM d")}
+                          </div>
+                        ) : c.dueAmount > 0 ? (
+                          <div className={`text-xs ${c.days <= 7 ? "font-medium text-amber-700" : "text-slate-500"}`}>
+                            Due {fmtDate(c.dueDate, "MMM d")} ·{" "}
+                            {c.days === 0 ? "today" : c.days === 1 ? "tomorrow" : `in ${c.days} days`}
+                          </div>
+                        ) : (
+                          <div className="text-xs text-slate-500">
+                            {c.statementDay ? "Nothing due right now" : `Due day ${fmtDate(c.dueDate, "MMM d")}`}
+                          </div>
+                        )}
                       </div>
-                      <div className={`text-lg font-semibold ${c.owed > 0 ? "text-rose-700" : "text-slate-500"}`}>
-                        {formatPeso(c.owed)}
+                      <div className="text-right">
+                        <div className={`text-lg font-semibold ${c.dueAmount > 0 ? "text-rose-700" : "text-slate-500"}`}>
+                          {formatPeso(c.dueAmount)}
+                        </div>
+                        <div className="text-xs text-slate-500">{c.statementDay ? "due on the bill" : "owed"}</div>
                       </div>
                     </div>
+                    {c.notYetBilled > 0 && (
+                      <p className="mt-1 text-xs text-slate-500">
+                        {formatPeso(c.notYetBilled)} charged since the {c.statementDay}th, on next month&apos;s bill.
+                        Total owed {formatPeso(c.owed)}.
+                      </p>
+                    )}
                     <div className="mt-2 flex flex-wrap items-center gap-2">
                       {c.owed > 0 && (
                         <FormDialog
                           size="sm"
                           triggerLabel="Pay this card"
                           title={`Pay ${c.name}`}
-                          description={`${formatPeso(c.owed)} is owed. The payment comes out of the bank.`}
+                          description={
+                            c.statementDay
+                              ? `${formatPeso(c.dueAmount)} is due on the bill and ${formatPeso(c.owed)} is owed in total. The payment comes out of the bank.`
+                              : `${formatPeso(c.owed)} is owed. The payment comes out of the bank.`
+                          }
                         >
                           <ActionForm action={payCardForm} closeDialogOnSuccess className="space-y-3">
                             <input type="hidden" name="cardId" value={c.id} />
                             <TodayField today={today} />
                             <div>
                               <label className={labelClass}>Amount paid (₱)</label>
-                              <NumberInput name="amount" required defaultValue={c.owed} className={inputClass} />
+                              <NumberInput
+                                name="amount"
+                                required
+                                defaultValue={c.dueAmount > 0 ? c.dueAmount : c.owed}
+                                className={inputClass}
+                              />
                             </div>
                             <NoteField />
                             <PillButton className="w-full">Record payment</PillButton>
+                          </ActionForm>
+                        </FormDialog>
+                      )}
+                      {!c.statementDay && (
+                        <FormDialog
+                          size="sm"
+                          triggerLabel="Set statement day"
+                          title={`${c.name} statement day`}
+                          description="The day of the month the statement is printed. This lets Finance separate what is due from what is not billed yet."
+                        >
+                          <ActionForm action={setCardStatementDayForm} closeDialogOnSuccess className="space-y-3">
+                            <input type="hidden" name="cardId" value={c.id} />
+                            <div>
+                              <label className={labelClass}>Statement day of the month</label>
+                              <input
+                                name="statementDay"
+                                type="number"
+                                min={1}
+                                max={31}
+                                required
+                                inputMode="numeric"
+                                placeholder="e.g. 17"
+                                className={inputClass}
+                              />
+                            </div>
+                            <PillButton className="w-full">Save statement day</PillButton>
                           </ActionForm>
                         </FormDialog>
                       )}
@@ -351,12 +427,25 @@ export default async function FinancePage({
                 size="sm"
                 triggerLabel="+ Add card"
                 title="Add a credit card"
-                description="Just a name and the day of the month the bill is due."
+                description="The name, the day the statement is printed, and the day the bill is due."
               >
                 <ActionForm action={addCardForm} closeDialogOnSuccess className="space-y-3">
                   <div>
                     <label className={labelClass}>Card name</label>
                     <input name="name" required maxLength={40} placeholder="e.g. Metrobank" className={inputClass} />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Statement day of the month</label>
+                    <input
+                      name="statementDay"
+                      type="number"
+                      min={1}
+                      max={31}
+                      required
+                      inputMode="numeric"
+                      placeholder="e.g. 17"
+                      className={inputClass}
+                    />
                   </div>
                   <div>
                     <label className={labelClass}>Due day of the month</label>
@@ -367,7 +456,7 @@ export default async function FinancePage({
                       max={31}
                       required
                       inputMode="numeric"
-                      placeholder="e.g. 25"
+                      placeholder="e.g. 5"
                       className={inputClass}
                     />
                   </div>

@@ -603,6 +603,8 @@ model FinanceEntry {
 model FinanceCard {
   id        String   @id @default(cuid())
   name      String
+  /** Day of the month the statement is printed (1-31; short months use their last day). Charges up to it go on that bill. Null for a card added before this existed. */
+  statementDay Int?
   /** Day of the month the bill is due (1-31; short months use their last day). */
   dueDay    Int
   active    Boolean  @default(true)

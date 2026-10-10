@@ -3,7 +3,10 @@ import {
   cardBalances,
   cashLog,
   computeBalances,
+  cardDue,
+  dueDateFor,
   daysBetween,
+  lastStatementDate,
   nextDueDate,
   summarizeMonth,
   type FinanceRow,
@@ -135,6 +138,76 @@ describe("due dates", () => {
     expect(daysBetween("2026-10-10", "2026-10-13")).toBe(3);
     expect(daysBetween("2026-10-10", "2026-10-10")).toBe(0);
     expect(daysBetween("2026-12-30", "2027-01-02")).toBe(3);
+  });
+});
+
+describe("card statements (statement on the 17th, due on the 5th)", () => {
+  const charge = (amount: number, date: string, cardId = "c1") =>
+    row({ kind: "EXPENSE", amount, category: "ADVERTISING", paidWith: "CARD", cardId, date });
+  const payment = (amount: number, date: string, cardId = "c1") => row({ kind: "CARD_PAYMENT", amount, cardId, date });
+
+  it("finds the latest statement date and when its bill is due", () => {
+    expect(lastStatementDate(17, "2026-10-20")).toBe("2026-10-17");
+    expect(lastStatementDate(17, "2026-10-17")).toBe("2026-10-17");
+    expect(lastStatementDate(17, "2026-10-16")).toBe("2026-09-17");
+    expect(lastStatementDate(17, "2026-01-05")).toBe("2025-12-17");
+    expect(lastStatementDate(31, "2026-03-10")).toBe("2026-02-28");
+    expect(dueDateFor("2026-10-17", 5)).toBe("2026-11-05");
+    expect(dueDateFor("2026-10-17", 25)).toBe("2026-10-25");
+    expect(dueDateFor("2026-12-17", 5)).toBe("2027-01-05");
+  });
+
+  it("separates what is due on the bill from what is charged after the statement date", () => {
+    // Charges up to Oct 17 are on the bill; the ones from Oct 18 are not.
+    const rows = [charge(20000, "2026-10-03"), charge(12400, "2026-10-17"), charge(5000, "2026-10-18"), charge(3000, "2026-10-25")];
+    const c = cardDue(rows, "c1", 17, 5, "2026-10-31");
+    expect(c.statementDate).toBe("2026-10-17");
+    expect(c.dueDate).toBe("2026-11-05");
+    expect(c.dueAmount).toBe(32400);
+    expect(c.notYetBilled).toBe(8000);
+    expect(c.owed).toBe(40400);
+    expect(c.overdue).toBeNull();
+  });
+
+  it("after paying the bill, only the unbilled charges are left and nothing is due", () => {
+    const rows = [charge(32400, "2026-10-10"), charge(8000, "2026-10-20"), payment(32400, "2026-11-05")];
+    const c = cardDue(rows, "c1", 17, 5, "2026-11-06");
+    expect(c.dueAmount).toBe(0);
+    expect(c.notYetBilled).toBe(8000);
+    expect(c.owed).toBe(8000);
+    expect(c.overdue).toBeNull();
+  });
+
+  it("moves the unbilled charges onto the bill once the next statement date passes", () => {
+    const rows = [charge(32400, "2026-10-10"), charge(8000, "2026-10-20"), payment(32400, "2026-11-05"), charge(1000, "2026-11-10")];
+    const c = cardDue(rows, "c1", 17, 5, "2026-11-18");
+    expect(c.statementDate).toBe("2026-11-17");
+    expect(c.dueAmount).toBe(9000);
+    expect(c.dueDate).toBe("2026-12-05");
+  });
+
+  it("only counts what is still unpaid after a part payment", () => {
+    const rows = [charge(32400, "2026-10-10"), payment(20000, "2026-11-01")];
+    const c = cardDue(rows, "c1", 17, 5, "2026-11-02");
+    expect(c.dueAmount).toBe(12400);
+  });
+
+  it("flags a bill that is past its due date and still unpaid", () => {
+    const rows = [charge(32400, "2026-10-10")];
+    expect(cardDue(rows, "c1", 17, 5, "2026-11-05").overdue).toBeNull(); // due today is not late yet
+    expect(cardDue(rows, "c1", 17, 5, "2026-11-08").overdue).toEqual({ amount: 32400, since: "2026-11-05" });
+  });
+
+  it("still flags the previous bill after a new statement has been printed", () => {
+    const rows = [charge(32400, "2026-10-10"), charge(500, "2026-11-01")];
+    const c = cardDue(rows, "c1", 17, 5, "2026-11-20");
+    expect(c.overdue).toEqual({ amount: 32400, since: "2026-11-05" });
+  });
+
+  it("keeps cards separate and ignores voided lines", () => {
+    const rows = [charge(1000, "2026-10-01", "c1"), charge(2000, "2026-10-01", "c2"), { ...charge(5000, "2026-10-02", "c1"), voided: true }];
+    expect(cardDue(rows, "c1", 17, 5, "2026-10-20").dueAmount).toBe(1000);
+    expect(cardDue(rows, "c2", 17, 5, "2026-10-20").dueAmount).toBe(2000);
   });
 });
 
