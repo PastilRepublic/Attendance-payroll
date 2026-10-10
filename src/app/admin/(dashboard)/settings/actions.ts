@@ -235,3 +235,32 @@ export async function addOwnerAccount(formData: FormData) {
 export async function addOwnerAccountForm(_prev: FormState, formData: FormData): Promise<FormState> {
   return runForm(() => addOwnerAccount(formData));
 }
+
+const nameSchema = z.object({
+  name: z.string().trim().min(1, "Enter your name.").max(40, "Keep your name under 40 characters."),
+});
+
+/** Changes the signed-in admin's own display name (shown in Finance records, payday, and so on). */
+export async function updateMyName(formData: FormData) {
+  const user = await requireAdmin();
+  const parsed = nameSchema.parse({ name: formData.get("name") });
+
+  const admin = await prisma.adminUser.findUniqueOrThrow({ where: { id: user.id }, select: { id: true, name: true } });
+  if (admin.name === parsed.name) return "That is already your name.";
+
+  await prisma.adminUser.update({ where: { id: admin.id }, data: { name: parsed.name } });
+  await logAudit({
+    actorAdminId: admin.id,
+    action: "UPDATE_ADMIN_NAME",
+    targetTable: "AdminUser",
+    targetId: admin.id,
+    before: { name: admin.name },
+    after: { name: parsed.name },
+  });
+  revalidatePath("/admin", "layout");
+  return `Saved. You are now ${parsed.name}.`;
+}
+
+export async function updateMyNameForm(_prev: FormState, formData: FormData): Promise<FormState> {
+  return runForm(() => updateMyName(formData));
+}

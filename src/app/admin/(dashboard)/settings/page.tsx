@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import ActionForm from "@/components/ActionForm";
 import { auth } from "@/lib/auth";
-import { updateSettingsForm, changePasswordForm, setAdminPinForm, addOwnerAccountForm } from "./actions";
+import { updateSettingsForm, changePasswordForm, setAdminPinForm, addOwnerAccountForm, updateMyNameForm } from "./actions";
 import PasswordInput from "@/components/PasswordInput";
 import SoftHeader from "@/components/ui/SoftHeader";
 import SoftCard from "@/components/ui/SoftCard";
@@ -20,7 +20,7 @@ export default async function SettingsPage() {
   });
 
   const me = session?.user?.id
-    ? await prisma.adminUser.findUnique({ where: { id: session.user.id }, select: { pinHash: true } })
+    ? await prisma.adminUser.findUnique({ where: { id: session.user.id }, select: { pinHash: true, name: true } })
     : null;
   const hasPin = !!me?.pinHash;
   const owners = isOwner
@@ -179,6 +179,26 @@ export default async function SettingsPage() {
 
         <PillButton type="submit" className="w-full">Save Settings</PillButton>
       </ActionForm>
+      </SoftCard>
+
+      <SoftCard className="mt-6">
+        <h2 className="text-lg font-medium text-slate-900">Your name</h2>
+        <p className="mt-0.5 text-sm text-slate-500">
+          Shown next to everything you add or void in Finance, and on the owners&apos; share.
+        </p>
+        <ActionForm action={updateMyNameForm} successMessage="Name saved" className="mt-4 space-y-3">
+          <input
+            name="name"
+            required
+            maxLength={40}
+            defaultValue={me?.name ?? ""}
+            aria-label="Your name"
+            className="w-full rounded-full border border-slate-300 bg-slate-100 px-4 py-2.5 text-sm text-slate-900 focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-200"
+          />
+          <PillButton type="submit" variant="secondary" className="w-full">
+            Save name
+          </PillButton>
+        </ActionForm>
       </SoftCard>
 
       <SoftCard className="mt-6">
