@@ -16,7 +16,7 @@ import {
 import ActionForm from "@/components/ActionForm";
 import SoftHeader from "@/components/ui/SoftHeader";
 import SoftCard from "@/components/ui/SoftCard";
-import StatTile from "@/components/ui/StatTile";
+import Metric from "@/components/ui/Metric";
 import Banner from "@/components/ui/Banner";
 import EmptyState from "@/components/ui/EmptyState";
 import MonthPicker from "@/components/ui/MonthPicker";
@@ -115,7 +115,7 @@ export default async function FinancePage({
   const cashLow = balances.cash < 0;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <SoftHeader
         title="Finance"
         description="Where our money comes from and where it goes. Owners only."
@@ -239,18 +239,22 @@ export default async function FinancePage({
         </SoftCard>
       )}
 
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
-        <StatTile tone="neutral" label="In the bank" value={formatPeso(balances.bank)} hint="Estimated from what is recorded" />
-        <StatTile
-          tone={cashLow ? "rose" : "amber"}
-          label="Production cash"
-          value={formatPeso(balances.cash)}
-          hint={cashLow ? "Below zero: a withdrawal may be missing" : "Cash an owner is holding"}
-        />
-        <div className="col-span-2 lg:col-span-1">
-          <StatTile tone="dark" label="Total money" value={formatPeso(balances.total)} hint="Bank + cash" />
+      <SoftCard className="sm:!p-8">
+        <div className="grid gap-6 sm:grid-cols-[1.2fr_1fr_1fr] sm:items-center sm:gap-8">
+          <Metric big label="Total money" value={formatPeso(balances.total)} hint="Bank + production cash" />
+          <div className="sm:border-l sm:border-slate-200 sm:pl-8">
+            <Metric label="In the bank" value={formatPeso(balances.bank)} hint="Estimated from what is recorded" />
+          </div>
+          <div className="sm:border-l sm:border-slate-200 sm:pl-8">
+            <Metric
+              label="Production cash"
+              value={formatPeso(balances.cash)}
+              tone={cashLow ? "rose" : "amber"}
+              hint={cashLow ? "Below zero: a withdrawal may be missing" : "Cash an owner is holding"}
+            />
+          </div>
         </div>
-      </div>
+      </SoftCard>
 
       <Banner
         title={month === current ? "This month" : monthLabel(month)}
@@ -259,12 +263,27 @@ export default async function FinancePage({
         <MonthPicker value={month} current={current} basePath="/admin/finance" />
       </Banner>
 
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-        <StatTile tone="green" label="Money received" value={formatPeso(summary.received)} />
-        <StatTile tone="rose" label="Money spent" value={formatPeso(summary.spent)} />
-        <StatTile tone="dark" label="Estimated profit" value={formatPeso(summary.profit)} hint="Received minus spent" />
-        <StatTile tone="amber" label="Cash taken out" value={formatPeso(summary.withdrawn)} hint="Moved to cash, not spent yet" />
-      </div>
+      <SoftCard className="sm:!p-8">
+        <div className="grid gap-6 sm:grid-cols-3 sm:items-center sm:gap-8">
+          <Metric label="Money received" value={formatPeso(summary.received)} tone="green" />
+          <div className="sm:border-l sm:border-slate-200 sm:pl-8">
+            <Metric label="Money spent" value={formatPeso(summary.spent)} tone="rose" />
+          </div>
+          <div className="sm:border-l sm:border-slate-200 sm:pl-8">
+            <Metric
+              big
+              label="Estimated profit"
+              value={formatPeso(summary.profit)}
+              tone={summary.profit < 0 ? "rose" : "dark"}
+              hint="Received minus spent"
+            />
+          </div>
+        </div>
+        <p className="mt-6 border-t border-slate-100 pt-4 text-sm text-slate-500">
+          Cash taken out of the bank this month: {formatPeso(summary.withdrawn)}{" "}
+          <span className="text-slate-400">(moved to production cash, not counted as spending)</span>
+        </p>
+      </SoftCard>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <SoftCard>
