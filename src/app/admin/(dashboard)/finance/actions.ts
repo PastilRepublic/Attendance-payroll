@@ -8,7 +8,8 @@ import { logAudit } from "@/lib/audit";
 import { localDateKey } from "@/lib/payroll";
 import { isRealDateKey } from "@/lib/punchRules";
 import { runForm, type FormState } from "@/lib/formAction";
-import { EXPENSE_CATEGORIES, INCOME_CHANNELS } from "@/lib/finance";
+import { EXPENSE_CATEGORIES, INCOME_CHANNELS, categoryLabel, channelLabel } from "@/lib/finance";
+import { formatPeso } from "@/lib/format";
 
 const MAX_AMOUNT = 10_000_000;
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -76,6 +77,7 @@ export async function addExpense(formData: FormData) {
     after: { date: parsed.date, amount: parsed.amount, category: parsed.category, paidWith: parsed.paidWith },
   });
   revalidateFinance();
+  return `${categoryLabel(parsed.category)} · ${formatPeso(parsed.amount)} · ${parsed.paidWith === "CASH" ? "cash" : "bank"}`;
 }
 
 const incomeSchema = z.object({
@@ -113,6 +115,7 @@ export async function addIncome(formData: FormData) {
     after: { date: parsed.date, amount: parsed.amount, channel: parsed.channel },
   });
   revalidateFinance();
+  return `${channelLabel(parsed.channel)} · ${formatPeso(parsed.amount)} received`;
 }
 
 const withdrawalSchema = z.object({
@@ -147,6 +150,7 @@ export async function addCashWithdrawal(formData: FormData) {
     after: { date: parsed.date, amount: parsed.amount },
   });
   revalidateFinance();
+  return `${formatPeso(parsed.amount)} withdrawn`;
 }
 
 const openingSchema = z.object({

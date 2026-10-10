@@ -1,7 +1,7 @@
 import { unstable_rethrow } from "next/navigation";
 
 /** What a form action reports back to <ActionForm>: an error to show, or that it saved. */
-export type FormState = { error?: string; savedAt?: number };
+export type FormState = { error?: string; savedAt?: number; message?: string };
 
 /**
  * Turns whatever a server action threw into a message fit for the form. In
@@ -30,8 +30,9 @@ export function formMessage(err: unknown): string {
  */
 export async function runForm(body: () => Promise<unknown>): Promise<FormState> {
   try {
-    await body();
-    return { savedAt: Date.now() };
+    // A body that returns text (e.g. "Chicken ₱18,000.00 added") passes it to the form as a message.
+    const result = await body();
+    return { savedAt: Date.now(), message: typeof result === "string" ? result : undefined };
   } catch (err) {
     unstable_rethrow(err);
     return { error: formMessage(err) };

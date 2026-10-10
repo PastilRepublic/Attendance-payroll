@@ -130,7 +130,7 @@ export default async function FinancePage({
               title="Money received"
               description="A payout or payment that reached the bank."
             >
-              <ActionForm action={addIncomeForm} closeDialogOnSuccess className="space-y-3">
+              <ActionForm action={addIncomeForm} multiEntry={{ clear: ["amount", "channel", "note"] }} className="space-y-3">
                 <TodayField today={today} />
                 <AmountField label="Amount received (₱)" />
                 <div>
@@ -147,7 +147,14 @@ export default async function FinancePage({
                   </select>
                 </div>
                 <NoteField />
-                <PillButton className="w-full">Add money received</PillButton>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <PillButton name="after" value="again" className="flex-1">
+                    Save &amp; add another
+                  </PillButton>
+                  <PillButton name="after" value="close" variant="secondary" className="flex-1">
+                    Save &amp; close
+                  </PillButton>
+                </div>
               </ActionForm>
             </FormDialog>
 
@@ -156,7 +163,7 @@ export default async function FinancePage({
               title="Add expense"
               description="Chicken, oil, gas, anything we spend on."
             >
-              <ActionForm action={addExpenseForm} closeDialogOnSuccess className="space-y-3">
+              <ActionForm action={addExpenseForm} multiEntry={{ clear: ["amount", "category", "note"] }} className="space-y-3">
                 <TodayField today={today} />
                 <AmountField />
                 <div>
@@ -180,7 +187,14 @@ export default async function FinancePage({
                   </select>
                 </div>
                 <NoteField />
-                <PillButton className="w-full">Add expense</PillButton>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <PillButton name="after" value="again" className="flex-1">
+                    Save &amp; add another
+                  </PillButton>
+                  <PillButton name="after" value="close" variant="secondary" className="flex-1">
+                    Save &amp; close
+                  </PillButton>
+                </div>
               </ActionForm>
             </FormDialog>
 
@@ -189,11 +203,18 @@ export default async function FinancePage({
               title="Cash withdrawal"
               description="Cash taken from the bank for production. Not an expense."
             >
-              <ActionForm action={addCashWithdrawalForm} closeDialogOnSuccess className="space-y-3">
+              <ActionForm action={addCashWithdrawalForm} multiEntry={{ clear: ["amount", "note"] }} className="space-y-3">
                 <TodayField today={today} />
                 <AmountField label="Amount withdrawn (₱)" />
                 <NoteField />
-                <PillButton className="w-full">Add withdrawal</PillButton>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <PillButton name="after" value="again" className="flex-1">
+                    Save &amp; add another
+                  </PillButton>
+                  <PillButton name="after" value="close" variant="secondary" className="flex-1">
+                    Save &amp; close
+                  </PillButton>
+                </div>
               </ActionForm>
             </FormDialog>
           </>
