@@ -187,6 +187,81 @@ export default async function FinancePage({
   const maxPercent = maxPercentEach(owners.length);
   const canPayday = owners.length >= 2 && !!paydayPeriod && paydayPeriod.profit > 0;
 
+  // One line of the records list.
+  const renderRecord = (e: (typeof entries)[number]) => {
+    const isMoneyOut = e.kind === "EXPENSE";
+    const what =
+      e.kind === "INCOME"
+        ? channelLabel(e.category)
+        : e.kind === "EXPENSE"
+          ? `${categoryLabel(e.category)} · paid with ${
+            e.paidWith === "CASH"
+              ? "production cash"
+              : e.paidWith === "CARD"
+                ? `card ${cardName.get(e.cardId ?? "") ?? ""}`.trim()
+                : "bank"
+          }`
+          : e.kind === "CARD_PAYMENT"
+            ? (cardName.get(e.cardId ?? "") ?? "card")
+            : e.kind === "OWNER_DRAW"
+              ? `${e.owner?.name ?? "Owner"} · ${e.category === "PAYDAY" ? "payday" : "taken between paydays"}`
+              : KIND_LABEL[e.kind];
+    return (
+      <li key={e.id} className={`px-5 py-4 sm:px-7 ${e.voided ? "bg-slate-50" : ""}`}>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className={`text-sm font-medium ${e.voided ? "text-slate-400 line-through" : "text-slate-900"}`}>
+              {KIND_LABEL[e.kind] === what ? what : `${KIND_LABEL[e.kind]} · ${what}`}
+            </div>
+            <div className="mt-0.5 text-xs text-slate-500">
+              {fmtDate(e.date.toISOString().slice(0, 10), "MMM d, yyyy")} · added by{" "}
+              {e.createdByAdmin?.name ?? "someone"}
+              {e.note ? ` · ${e.note}` : ""}
+            </div>
+            {e.voided && (
+              <div className="mt-1 text-xs text-rose-700">
+                Voided by {e.voidedByAdmin?.name ?? "someone"}: {e.voidReason}
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            <span
+              className={`text-sm font-semibold ${
+                e.voided ? "text-slate-400 line-through" : isMoneyOut ? "text-rose-700" : "text-slate-900"
+              }`}
+            >
+              {formatPeso(Number(e.amount))}
+            </span>
+            {!e.voided && !e.paydayId && (
+              <details className="relative">
+                <summary className={`${pillClass("destructive", "sm")} cursor-pointer list-none [&::-webkit-details-marker]:hidden`}>
+                  Void
+                </summary>
+                <ActionForm
+                  action={voidFinanceEntryForm}
+                  compactError
+                  className="absolute right-0 z-10 mt-1.5 flex w-64 flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-lg"
+                >
+                  <input type="hidden" name="entryId" value={e.id} />
+                  <label className="text-xs font-medium text-slate-700">Why is it wrong?</label>
+                  <input name="reason" required minLength={3} className={`${inputClass} !py-1.5 !text-xs`} />
+                  <PillButton variant="destructive" size="sm">
+                    Void this entry
+                  </PillButton>
+                </ActionForm>
+              </details>
+            )}
+          </div>
+        </div>
+      </li>
+    );
+  };
+
+  // The newest few lines show first; the rest and the voided ones are tucked away so the page stays short.
+  const activeEntries = monthEntries.filter((e) => !e.voided);
+  const voidedEntries = monthEntries.filter((e) => e.voided);
+  const RECENT = 10;
+
   return (
     <div className="space-y-8">
       <SoftHeader
@@ -512,191 +587,6 @@ export default async function FinancePage({
         )}
       </SoftCard>
 
-      <SoftCard className="sm:!p-8">
-        <h2 className="text-lg font-medium text-slate-900">Owners&apos; share</h2>
-        <p className="mt-0.5 text-sm text-slate-500">
-          What each owner has taken, and the payday on the 15th and 30th.
-        </p>
-
-        {paydayDue && paydayPeriod ? (
-          <div className="mt-5 flex flex-col gap-4 rounded-2xl border border-accent-200 bg-accent-50 p-5 sm:flex-row sm:items-center sm:justify-between">
-            <div className="min-w-0">
-              <div className="text-sm font-semibold text-accent-950">Payday {fmtDate(paydayDue, "MMM d")} is ready</div>
-              <div className="mt-0.5 text-sm text-accent-800">
-                {paydayPeriod.profit > 0 ? (
-                  <>
-                    Profit from {fmtDate(paydayPeriod.start, "MMM d")} to {fmtDate(paydayPeriod.end, "MMM d")}:{" "}
-                    <span className="font-semibold">{formatPeso(paydayPeriod.profit)}</span>
-                  </>
-                ) : paydayPeriod.received === 0 && paydayPeriod.spent === 0 ? (
-                  <>Nothing has been recorded for this payday yet.</>
-                ) : (
-                  <>
-                    No profit from {fmtDate(paydayPeriod.start, "MMM d")} to {fmtDate(paydayPeriod.end, "MMM d")}, so there is
-                    nothing to share yet.
-                  </>
-                )}
-              </div>
-              {owners.length < 2 && (
-                <div className="mt-1 text-xs text-amber-800">
-                  Add your co-owner&apos;s login in Settings so the share can be split between you both.
-                </div>
-              )}
-            </div>
-            {canPayday && (
-              <FormDialog
-                variant="primary"
-                triggerLabel="Record payday"
-                title={`Payday ${fmtDate(paydayDue, "MMM d")}`}
-                description={`Profit ${formatPeso(paydayPeriod.profit)}. Money an owner already took comes off their payout. It is paid from the bank.`}
-              >
-                <ActionForm action={recordPaydayForm} closeDialogOnSuccess className="space-y-4">
-                  <input type="hidden" name="paydayDate" value={paydayDue} />
-                  <PaydayFields
-                    profit={paydayPeriod.profit}
-                    owners={owners.map((o) => ({ id: o.id, name: o.name, before: ownerBal.get(o.id) ?? 0 }))}
-                    maxPercent={maxPercent}
-                    defaultPercent={paydays[0] ? Number(paydays[0].percent) : undefined}
-                  />
-                  <PillButton className="w-full">Pay out and record</PillButton>
-                </ActionForm>
-              </FormDialog>
-            )}
-          </div>
-        ) : (
-          <p className="mt-5 text-sm text-slate-500">Next payday: {fmtDate(nextPaydayDate, "MMM d, yyyy")}.</p>
-        )}
-
-        {owners.length > 0 && (
-          <ul className="mt-5 divide-y divide-slate-100">
-            {owners.map((o) => {
-              const bal = ownerBal.get(o.id) ?? 0;
-              return (
-                <li key={o.id} className="flex items-center justify-between gap-3 py-3">
-                  <div className="text-sm font-medium text-slate-800">{o.name}</div>
-                  <div className="text-right">
-                    {bal > 0 ? (
-                      <>
-                        <div className="text-base font-semibold text-emerald-700">{formatPeso(bal)}</div>
-                        <div className="text-xs text-slate-500">share still to be paid</div>
-                      </>
-                    ) : bal < 0 ? (
-                      <>
-                        <div className="text-base font-semibold text-amber-700">{formatPeso(-bal)}</div>
-                        <div className="text-xs text-slate-500">taken ahead, comes off the next payday</div>
-                      </>
-                    ) : (
-                      <div className="text-sm text-slate-500">All even</div>
-                    )}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-
-        <div className="mt-4">
-          <FormDialog
-            size="sm"
-            triggerLabel="+ Owner draw"
-            title="Owner draw"
-            description="Money an owner takes between paydays (house bill, family, groceries). It comes out of the bank and off their next payday share."
-          >
-            <ActionForm action={addOwnerDrawForm} closeDialogOnSuccess className="space-y-3">
-              <TodayField today={today} />
-              <div>
-                <label className={labelClass}>Who took it</label>
-                <select
-                  name="ownerId"
-                  required
-                  defaultValue={owners.some((o) => o.id === session?.user?.id) ? session?.user?.id : ""}
-                  className={inputClass}
-                >
-                  <option value="" disabled>
-                    Choose…
-                  </option>
-                  {owners.map((o) => (
-                    <option key={o.id} value={o.id}>
-                      {o.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <AmountField label="Amount taken (₱)" />
-              <div>
-                <label className={labelClass}>What it was for (optional)</label>
-                <input name="note" maxLength={300} placeholder="e.g. house bill" className={inputClass} />
-              </div>
-              <PillButton className="w-full">Record draw</PillButton>
-            </ActionForm>
-          </FormDialog>
-        </div>
-
-        {paydays.length > 0 && (
-          <div className="mt-6 border-t border-slate-100 pt-5">
-            <h3 className="text-sm font-medium text-slate-800">Past paydays</h3>
-            <ul className="mt-3 space-y-4">
-              {paydays.map((d, i) => {
-                const perOwner = owners.map((o) => ({
-                  id: o.id,
-                  name: o.name,
-                  share: d.entries.filter((e) => e.ownerId === o.id && e.kind === "OWNER_SHARE").reduce((t, e) => t + Number(e.amount), 0),
-                  paid: d.entries.filter((e) => e.ownerId === o.id && e.kind === "OWNER_DRAW").reduce((t, e) => t + Number(e.amount), 0),
-                }));
-                return (
-                  <li key={d.id} className="rounded-2xl border border-slate-200 p-4">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <div className="text-sm font-medium text-slate-900">
-                          {fmtDate(d.date.toISOString().slice(0, 10), "MMM d, yyyy")}
-                        </div>
-                        <div className="text-xs text-slate-500">
-                          Profit {formatPeso(Number(d.profit))} · {Number(d.percent)}% each
-                        </div>
-                      </div>
-                      {i === 0 && (
-                        <details className="relative">
-                          <summary className={`${pillClass("destructive", "sm")} cursor-pointer list-none [&::-webkit-details-marker]:hidden`}>
-                            Void
-                          </summary>
-                          <ActionForm
-                            action={voidPaydayForm}
-                            compactError
-                            className="absolute right-0 z-10 mt-1.5 flex w-64 flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-lg"
-                          >
-                            <input type="hidden" name="paydayId" value={d.id} />
-                            <label className="text-xs font-medium text-slate-700">Why is it wrong?</label>
-                            <input name="reason" required minLength={3} className={`${inputClass} !py-1.5 !text-xs`} />
-                            <PillButton variant="destructive" size="sm">
-                              Void this payday
-                            </PillButton>
-                          </ActionForm>
-                        </details>
-                      )}
-                    </div>
-                    <ul className="mt-2 divide-y divide-slate-100">
-                      {perOwner.map((o) => (
-                        <li key={o.id} className="flex items-baseline justify-between gap-3 py-2 text-sm">
-                          <span className="text-slate-700">{o.name}</span>
-                          <span className="text-right">
-                            <span className="font-semibold text-slate-900">{formatPeso(o.paid)}</span>
-                            {Math.abs(o.share - o.paid) > 0.004 && (
-                              <span className="block text-xs text-slate-500">
-                                share {formatPeso(o.share)}, {formatPeso(o.share - o.paid)} offset by earlier draws
-                              </span>
-                            )}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        )}
-      </SoftCard>
-
       <Banner
         title={month === current ? "This month" : monthLabel(month)}
         description={`Money received and spent in ${monthLabel(month)}. Pick another month to look back.`}
@@ -840,78 +730,240 @@ export default async function FinancePage({
               <EmptyState>No finance records for this month yet.</EmptyState>
             </div>
           ) : (
-            <ul className="divide-y divide-slate-100 border-t border-slate-100">
-              {monthEntries.map((e) => {
-                const isMoneyOut = e.kind === "EXPENSE";
-                const what =
-                  e.kind === "INCOME"
-                    ? channelLabel(e.category)
-                    : e.kind === "EXPENSE"
-                      ? `${categoryLabel(e.category)} · paid with ${
-                        e.paidWith === "CASH"
-                          ? "production cash"
-                          : e.paidWith === "CARD"
-                            ? `card ${cardName.get(e.cardId ?? "") ?? ""}`.trim()
-                            : "bank"
-                      }`
-                      : e.kind === "CARD_PAYMENT"
-                        ? (cardName.get(e.cardId ?? "") ?? "card")
-                        : e.kind === "OWNER_DRAW"
-                          ? `${e.owner?.name ?? "Owner"} · ${e.category === "PAYDAY" ? "payday" : "taken between paydays"}`
-                          : KIND_LABEL[e.kind];
+            <>
+              <ul className="divide-y divide-slate-100 border-t border-slate-100">
+                {activeEntries.slice(0, RECENT).map(renderRecord)}
+              </ul>
+              {activeEntries.length > RECENT && (
+                <details className="group border-t border-slate-100">
+                  <summary className="cursor-pointer list-none px-5 py-3 text-sm font-medium text-accent-800 hover:bg-slate-50 sm:px-7 [&::-webkit-details-marker]:hidden">
+                    <span className="group-open:hidden">Show {activeEntries.length - RECENT} older records</span>
+                    <span className="hidden group-open:inline">Hide older records</span>
+                  </summary>
+                  <ul className="divide-y divide-slate-100 border-t border-slate-100">
+                    {activeEntries.slice(RECENT).map(renderRecord)}
+                  </ul>
+                </details>
+              )}
+              {voidedEntries.length > 0 && (
+                <details className="group border-t border-slate-100">
+                  <summary className="cursor-pointer list-none px-5 py-3 text-sm font-medium text-slate-500 hover:bg-slate-50 sm:px-7 [&::-webkit-details-marker]:hidden">
+                    <span className="group-open:hidden">Show voided records ({voidedEntries.length})</span>
+                    <span className="hidden group-open:inline">Hide voided records</span>
+                  </summary>
+                  <ul className="divide-y divide-slate-100 border-t border-slate-100">
+                    {voidedEntries.map(renderRecord)}
+                  </ul>
+                </details>
+              )}
+            </>
+          )}
+        </div>
+      </SoftCard>
+
+      <SoftCard className="sm:!p-8">
+        <h2 className="text-lg font-medium text-slate-900">Owners&apos; share</h2>
+        <p className="mt-0.5 text-sm text-slate-500">
+          What each owner has taken, and the payday on the 15th and 30th.
+        </p>
+
+        {summary.drawn > 0 && summary.received > 0 && (
+          <p className="mt-4 text-sm text-slate-600">
+            In {monthLabel(month)} the owners took{" "}
+            <span className="font-semibold text-slate-900">{formatPeso(summary.drawn)}</span>, which is{" "}
+            {Math.round((summary.drawn / summary.received) * 1000) / 10}% of the {formatPeso(summary.received)} received.
+          </p>
+        )}
+
+        {paydayDue && paydayPeriod ? (
+          <div className="mt-5 flex flex-col gap-4 rounded-2xl border border-accent-200 bg-accent-50 p-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <div className="text-sm font-semibold text-accent-950">Payday {fmtDate(paydayDue, "MMM d")} is ready</div>
+              <div className="mt-0.5 text-sm text-accent-800">
+                {paydayPeriod.profit > 0 ? (
+                  <>
+                    Profit from {fmtDate(paydayPeriod.start, "MMM d")} to {fmtDate(paydayPeriod.end, "MMM d")}:{" "}
+                    <span className="font-semibold">{formatPeso(paydayPeriod.profit)}</span>
+                  </>
+                ) : paydayPeriod.received === 0 && paydayPeriod.spent === 0 ? (
+                  <>Nothing has been recorded for this payday yet.</>
+                ) : (
+                  <>
+                    No profit from {fmtDate(paydayPeriod.start, "MMM d")} to {fmtDate(paydayPeriod.end, "MMM d")}, so there is
+                    nothing to share yet.
+                  </>
+                )}
+              </div>
+              {owners.length < 2 && (
+                <div className="mt-1 text-xs text-amber-800">
+                  Add your co-owner&apos;s login in Settings so the share can be split between you both.
+                </div>
+              )}
+            </div>
+            {canPayday && (
+              <FormDialog
+                variant="primary"
+                triggerLabel="Record payday"
+                title={`Payday ${fmtDate(paydayDue, "MMM d")}`}
+                description={`Profit ${formatPeso(paydayPeriod.profit)}. Money an owner already took comes off their payout. It is paid from the bank.`}
+              >
+                <ActionForm action={recordPaydayForm} closeDialogOnSuccess className="space-y-4">
+                  <input type="hidden" name="paydayDate" value={paydayDue} />
+                  <PaydayFields
+                    profit={paydayPeriod.profit}
+                    received={paydayPeriod.received}
+                    owners={owners.map((o) => ({ id: o.id, name: o.name, before: ownerBal.get(o.id) ?? 0 }))}
+                    maxPercent={maxPercent}
+                    defaultPercent={paydays[0] ? Number(paydays[0].percent) : undefined}
+                  />
+                  <PillButton className="w-full">Pay out and record</PillButton>
+                </ActionForm>
+              </FormDialog>
+            )}
+          </div>
+        ) : (
+          <p className="mt-5 text-sm text-slate-500">Next payday: {fmtDate(nextPaydayDate, "MMM d, yyyy")}.</p>
+        )}
+
+        {owners.length > 0 && (
+          <ul className="mt-5 divide-y divide-slate-100">
+            {owners.map((o) => {
+              const bal = ownerBal.get(o.id) ?? 0;
+              return (
+                <li key={o.id} className="flex items-center justify-between gap-3 py-3">
+                  <div className="text-sm font-medium text-slate-800">{o.name}</div>
+                  <div className="text-right">
+                    {bal > 0 ? (
+                      <>
+                        <div className="text-base font-semibold text-emerald-700">{formatPeso(bal)}</div>
+                        <div className="text-xs text-slate-500">share still to be paid</div>
+                      </>
+                    ) : bal < 0 ? (
+                      <>
+                        <div className="text-base font-semibold text-amber-700">{formatPeso(-bal)}</div>
+                        <div className="text-xs text-slate-500">taken ahead, comes off the next payday</div>
+                      </>
+                    ) : (
+                      <div className="text-sm text-slate-500">All even</div>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+
+        <div className="mt-4">
+          <FormDialog
+            size="sm"
+            triggerLabel="+ Owner draw"
+            title="Owner draw"
+            description="Money an owner takes between paydays (house bill, family, groceries). It comes out of the bank and off their next payday share."
+          >
+            <ActionForm action={addOwnerDrawForm} closeDialogOnSuccess className="space-y-3">
+              <TodayField today={today} />
+              <div>
+                <label className={labelClass}>Who took it</label>
+                <select
+                  name="ownerId"
+                  required
+                  defaultValue={owners.some((o) => o.id === session?.user?.id) ? session?.user?.id : ""}
+                  className={inputClass}
+                >
+                  <option value="" disabled>
+                    Choose…
+                  </option>
+                  {owners.map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <AmountField label="Amount taken (₱)" />
+              <div>
+                <label className={labelClass}>What it was for (optional)</label>
+                <input name="note" maxLength={300} placeholder="e.g. house bill" className={inputClass} />
+              </div>
+              <PillButton className="w-full">Record draw</PillButton>
+            </ActionForm>
+          </FormDialog>
+        </div>
+
+        {paydays.length > 0 && (
+          <div className="mt-6 border-t border-slate-100 pt-5">
+            <h3 className="text-sm font-medium text-slate-800">Past paydays</h3>
+            <ul className="mt-3 space-y-4">
+              {paydays.map((d, i) => {
+                const perOwner = owners.map((o) => ({
+                  id: o.id,
+                  name: o.name,
+                  share: d.entries.filter((e) => e.ownerId === o.id && e.kind === "OWNER_SHARE").reduce((t, e) => t + Number(e.amount), 0),
+                  paid: d.entries.filter((e) => e.ownerId === o.id && e.kind === "OWNER_DRAW").reduce((t, e) => t + Number(e.amount), 0),
+                }));
+                const dayKey = (x: Date) => x.toISOString().slice(0, 10);
+                const received = rows
+                  .filter((r) => r.kind === "INCOME" && !r.voided && r.date >= dayKey(d.periodStart) && r.date <= dayKey(d.periodEnd))
+                  .reduce((t, r) => t + r.amount, 0);
+                const paidTotal = perOwner.reduce((t, o) => t + o.paid, 0);
                 return (
-                  <li key={e.id} className={`px-5 py-4 sm:px-7 ${e.voided ? "bg-slate-50" : ""}`}>
+                  <li key={d.id} className="rounded-2xl border border-slate-200 p-4">
                     <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className={`text-sm font-medium ${e.voided ? "text-slate-400 line-through" : "text-slate-900"}`}>
-                          {KIND_LABEL[e.kind] === what ? what : `${KIND_LABEL[e.kind]} · ${what}`}
+                      <div>
+                        <div className="text-sm font-medium text-slate-900">
+                          {fmtDate(d.date.toISOString().slice(0, 10), "MMM d, yyyy")}
                         </div>
-                        <div className="mt-0.5 text-xs text-slate-500">
-                          {fmtDate(e.date.toISOString().slice(0, 10), "MMM d, yyyy")} · added by{" "}
-                          {e.createdByAdmin?.name ?? "someone"}
-                          {e.note ? ` · ${e.note}` : ""}
+                        <div className="text-xs text-slate-500">
+                          Profit {formatPeso(Number(d.profit))} · {Number(d.percent)}% each
                         </div>
-                        {e.voided && (
-                          <div className="mt-1 text-xs text-rose-700">
-                            Voided by {e.voidedByAdmin?.name ?? "someone"}: {e.voidReason}
+                        {received > 0 && (
+                          <div className="text-xs text-slate-500">
+                            Paid out {formatPeso(paidTotal)} · {Math.round((paidTotal / received) * 1000) / 10}% of the{" "}
+                            {formatPeso(received)} received
                           </div>
                         )}
                       </div>
-                      <div className="flex items-center gap-3">
-                        <span
-                          className={`text-sm font-semibold ${
-                            e.voided ? "text-slate-400 line-through" : isMoneyOut ? "text-rose-700" : "text-slate-900"
-                          }`}
-                        >
-                          {formatPeso(Number(e.amount))}
-                        </span>
-                        {!e.voided && !e.paydayId && (
-                          <details className="relative">
-                            <summary className={`${pillClass("destructive", "sm")} cursor-pointer list-none [&::-webkit-details-marker]:hidden`}>
-                              Void
-                            </summary>
-                            <ActionForm
-                              action={voidFinanceEntryForm}
-                              compactError
-                              className="absolute right-0 z-10 mt-1.5 flex w-64 flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-lg"
-                            >
-                              <input type="hidden" name="entryId" value={e.id} />
-                              <label className="text-xs font-medium text-slate-700">Why is it wrong?</label>
-                              <input name="reason" required minLength={3} className={`${inputClass} !py-1.5 !text-xs`} />
-                              <PillButton variant="destructive" size="sm">
-                                Void this entry
-                              </PillButton>
-                            </ActionForm>
-                          </details>
-                        )}
-                      </div>
+                      {i === 0 && (
+                        <details className="relative">
+                          <summary className={`${pillClass("destructive", "sm")} cursor-pointer list-none [&::-webkit-details-marker]:hidden`}>
+                            Void
+                          </summary>
+                          <ActionForm
+                            action={voidPaydayForm}
+                            compactError
+                            className="absolute right-0 z-10 mt-1.5 flex w-64 flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-lg"
+                          >
+                            <input type="hidden" name="paydayId" value={d.id} />
+                            <label className="text-xs font-medium text-slate-700">Why is it wrong?</label>
+                            <input name="reason" required minLength={3} className={`${inputClass} !py-1.5 !text-xs`} />
+                            <PillButton variant="destructive" size="sm">
+                              Void this payday
+                            </PillButton>
+                          </ActionForm>
+                        </details>
+                      )}
                     </div>
+                    <ul className="mt-2 divide-y divide-slate-100">
+                      {perOwner.map((o) => (
+                        <li key={o.id} className="flex items-baseline justify-between gap-3 py-2 text-sm">
+                          <span className="text-slate-700">{o.name}</span>
+                          <span className="text-right">
+                            <span className="font-semibold text-slate-900">{formatPeso(o.paid)}</span>
+                            {Math.abs(o.share - o.paid) > 0.004 && (
+                              <span className="block text-xs text-slate-500">
+                                share {formatPeso(o.share)}, {formatPeso(o.share - o.paid)} offset by earlier draws
+                              </span>
+                            )}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
                   </li>
                 );
               })}
             </ul>
-          )}
-        </div>
+          </div>
+        )}
       </SoftCard>
 
       <p className="text-xs text-slate-400">

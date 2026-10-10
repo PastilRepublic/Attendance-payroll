@@ -11,11 +11,14 @@ import { inputClass, labelClass } from "@/components/ui/styles";
  */
 export default function PaydayFields({
   profit,
+  received,
   owners,
   maxPercent,
   defaultPercent,
 }: {
   profit: number;
+  /** Money received over the same period, to show the payout as a share of it. */
+  received: number;
   owners: { id: string; name: string; before: number }[];
   maxPercent: number;
   defaultPercent?: number;
@@ -24,6 +27,7 @@ export default function PaydayFields({
   const percent = Number(text);
   const valid = text !== "" && Number.isFinite(percent) && percent > 0 && percent <= maxPercent;
   const plan = valid ? sharePlan(profit, percent, owners.map((o) => ({ id: o.id, before: o.before }))) : null;
+  const totalPaid = plan ? plan.reduce((sum, p) => sum + p.payout, 0) : 0;
 
   return (
     <div className="space-y-4">
@@ -46,6 +50,7 @@ export default function PaydayFields({
       </div>
 
       {plan ? (
+        <>
         <ul className="divide-y divide-slate-100 rounded-2xl border border-slate-200 px-4">
           {plan.map((p) => {
             const name = owners.find((o) => o.id === p.ownerId)?.name ?? "Owner";
@@ -65,6 +70,13 @@ export default function PaydayFields({
             );
           })}
         </ul>
+        {received > 0 && (
+          <p className="text-xs text-slate-500">
+            Together the owners are paid {formatPeso(totalPaid)}, which is{" "}
+            {Math.round((totalPaid / received) * 1000) / 10}% of the {formatPeso(received)} received.
+          </p>
+        )}
+        </>
       ) : (
         text !== "" && <p className="text-xs text-red-600">Enter a percentage from 0.01 to {maxPercent}.</p>
       )}
