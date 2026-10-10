@@ -17,6 +17,7 @@ import {
   channelLabel,
   computeBalances,
   maxPercentEach,
+  firstActivityDate,
   nextPaydayToRecord,
   ownerBalances,
   periodProfit,
@@ -568,11 +569,11 @@ export async function recordPayday(formData: FormData) {
 
   const last = await prisma.financePayday.findFirst({ where: { voided: false }, orderBy: { date: "desc" } });
   const lastKey = last ? last.date.toISOString().slice(0, 10) : null;
-  const due = nextPaydayToRecord(lastKey, localDateKey(new Date()));
+  const rows = await allRows();
+  const due = nextPaydayToRecord(lastKey, localDateKey(new Date()), firstActivityDate(rows));
   if (!due) throw new Error("There is no payday to record yet.");
   if (due !== parsed.paydayDate) throw new Error("The page was out of date. Reload it and try again.");
 
-  const rows = await allRows();
   const period = periodProfit(rows, lastKey, due);
   if (period.profit <= 0) {
     throw new Error(

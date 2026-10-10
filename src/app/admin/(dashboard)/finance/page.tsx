@@ -19,11 +19,12 @@ import {
   daysBetween,
   maxPercentEach,
   nextDueDate,
+  firstActivityDate,
   nextPaydayToRecord,
   ownerBalances,
-  paydayAfter,
   periodProfit,
   summarizeMonth,
+  upcomingPayday,
   type CardDue,
   type FinanceRow,
 } from "@/lib/finance";
@@ -236,11 +237,21 @@ export default async function FinancePage({
   // Owners: what each is owed, and the payday that is ready to record.
   const ownerBal = ownerBalances(rows, owners.map((o) => o.id));
   const lastPaydayKey = paydays[0] ? paydays[0].date.toISOString().slice(0, 10) : null;
-  const paydayDue = nextPaydayToRecord(lastPaydayKey, today);
-  const paydayPeriod = paydayDue ? periodProfit(rows, lastPaydayKey, paydayDue) : null;
-  const nextPaydayDate = paydayAfter(lastPaydayKey && lastPaydayKey > today ? lastPaydayKey : today);
-  const maxPercent = maxPercentEach(owners.length);
-  const canPayday = owners.length >= 2 && !!paydayPeriod && paydayPeriod.profit > 0;
+  const firstActivity = firstActivityDate(rows);
+  const paydayDue = nextPaydayToRecord(lastPaydayKey, today, firstActivity);
+  // The payday being worked toward: it can be tried out before its date, but not recorded.
+  const paydayDay = paydayDue ?? upcomingPayday(lastPaydayKey, today, firstActivity);
+  const paydayPeriod = periodProfit(rows, lastPaydayKey, paydayDay);
+  const maxPercent = maxPercentEach(Math.max(owners.length, 2));
+  const canPayday = !!paydayDue && owners.length >= 2 && paydayPeriod.profit > 0;
+  // Why recording is not possible yet, in plain words (empty when it is).
+  const paydayBlock = !paydayDue
+    ? `Payday is ${fmtDate(paydayDay, "MMM d")}. You can record it then. Until then this shows what it would be today.`
+    : owners.length < 2
+      ? "Add your co-owner's login in Settings first, so the share can be split between you both."
+      : paydayPeriod.profit <= 0
+        ? "There is no profit in this period, so there is nothing to share yet."
+        : "";
 
   // One line of the records list.
   const renderRecord = (e: (typeof entries)[number]) => {
@@ -976,55 +987,47 @@ export default async function FinancePage({
           </p>
         )}
 
-        {paydayDue && paydayPeriod ? (
-          <div className="mt-5 flex flex-col gap-4 rounded-2xl border border-accent-200 bg-accent-50 p-5 sm:flex-row sm:items-center sm:justify-between">
-            <div className="min-w-0">
-              <div className="text-sm font-semibold text-accent-950">Payday {fmtDate(paydayDue, "MMM d")} is ready</div>
-              <div className="mt-0.5 text-sm text-accent-800">
-                {paydayPeriod.profit > 0 ? (
-                  <>
-                    Profit from {fmtDate(paydayPeriod.start, "MMM d")} to {fmtDate(paydayPeriod.end, "MMM d")}:{" "}
-                    <span className="font-semibold">{formatPeso(paydayPeriod.profit)}</span>
-                  </>
-                ) : paydayPeriod.received === 0 && paydayPeriod.spent === 0 ? (
-                  <>Nothing has been recorded for this payday yet.</>
-                ) : (
-                  <>
-                    No profit from {fmtDate(paydayPeriod.start, "MMM d")} to {fmtDate(paydayPeriod.end, "MMM d")}, so there is
-                    nothing to share yet.
-                  </>
-                )}
-              </div>
-              {owners.length < 2 && (
-                <div className="mt-1 text-xs text-amber-800">
-                  Add your co-owner&apos;s login in Settings so the share can be split between you both.
-                </div>
+        <div className="mt-5 flex flex-col gap-3 rounded-2xl border border-accent-200 bg-accent-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <div className="text-sm font-semibold text-accent-950">
+              {paydayDue ? `Payday ${fmtDate(paydayDay, "MMM d")} is ready` : `Next payday: ${fmtDate(paydayDay, "MMM d, yyyy")}`}
+            </div>
+            <div className="mt-0.5 text-sm text-accent-800">
+              {paydayPeriod.received === 0 && paydayPeriod.spent === 0 ? (
+                <>Nothing recorded for this payday yet.</>
+              ) : (
+                <>
+                  Profit {paydayDue ? "from" : "so far, from"} {fmtDate(paydayPeriod.start, "MMM d")}
+                  {paydayDue ? ` to ${fmtDate(paydayPeriod.end, "MMM d")}` : ""}:{" "}
+                  <span className="font-semibold">{formatPeso(paydayPeriod.profit)}</span>
+                </>
               )}
             </div>
-            {canPayday && (
-              <FormDialog
-                variant="primary"
-                triggerLabel="Record payday"
-                title={`Payday ${fmtDate(paydayDue, "MMM d")}`}
-                description={`Profit ${formatPeso(paydayPeriod.profit)}. Money an owner already took comes off their payout. It is paid from the bank.`}
-              >
-                <ActionForm action={recordPaydayForm} closeDialogOnSuccess className="space-y-4">
-                  <input type="hidden" name="paydayDate" value={paydayDue} />
-                  <PaydayFields
-                    profit={paydayPeriod.profit}
-                    received={paydayPeriod.received}
-                    owners={owners.map((o) => ({ id: o.id, name: o.name, before: ownerBal.get(o.id) ?? 0 }))}
-                    maxPercent={maxPercent}
-                    defaultPercent={paydays[0] ? Number(paydays[0].percent) : undefined}
-                  />
-                  <PillButton className="w-full">Pay out and record</PillButton>
-                </ActionForm>
-              </FormDialog>
-            )}
           </div>
-        ) : (
-          <p className="mt-5 text-sm text-slate-500">Next payday: {fmtDate(nextPaydayDate, "MMM d, yyyy")}.</p>
-        )}
+          <FormDialog
+            variant={canPayday ? "primary" : "secondary"}
+            triggerLabel={canPayday ? "Record payday" : "Set the percentage"}
+            title={`Payday ${fmtDate(paydayDay, "MMM d")}`}
+            description={`Profit ${formatPeso(paydayPeriod.profit)}. Type the percentage each owner takes and see what each one gets. Money an owner already took comes off their payout.`}
+          >
+            <ActionForm action={recordPaydayForm} closeDialogOnSuccess className="space-y-4">
+              <input type="hidden" name="paydayDate" value={paydayDay} />
+              <PaydayFields
+                profit={paydayPeriod.profit}
+                received={paydayPeriod.received}
+                owners={owners.map((o) => ({ id: o.id, name: o.name, before: ownerBal.get(o.id) ?? 0 }))}
+                maxPercent={maxPercent}
+                defaultPercent={paydays[0] ? Number(paydays[0].percent) : undefined}
+              />
+              {paydayBlock && (
+                <p className="rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-900">{paydayBlock}</p>
+              )}
+              <PillButton className="w-full" disabled={!canPayday}>
+                Pay out and record
+              </PillButton>
+            </ActionForm>
+          </FormDialog>
+        </div>
 
         {owners.length > 0 && (
           <ul className="mt-5 divide-y divide-slate-100">

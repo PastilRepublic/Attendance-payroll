@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   billStatus,
   cardBalances,
+  firstActivityDate,
   cashLog,
   computeBalances,
   cardDue,
@@ -17,6 +18,7 @@ import {
   periodProfit,
   sharePlan,
   summarizeMonth,
+  upcomingPayday,
   type FinanceRow,
 } from "./finance";
 
@@ -341,8 +343,29 @@ describe("owner draws and paydays", () => {
     expect(nextPaydayToRecord("2026-09-30", "2026-10-15")).toBe("2026-10-15");
     // The 15th was missed: it is still done first.
     expect(nextPaydayToRecord("2026-09-30", "2026-10-31")).toBe("2026-10-15");
-    // Nothing recorded yet: the latest payday that has come.
-    expect(nextPaydayToRecord(null, "2026-10-10")).toBe("2026-09-30");
+  });
+
+  it("starts the first payday from the first money recorded", () => {
+    // Money first recorded on Oct 3: the first payday is the 15th, not an old one.
+    expect(nextPaydayToRecord(null, "2026-10-10", "2026-10-03")).toBeNull();
+    expect(upcomingPayday(null, "2026-10-10", "2026-10-03")).toBe("2026-10-15");
+    expect(nextPaydayToRecord(null, "2026-10-20", "2026-10-03")).toBe("2026-10-15");
+    // Recorded on a payday itself: that payday counts.
+    expect(upcomingPayday(null, "2026-10-20", "2026-10-15")).toBe("2026-10-15");
+    // Nothing recorded at all: nothing to pay.
+    expect(nextPaydayToRecord(null, "2026-10-20")).toBeNull();
+    expect(upcomingPayday(null, "2026-10-10", null)).toBe("2026-10-15");
+  });
+
+  it("finds the first day money was recorded, ignoring voided and non-money lines", () => {
+    const rows = [
+      row({ kind: "OPENING_BANK", amount: 1000, date: "2026-08-01" }),
+      row({ kind: "INCOME", amount: 5, date: "2026-09-02", voided: true }),
+      row({ kind: "EXPENSE", amount: 5, date: "2026-09-05", category: "GAS", paidWith: "BANK" }),
+      row({ kind: "INCOME", amount: 5, date: "2026-09-09", category: "DIRECT" }),
+    ];
+    expect(firstActivityDate(rows)).toBe("2026-09-05");
+    expect(firstActivityDate([])).toBeNull();
   });
 
   it("counts profit from the day after the last payday up to the payday", () => {

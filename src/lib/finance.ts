@@ -392,13 +392,43 @@ export function paydayAfter(dateKeyIn: string): string {
   return all.find((d) => d > dateKeyIn)!;
 }
 
+/** The first payday date on or after the given date. */
+export function paydayOnOrAfter(dateKeyIn: string): string {
+  const [y, m] = dateKeyIn.split("-").map(Number);
+  const ny = m === 12 ? y + 1 : y;
+  const nm = m === 12 ? 1 : m + 1;
+  const all = [...paydaysInMonth(y, m), ...paydaysInMonth(ny, nm)];
+  return all.find((d) => d >= dateKeyIn)!;
+}
+
+/** The earliest day money was received or spent: where the very first payday period begins. */
+export function firstActivityDate(rows: FinanceRow[]): string | null {
+  const days = live(rows)
+    .filter((r) => r.kind === "INCOME" || r.kind === "EXPENSE")
+    .map((r) => r.date)
+    .sort();
+  return days[0] ?? null;
+}
+
 /**
- * The next payday to record: the one after the last payday recorded (so a missed payday is
- * done first, in order). With none recorded yet it is the latest one that has come. Null
- * while that date has not arrived.
+ * The payday being worked toward: the one after the last payday recorded; with none yet, the
+ * first one on or after the first money recorded (today if nothing is recorded).
  */
-export function nextPaydayToRecord(lastPaydayKey: string | null, todayKey: string): string | null {
-  const next = lastPaydayKey ? paydayAfter(lastPaydayKey) : paydayOnOrBefore(todayKey);
+export function upcomingPayday(lastPaydayKey: string | null, todayKey: string, firstActivityKey: string | null): string {
+  return lastPaydayKey ? paydayAfter(lastPaydayKey) : paydayOnOrAfter(firstActivityKey ?? todayKey);
+}
+
+/**
+ * The next payday to record: the upcoming one, once its date has come (so a missed payday is
+ * done first, in order). Null while that date has not arrived.
+ */
+export function nextPaydayToRecord(
+  lastPaydayKey: string | null,
+  todayKey: string,
+  firstActivityKey: string | null = null
+): string | null {
+  if (!lastPaydayKey && !firstActivityKey) return null;
+  const next = upcomingPayday(lastPaydayKey, todayKey, firstActivityKey);
   return next <= todayKey ? next : null;
 }
 
