@@ -5,7 +5,9 @@ import { formatPeso } from "@/lib/format";
 import { currentMonthKey, isMonthKey, monthLabel } from "@/lib/payPeriods";
 import {
   EXPENSE_CATEGORIES,
+  CHANNEL_STYLE,
   INCOME_CHANNELS,
+  NEUTRAL_CHANNEL_STYLE,
   cashLog,
   categoryLabel,
   channelLabel,
@@ -23,7 +25,7 @@ import MonthPicker from "@/components/ui/MonthPicker";
 import FormDialog from "@/components/ui/FormDialog";
 import NumberInput from "@/components/ui/NumberInput";
 import PillButton from "@/components/ui/PillButton";
-import { inputClass, labelClass, pillClass, smallLabelClass } from "@/components/ui/styles";
+import { inputClass, labelClass, pillClass } from "@/components/ui/styles";
 import {
   addCashWithdrawalForm,
   addExpenseForm,
@@ -294,14 +296,19 @@ export default async function FinancePage({
               <EmptyState>No money received in {monthLabel(month)} yet.</EmptyState>
             ) : (
               <div className="grid gap-3 sm:grid-cols-2">
-                {summary.byChannel.map((c) => (
-                  <div key={c.code} className="rounded-2xl border border-slate-300 p-4">
-                    <div className={smallLabelClass}>{c.label}</div>
-                    <div className="mt-1 text-xl font-extrabold tracking-tight text-emerald-800">
-                      {formatPeso(c.amount)}
+                {summary.byChannel.map((c) => {
+                  const style = CHANNEL_STYLE[c.code] ?? NEUTRAL_CHANNEL_STYLE;
+                  const share = summary.received > 0 ? Math.round((c.amount / summary.received) * 100) : 0;
+                  return (
+                    <div key={c.code} className={`rounded-2xl p-4 ${style.box}`}>
+                      <div className={`text-sm font-medium ${style.label}`}>{c.label}</div>
+                      <div className={`mt-1 text-xl font-semibold tracking-tight ${style.value}`}>
+                        {formatPeso(c.amount)}
+                      </div>
+                      <div className={`mt-0.5 text-xs ${style.label}`}>{share}% of money received</div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

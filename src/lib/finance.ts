@@ -35,6 +35,20 @@ export const INCOME_CHANNELS = [
   { code: "REBRANDING", label: "Rebranding" },
 ] as const;
 
+/**
+ * One color per sales channel, so the cards are easy to tell apart at a glance. These stay
+ * clear of red (money out) so a channel is never mistaken for spending.
+ */
+export const CHANNEL_STYLE: Record<string, { box: string; label: string; value: string }> = {
+  SHOPEE: { box: "bg-orange-50", label: "text-orange-800", value: "text-orange-950" },
+  TIKTOK: { box: "bg-sky-50", label: "text-sky-800", value: "text-sky-950" },
+  DIRECT: { box: "bg-emerald-50", label: "text-emerald-800", value: "text-emerald-950" },
+  RESELLER: { box: "bg-violet-50", label: "text-violet-800", value: "text-violet-950" },
+  REBRANDING: { box: "bg-amber-50", label: "text-amber-800", value: "text-amber-950" },
+};
+
+export const NEUTRAL_CHANNEL_STYLE = { box: "bg-slate-50", label: "text-slate-600", value: "text-slate-900" };
+
 /** What money is spent on. */
 export const EXPENSE_CATEGORIES = [
   { code: "CHICKEN", label: "Chicken" },
