@@ -715,46 +715,6 @@ export default async function FinancePage({
       </div>
 
       <SoftCard padded={false}>
-        <div className="px-4 pt-4 sm:px-5 sm:pt-5">
-          <h2 className="text-base font-medium text-slate-900">Production cash log</h2>
-          <p className="mt-0.5 text-sm text-slate-500">
-            Every withdrawal and cash expense, newest first, with the cash left after each one.
-          </p>
-        </div>
-        <div className="mt-4">
-          {log.length === 0 ? (
-            <div className="p-4 pt-0 sm:p-5 sm:pt-0">
-              <EmptyState>No cash movements yet. Add a cash withdrawal to start.</EmptyState>
-            </div>
-          ) : (
-            <ul className="divide-y divide-slate-100 border-t border-slate-100">
-              {log.map((l) => (
-                <li key={l.id} className="flex items-center justify-between gap-3 px-4 py-2.5 sm:px-5">
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium text-slate-800">
-                      {l.kind === "CASH_WITHDRAWAL"
-                        ? "Cash withdrawal"
-                        : l.kind === "OPENING_CASH"
-                          ? "Starting cash"
-                          : categoryLabel(l.category)}
-                    </div>
-                    <div className="text-xs text-slate-500">{fmtDate(l.date, "MMM d, yyyy")}</div>
-                  </div>
-                  <div className="text-right">
-                    <div className={`text-sm font-semibold ${l.change >= 0 ? "text-emerald-700" : "text-rose-700"}`}>
-                      {l.change >= 0 ? "+" : "−"}
-                      {formatPeso(Math.abs(l.change))}
-                    </div>
-                    <div className="text-xs text-slate-500">left {formatPeso(l.balanceAfter)}</div>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </SoftCard>
-
-      <SoftCard padded={false}>
         <details className="group">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 sm:px-5 sm:py-5 [&::-webkit-details-marker]:hidden">
             <div className="min-w-0">
@@ -916,6 +876,46 @@ export default async function FinancePage({
 
           </div>
         </details>
+      </SoftCard>
+
+      <SoftCard padded={false}>
+        <div className="px-4 pt-4 sm:px-5 sm:pt-5">
+          <h2 className="text-base font-medium text-slate-900">Production cash log</h2>
+          <p className="mt-0.5 text-sm text-slate-500">
+            Every withdrawal and cash expense, newest first, with the cash left after each one.
+          </p>
+        </div>
+        <div className="mt-4">
+          {log.length === 0 ? (
+            <div className="p-4 pt-0 sm:p-5 sm:pt-0">
+              <EmptyState>No cash movements yet. Add a cash withdrawal to start.</EmptyState>
+            </div>
+          ) : (
+            <ul className="divide-y divide-slate-100 border-t border-slate-100">
+              {log.map((l) => (
+                <li key={l.id} className="flex items-center justify-between gap-3 px-4 py-2.5 sm:px-5">
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium text-slate-800">
+                      {l.kind === "CASH_WITHDRAWAL"
+                        ? "Cash withdrawal"
+                        : l.kind === "OPENING_CASH"
+                          ? "Starting cash"
+                          : categoryLabel(l.category)}
+                    </div>
+                    <div className="text-xs text-slate-500">{fmtDate(l.date, "MMM d, yyyy")}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className={`text-sm font-semibold ${l.change >= 0 ? "text-emerald-700" : "text-rose-700"}`}>
+                      {l.change >= 0 ? "+" : "−"}
+                      {formatPeso(Math.abs(l.change))}
+                    </div>
+                    <div className="text-xs text-slate-500">left {formatPeso(l.balanceAfter)}</div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </SoftCard>
 
       <SoftCard padded={false}>
