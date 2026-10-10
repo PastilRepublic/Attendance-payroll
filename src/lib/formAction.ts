@@ -1,7 +1,14 @@
 import { unstable_rethrow } from "next/navigation";
 
 /** What a form action reports back to <ActionForm>: an error to show, or that it saved. */
-export type FormState = { error?: string; savedAt?: number; message?: string };
+export type FormState = { error?: string; savedAt?: number; message?: string; confirm?: string };
+
+/**
+ * Thrown by an action that wants a second look before saving (e.g. "this looks like a duplicate").
+ * The form shows the message with an "Add anyway" button, which sends the same entry again with
+ * confirm=yes.
+ */
+export class ConfirmNeeded extends Error {}
 
 /**
  * Turns whatever a server action threw into a message fit for the form. In
@@ -35,6 +42,7 @@ export async function runForm(body: () => Promise<unknown>): Promise<FormState> 
     return { savedAt: Date.now(), message: typeof result === "string" ? result : undefined };
   } catch (err) {
     unstable_rethrow(err);
+    if (err instanceof ConfirmNeeded) return { confirm: err.message };
     return { error: formMessage(err) };
   }
 }

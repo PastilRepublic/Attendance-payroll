@@ -43,7 +43,7 @@ export default function ActionForm({
   const [state, formAction, pending] = useActionState<Tracked, FormData>(
     async (prev, formData) => {
       const next = await action(prev, formData);
-      if (next.error) return { ...next, added: prev.added };
+      if (next.error || next.confirm) return { ...next, added: prev.added };
       return { ...next, added: next.message ? [next.message, ...prev.added].slice(0, 8) : prev.added };
     },
     { added: [] }
@@ -73,6 +73,15 @@ export default function ActionForm({
     if (resetOnSuccess) form?.reset();
     if (closeDialogOnSuccess) form?.closest("dialog")?.close();
   }, [resetOnSuccess, closeDialogOnSuccess, multiEntry, state.savedAt]);
+
+  /** "Add anyway": the same entry again, with the go-ahead the action asked for. */
+  function confirmAndResubmit() {
+    const form = formRef.current;
+    if (!form) return;
+    const fd = new FormData(form);
+    fd.set("confirm", "yes");
+    startTransition(() => formAction(fd));
+  }
 
   function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -120,6 +129,23 @@ export default function ActionForm({
         <p role="alert" className="basis-full w-full text-xs text-red-600 mt-1">
           {state.error}
         </p>
+      )}
+      {!compactError && state.confirm && !pending && (
+        <div
+          role="alert"
+          className="mt-2 w-full basis-full rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+        >
+          {state.confirm}
+          <div className="mt-2">
+            <button
+              type="button"
+              onClick={confirmAndResubmit}
+              className="rounded-full border border-amber-300 bg-white px-4 py-1.5 text-xs font-medium text-amber-900 hover:bg-amber-100"
+            >
+              Add anyway
+            </button>
+          </div>
+        </div>
       )}
       {!state.error && successMessage && state.savedAt && !pending && (
         <p role="status" className="basis-full w-full text-xs text-green-700 mt-1">

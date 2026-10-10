@@ -7,7 +7,7 @@ import { requireOwner } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
 import { localDateKey } from "@/lib/payroll";
 import { isRealDateKey } from "@/lib/punchRules";
-import { runForm, type FormState } from "@/lib/formAction";
+import { ConfirmNeeded, runForm, type FormState } from "@/lib/formAction";
 import { numberText } from "@/lib/numberInput";
 import {
   EXPENSE_CATEGORIES,
@@ -15,13 +15,18 @@ import {
   cardBalances,
   categoryLabel,
   channelLabel,
+  checkEntryDate,
   computeBalances,
+  findDuplicate,
   maxPercentEach,
   firstActivityDate,
   nextPaydayToRecord,
+  openingDate,
   ownerBalances,
   periodProfit,
   sharePlan,
+  shortDate,
+  wouldBreakBalances,
   type FinanceRow,
 } from "@/lib/finance";
 import { formatPeso } from "@/lib/format";
@@ -54,6 +59,51 @@ function revalidateFinance() {
   revalidatePath("/admin/finance");
 }
 
+/** Everything the checks need to know about the ledger as it stands. */
+async function ledger() {
+  const rows = await allRows();
+  const last = await prisma.financePayday.findFirst({
+    where: { voided: false },
+    orderBy: { date: "desc" },
+    select: { date: true },
+  });
+  return { rows, lastPaydayKey: last ? last.date.toISOString().slice(0, 10) : null, openingKey: openingDate(rows) };
+}
+type Ledger = Awaited<ReturnType<typeof ledger>>;
+
+/** Refuses a date that is before the starting balances, or inside a payday that was already paid out. */
+function assertDateAllowed(date: string, kind: FinanceRow["kind"], l: Ledger) {
+  const problem = checkEntryDate({ date, kind, lastPaydayKey: l.lastPaydayKey, openingKey: l.openingKey });
+  if (problem) throw new Error(problem);
+}
+
+/** Money leaving the bank (a withdrawal, a card payment, a draw) can't be more than the bank holds. */
+function assertBankCovers(amount: number, l: Ledger) {
+  const bank = computeBalances(l.rows).bank;
+  if (amount > bank + 0.005) {
+    throw new Error(`The bank only has ${formatPeso(bank)}. Record the money received first, then try again.`);
+  }
+}
+
+/** Asks "add it again anyway?" when the same entry is already there (unless they have said yes). */
+async function confirmUnlessDuplicate(
+  formData: FormData,
+  rows: FinanceRow[],
+  cand: Parameters<typeof findDuplicate>[1],
+  what: string
+) {
+  if (formData.get("confirm") === "yes") return;
+  const dup = findDuplicate(rows, cand);
+  if (!dup) return;
+  const found = await prisma.financeEntry.findUnique({
+    where: { id: dup.id },
+    select: { createdByAdmin: { select: { name: true } } },
+  });
+  throw new ConfirmNeeded(
+    `${found?.createdByAdmin?.name ?? "Someone"} already added ${what} of ${formatPeso(dup.amount)} dated ${shortDate(cand.date)}. Add it again anyway?`
+  );
+}
+
 const expenseSchema = z.object({
   date: dateField,
   amount: amountField,
@@ -73,6 +123,15 @@ export async function addExpense(formData: FormData) {
     cardId: formData.get("cardId") || undefined,
     note: formData.get("note") || undefined,
   });
+
+  const l = await ledger();
+  assertDateAllowed(parsed.date, "EXPENSE", l);
+  await confirmUnlessDuplicate(
+    formData,
+    l.rows,
+    { kind: "EXPENSE", date: parsed.date, amount: parsed.amount, category: parsed.category, paidWith: parsed.paidWith },
+    `a ${categoryLabel(parsed.category).toLowerCase()} expense`
+  );
 
   // A card expense needs to say which card, and it has to be one that is still in use.
   let card: { id: string; name: string } | null = null;
@@ -106,9 +165,17 @@ export async function addExpense(formData: FormData) {
     after: { date: parsed.date, amount: parsed.amount, category: parsed.category, paidWith: parsed.paidWith },
   });
   revalidateFinance();
+  // Spending more than is there is allowed (the income may not be recorded yet), but it is pointed out.
+  const now = computeBalances(await allRows());
+  const warn =
+    parsed.paidWith === "BANK" && now.bank < 0
+      ? " · heads up: the bank is now below zero"
+      : parsed.paidWith === "CASH" && now.cash < 0
+        ? " · heads up: production cash is now below zero"
+        : "";
   return `${categoryLabel(parsed.category)} · ${formatPeso(parsed.amount)} · ${
     card ? `card ${card.name}` : parsed.paidWith === "CASH" ? "cash" : "bank"
-  }`;
+  }${warn}`;
 }
 
 const incomeSchema = z.object({
@@ -126,6 +193,15 @@ export async function addIncome(formData: FormData) {
     channel: formData.get("channel"),
     note: formData.get("note") || undefined,
   });
+
+  const l = await ledger();
+  assertDateAllowed(parsed.date, "INCOME", l);
+  await confirmUnlessDuplicate(
+    formData,
+    l.rows,
+    { kind: "INCOME", date: parsed.date, amount: parsed.amount, category: parsed.channel, paidWith: null },
+    `money received from ${channelLabel(parsed.channel)}`
+  );
 
   const entry = await prisma.financeEntry.create({
     data: {
@@ -162,6 +238,16 @@ export async function addCashWithdrawal(formData: FormData) {
     amount: numberText(formData.get("amount")),
     note: formData.get("note") || undefined,
   });
+
+  const l = await ledger();
+  assertDateAllowed(parsed.date, "CASH_WITHDRAWAL", l);
+  assertBankCovers(parsed.amount, l);
+  await confirmUnlessDuplicate(
+    formData,
+    l.rows,
+    { kind: "CASH_WITHDRAWAL", date: parsed.date, amount: parsed.amount, category: null, paidWith: null },
+    "a cash withdrawal"
+  );
 
   const entry = await prisma.financeEntry.create({
     data: {
@@ -206,6 +292,19 @@ export async function setOpeningBalances(formData: FormData) {
     throw new Error("Starting balances are already set. Void them in the records first if they were wrong.");
   }
 
+  const earlier = await prisma.financeEntry.count({
+    where: {
+      voided: false,
+      kind: { in: ["INCOME", "EXPENSE", "CASH_WITHDRAWAL", "CARD_PAYMENT", "OWNER_DRAW"] },
+      date: { lt: new Date(`${parsed.date}T00:00:00.000Z`) },
+    },
+  });
+  if (earlier > 0) {
+    throw new Error(
+      `You already have ${earlier} ${earlier === 1 ? "entry" : "entries"} dated before ${shortDate(parsed.date)}. Use the date of your earliest entry, or earlier, for the starting balances.`
+    );
+  }
+
   const date = new Date(`${parsed.date}T00:00:00.000Z`);
   await prisma.financeEntry.createMany({
     data: [
@@ -241,6 +340,32 @@ export async function voidFinanceEntry(formData: FormData) {
   if (!entry) throw new Error("That entry no longer exists.");
   if (entry.voided) throw new Error("That entry is already voided.");
   if (entry.paydayId) throw new Error("This belongs to a payday. Void the whole payday instead.");
+
+  // Money received or spent on or before a paid payday is closed, and a void must not leave a balance below zero.
+  const l = await ledger();
+  const entryDate = entry.date.toISOString().slice(0, 10);
+  if ((entry.kind === "INCOME" || entry.kind === "EXPENSE") && l.lastPaydayKey && entryDate <= l.lastPaydayKey) {
+    throw new Error(
+      `This is dated on or before the ${shortDate(l.lastPaydayKey)} payday, which was already paid out. Void that payday first if it has to change.`
+    );
+  }
+  const broken = wouldBreakBalances(l.rows, entry.id);
+  if (broken?.what === "bank") {
+    throw new Error(
+      `Voiding this would leave the bank at -${formatPeso(-broken.after)}, because money was already paid out of it. Void the later withdrawals, card payments or owner draws first.`
+    );
+  }
+  if (broken?.what === "cash") {
+    throw new Error(
+      `Voiding this would leave production cash at -${formatPeso(-broken.after)}, because it was already spent. Void the cash expenses it paid for first.`
+    );
+  }
+  if (broken?.what === "card") {
+    const card = await prisma.financeCard.findUnique({ where: { id: broken.cardId }, select: { name: true } });
+    throw new Error(
+      `Voiding this would leave ${card?.name ?? "that card"} overpaid by ${formatPeso(-broken.after)}, because the card was already paid. Void that card payment first.`
+    );
+  }
 
   await prisma.financeEntry.update({
     where: { id: entry.id },
@@ -417,6 +542,10 @@ export async function payCard(formData: FormData) {
     throw new Error(`${card.name} only has ${formatPeso(owed)} owed, so that payment is too much.`);
   }
 
+  const l = await ledger();
+  assertDateAllowed(parsed.date, "CARD_PAYMENT", l);
+  assertBankCovers(parsed.amount, l);
+
   const entry = await prisma.financeEntry.create({
     data: {
       date: new Date(`${parsed.date}T00:00:00.000Z`),
@@ -509,11 +638,9 @@ export async function addOwnerDraw(formData: FormData) {
   const owner = (await activeOwners()).find((o) => o.id === parsed.ownerId);
   if (!owner) throw new Error("Choose one of the owners.");
 
-  const rows = await allRows();
-  const bank = computeBalances(rows).bank;
-  if (parsed.amount > bank + 0.005) {
-    throw new Error(`The bank only has ${formatPeso(bank)}. Record the money received first, then try again.`);
-  }
+  const l = await ledger();
+  assertDateAllowed(parsed.date, "OWNER_DRAW", l);
+  assertBankCovers(parsed.amount, l);
 
   const entry = await prisma.financeEntry.create({
     data: {
@@ -638,6 +765,12 @@ export async function recordPayday(formData: FormData) {
     ]);
     await tx.financeEntry.createMany({ data: lines });
     return created;
+  }).catch((err: unknown) => {
+    // The database allows one payday per date; a second one at the same moment is turned away.
+    if (typeof err === "object" && err && (err as { code?: string }).code === "P2002") {
+      throw new Error("That payday was just recorded by someone else. Reload the page to see it.");
+    }
+    throw err;
   });
 
   await logAudit({
@@ -834,6 +967,8 @@ export async function recordBill(formData: FormData) {
   if (!bill || !bill.active) throw new Error("That bill is no longer in use.");
   const card = bill.paidWith === "CARD" && bill.cardId ? await activeCardOrThrow(bill.cardId) : null;
   if (bill.paidWith === "CARD" && !card) throw new Error("Choose a card for this bill first.");
+
+  assertDateAllowed(parsed.date, "EXPENSE", await ledger());
 
   const month = parsed.date.slice(0, 7);
   const already = await prisma.financeEntry.findFirst({

@@ -528,3 +528,88 @@ export function billStatus(dueDay: number, recordedThisMonth: boolean, todayKey:
   const state = recordedThisMonth ? "recorded" : days < 0 ? "overdue" : days <= 3 ? "dueSoon" : "later";
   return { dueDate, days, state };
 }
+
+// ---- Checks before an entry is added or voided ----
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** "2026-10-15" as "Oct 15", for messages. */
+export function shortDate(key: string): string {
+  const [, m, d] = key.split("-").map(Number);
+  return `${MONTHS[m - 1]} ${d}`;
+}
+
+/** The day the starting balances were set (the earliest one), or null before they are. */
+export function openingDate(rows: FinanceRow[]): string | null {
+  const days = live(rows)
+    .filter((r) => r.kind === "OPENING_BANK" || r.kind === "OPENING_CASH")
+    .map((r) => r.date)
+    .sort();
+  return days[0] ?? null;
+}
+
+/**
+ * Is this date allowed for a new entry? Nothing may be dated before the starting balances. And
+ * once a payday has been paid out, money received or spent on or before it is closed: changing
+ * it would change a profit the owners were already paid on. Returns the reason, or null.
+ */
+export function checkEntryDate(opts: {
+  date: string;
+  kind: FinanceKindCode;
+  lastPaydayKey: string | null;
+  openingKey: string | null;
+}): string | null {
+  const { date, kind, lastPaydayKey, openingKey } = opts;
+  if ((kind === "INCOME" || kind === "EXPENSE") && lastPaydayKey && date <= lastPaydayKey) {
+    return `That date is on or before the ${shortDate(lastPaydayKey)} payday, which was already paid out. Use a later date, or void that payday first.`;
+  }
+  if (openingKey && date < openingKey) {
+    return `That date is before your starting balances (${shortDate(openingKey)}). Use ${shortDate(openingKey)} or later.`;
+  }
+  return null;
+}
+
+export interface BrokenBalance {
+  what: "bank" | "cash" | "card";
+  /** The balance (or amount owed) it would be left at. */
+  after: number;
+  cardId?: string;
+}
+
+/**
+ * Would voiding this entry leave the bank or the production cash below zero (where it wasn't
+ * made worse already), or a card with a negative balance (overpaid)? Returns what it would
+ * break, or null if it's safe.
+ */
+export function wouldBreakBalances(rows: FinanceRow[], entryId: string): BrokenBalance | null {
+  const entry = rows.find((r) => r.id === entryId);
+  if (!entry) return null;
+  const without = rows.map((r) => (r.id === entryId ? { ...r, voided: true } : r));
+  const before = computeBalances(rows);
+  const after = computeBalances(without);
+  if (after.bank < -0.005 && after.bank < before.bank - 0.005) return { what: "bank", after: after.bank };
+  if (after.cash < -0.005 && after.cash < before.cash - 0.005) return { what: "cash", after: after.cash };
+  if (entry.cardId) {
+    const owed = cardBalances(without, [entry.cardId])[0].owed;
+    const was = cardBalances(rows, [entry.cardId])[0].owed;
+    if (owed < -0.005 && owed < was - 0.005) return { what: "card", after: owed, cardId: entry.cardId };
+  }
+  return null;
+}
+
+/** An existing entry that looks the same as one about to be added (same day, amount, kind and category). */
+export function findDuplicate(
+  rows: FinanceRow[],
+  cand: { kind: FinanceKindCode; date: string; amount: number; category: string | null; paidWith: PaidWithCode | null }
+): FinanceRow | null {
+  return (
+    live(rows).find(
+      (r) =>
+        r.kind === cand.kind &&
+        r.date === cand.date &&
+        Math.abs(r.amount - cand.amount) < 0.005 &&
+        (r.category ?? null) === (cand.category ?? null) &&
+        (r.paidWith ?? null) === (cand.paidWith ?? null)
+    ) ?? null
+  );
+}

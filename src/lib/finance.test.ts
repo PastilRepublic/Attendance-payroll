@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   billStatus,
   cardBalances,
+  checkEntryDate,
+  findDuplicate,
   firstActivityDate,
   cashLog,
   computeBalances,
@@ -12,6 +14,7 @@ import {
   maxPercentEach,
   nextDueDate,
   nextPaydayToRecord,
+  openingDate,
   ownerBalances,
   paydayAfter,
   paydayOnOrBefore,
@@ -19,6 +22,7 @@ import {
   sharePlan,
   summarizeMonth,
   upcomingPayday,
+  wouldBreakBalances,
   type FinanceRow,
 } from "./finance";
 
@@ -458,5 +462,85 @@ describe("cost groups and monthly bills", () => {
     expect(billStatus(25, false, "2026-10-10").state).toBe("later");
     // A 31st in a short month falls on its last day.
     expect(billStatus(31, false, "2026-02-10").dueDate).toBe("2026-02-28");
+  });
+});
+
+describe("entry checks", () => {
+  it("closes the days up to a paid payday for money in and out, but not for transfers", () => {
+    const base = { lastPaydayKey: "2026-10-15", openingKey: "2026-10-01" };
+    expect(checkEntryDate({ ...base, kind: "EXPENSE", date: "2026-10-15" })).toMatch(/Oct 15 payday/);
+    expect(checkEntryDate({ ...base, kind: "INCOME", date: "2026-10-10" })).toMatch(/already paid out/);
+    expect(checkEntryDate({ ...base, kind: "EXPENSE", date: "2026-10-16" })).toBeNull();
+    // A withdrawal or card payment doesn't change the profit, so it isn't closed.
+    expect(checkEntryDate({ ...base, kind: "CASH_WITHDRAWAL", date: "2026-10-10" })).toBeNull();
+    expect(checkEntryDate({ ...base, kind: "CARD_PAYMENT", date: "2026-10-10" })).toBeNull();
+  });
+
+  it("refuses dates before the starting balances", () => {
+    const base = { lastPaydayKey: null, openingKey: "2026-10-01" };
+    expect(checkEntryDate({ ...base, kind: "INCOME", date: "2026-09-30" })).toMatch(/before your starting balances \(Oct 1\)/);
+    expect(checkEntryDate({ ...base, kind: "CASH_WITHDRAWAL", date: "2026-09-30" })).toMatch(/Oct 1 or later/);
+    expect(checkEntryDate({ ...base, kind: "INCOME", date: "2026-10-01" })).toBeNull();
+    expect(checkEntryDate({ lastPaydayKey: null, openingKey: null, kind: "INCOME", date: "2020-01-01" })).toBeNull();
+  });
+
+  it("finds the day the starting balances were set", () => {
+    const rows = [
+      row({ kind: "OPENING_CASH", amount: 0, date: "2026-10-01" }),
+      row({ kind: "OPENING_BANK", amount: 100, date: "2026-10-01", voided: false }),
+      row({ kind: "OPENING_BANK", amount: 5, date: "2026-08-01", voided: true }),
+    ];
+    expect(openingDate(rows)).toBe("2026-10-01");
+    expect(openingDate([])).toBeNull();
+  });
+
+  it("refuses to void money that was already paid out of the bank", () => {
+    const income = row({ kind: "INCOME", amount: 10000, category: "SHOPEE" });
+    const rows = [row({ kind: "OPENING_BANK", amount: 1000 }), income, row({ kind: "OWNER_DRAW", amount: 9000, ownerId: "A" })];
+    expect(wouldBreakBalances(rows, income.id)).toEqual({ what: "bank", after: -9000 + 1000 });
+    // With enough left in the bank it is fine.
+    const roomy = [row({ kind: "OPENING_BANK", amount: 50000 }), income, row({ kind: "OWNER_DRAW", amount: 9000, ownerId: "A" })];
+    expect(wouldBreakBalances(roomy, income.id)).toBeNull();
+  });
+
+  it("refuses to void a withdrawal whose cash was already spent", () => {
+    const wd = row({ kind: "CASH_WITHDRAWAL", amount: 5000 });
+    const rows = [
+      row({ kind: "OPENING_BANK", amount: 20000 }),
+      wd,
+      row({ kind: "EXPENSE", amount: 4000, category: "CHICKEN", paidWith: "CASH" }),
+    ];
+    expect(wouldBreakBalances(rows, wd.id)).toEqual({ what: "cash", after: -4000 });
+  });
+
+  it("refuses to void a card charge after the card was paid", () => {
+    const charge = row({ kind: "EXPENSE", amount: 3000, category: "ADVERTISING", paidWith: "CARD", cardId: "c1" });
+    const rows = [
+      row({ kind: "OPENING_BANK", amount: 20000 }),
+      charge,
+      row({ kind: "CARD_PAYMENT", amount: 3000, cardId: "c1" }),
+    ];
+    expect(wouldBreakBalances(rows, charge.id)).toEqual({ what: "card", after: -3000, cardId: "c1" });
+    // Voiding the payment instead is fine: the card just owes again.
+    const payment = rows[2];
+    expect(wouldBreakBalances(rows, payment.id)).toBeNull();
+  });
+
+  it("doesn't block a void that makes nothing worse", () => {
+    const e = row({ kind: "EXPENSE", amount: 100, category: "GAS", paidWith: "BANK" });
+    // The bank is already negative; voiding an expense only helps.
+    expect(wouldBreakBalances([row({ kind: "OPENING_BANK", amount: 10 }), e], e.id)).toBeNull();
+  });
+
+  it("spots an entry that looks like one already added", () => {
+    const existing = row({ kind: "EXPENSE", amount: 15200, category: "CHICKEN", paidWith: "CASH", date: "2026-10-08" });
+    const rows = [existing, row({ kind: "EXPENSE", amount: 15200, category: "CHICKEN", paidWith: "CASH", date: "2026-10-08", voided: true })];
+    const same = { kind: "EXPENSE" as const, date: "2026-10-08", amount: 15200, category: "CHICKEN", paidWith: "CASH" as const };
+    expect(findDuplicate(rows, same)?.id).toBe(existing.id);
+    expect(findDuplicate(rows, { ...same, amount: 15201 })).toBeNull();
+    expect(findDuplicate(rows, { ...same, category: "OIL" })).toBeNull();
+    expect(findDuplicate(rows, { ...same, paidWith: "BANK" })).toBeNull();
+    expect(findDuplicate(rows, { ...same, date: "2026-10-09" })).toBeNull();
+    expect(findDuplicate([rows[1]], same)).toBeNull();
   });
 });
