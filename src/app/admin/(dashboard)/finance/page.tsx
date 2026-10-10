@@ -528,8 +528,13 @@ export default async function FinancePage({
                     Profit from {fmtDate(paydayPeriod.start, "MMM d")} to {fmtDate(paydayPeriod.end, "MMM d")}:{" "}
                     <span className="font-semibold">{formatPeso(paydayPeriod.profit)}</span>
                   </>
+                ) : paydayPeriod.received === 0 && paydayPeriod.spent === 0 ? (
+                  <>Nothing has been recorded for this payday yet.</>
                 ) : (
-                  <>No profit from {fmtDate(paydayPeriod.start, "MMM d")} to {fmtDate(paydayPeriod.end, "MMM d")}, so there is nothing to share yet.</>
+                  <>
+                    No profit from {fmtDate(paydayPeriod.start, "MMM d")} to {fmtDate(paydayPeriod.end, "MMM d")}, so there is
+                    nothing to share yet.
+                  </>
                 )}
               </div>
               {owners.length < 2 && (
