@@ -15,6 +15,12 @@ import {
   cardBalances,
   categoryLabel,
   channelLabel,
+  computeBalances,
+  maxPercentEach,
+  nextPaydayToRecord,
+  ownerBalances,
+  periodProfit,
+  sharePlan,
   type FinanceRow,
 } from "@/lib/finance";
 import { formatPeso } from "@/lib/format";
@@ -233,6 +239,7 @@ export async function voidFinanceEntry(formData: FormData) {
   const entry = await prisma.financeEntry.findUnique({ where: { id: parsed.entryId } });
   if (!entry) throw new Error("That entry no longer exists.");
   if (entry.voided) throw new Error("That entry is already voided.");
+  if (entry.paydayId) throw new Error("This belongs to a payday. Void the whole payday instead.");
 
   await prisma.financeEntry.update({
     where: { id: entry.id },
@@ -250,10 +257,21 @@ export async function voidFinanceEntry(formData: FormData) {
   revalidateFinance();
 }
 
-/** What is owed on one card, worked out from its lines in the ledger. */
-async function amountOwed(cardId: string): Promise<number> {
-  const entries = await prisma.financeEntry.findMany({ where: { cardId, voided: false } });
-  const rows: FinanceRow[] = entries.map((e) => ({
+const toRows = (
+  entries: {
+    id: string;
+    date: Date;
+    kind: FinanceRow["kind"];
+    amount: unknown;
+    category: string | null;
+    paidWith: FinanceRow["paidWith"];
+    cardId: string | null;
+    ownerId: string | null;
+    voided: boolean;
+    createdAt: Date;
+  }[]
+): FinanceRow[] =>
+  entries.map((e) => ({
     id: e.id,
     date: e.date.toISOString().slice(0, 10),
     kind: e.kind,
@@ -261,9 +279,15 @@ async function amountOwed(cardId: string): Promise<number> {
     category: e.category,
     paidWith: e.paidWith,
     cardId: e.cardId,
+    ownerId: e.ownerId,
     voided: e.voided,
     createdAt: e.createdAt.getTime(),
   }));
+
+/** What is owed on one card, worked out from its lines in the ledger. */
+async function amountOwed(cardId: string): Promise<number> {
+  const entries = await prisma.financeEntry.findMany({ where: { cardId, voided: false } });
+  const rows = toRows(entries);
   return cardBalances(rows, [cardId])[0].owed;
 }
 
@@ -448,4 +472,233 @@ export async function payCardForm(_prev: FormState, formData: FormData): Promise
 
 export async function setCardStatementDayForm(_prev: FormState, formData: FormData): Promise<FormState> {
   return runForm(() => setCardStatementDay(formData));
+}
+
+// ---- Owners: extra draws and the 15th / 30th payday ----
+
+async function activeOwners() {
+  return prisma.adminUser.findMany({
+    where: { role: "OWNER", active: true },
+    select: { id: true, name: true },
+    orderBy: { createdAt: "asc" },
+  });
+}
+
+async function allRows() {
+  return toRows(await prisma.financeEntry.findMany({ where: { voided: false } }));
+}
+
+const drawSchema = z.object({
+  date: dateField,
+  amount: amountField,
+  ownerId: z.string().min(1, "Choose who took the money."),
+  note: noteField,
+});
+
+/** Money an owner takes between paydays. It comes out of the bank and off their next payday share. */
+export async function addOwnerDraw(formData: FormData) {
+  const admin = await requireOwner();
+  const parsed = drawSchema.parse({
+    date: formData.get("date"),
+    amount: numberText(formData.get("amount")),
+    ownerId: formData.get("ownerId"),
+    note: formData.get("note") || undefined,
+  });
+
+  const owner = (await activeOwners()).find((o) => o.id === parsed.ownerId);
+  if (!owner) throw new Error("Choose one of the owners.");
+
+  const rows = await allRows();
+  const bank = computeBalances(rows).bank;
+  if (parsed.amount > bank + 0.005) {
+    throw new Error(`The bank only has ${formatPeso(bank)}. Record the money received first, then try again.`);
+  }
+
+  const entry = await prisma.financeEntry.create({
+    data: {
+      date: new Date(`${parsed.date}T00:00:00.000Z`),
+      kind: "OWNER_DRAW",
+      amount: parsed.amount,
+      category: "EXTRA",
+      paidWith: "BANK",
+      ownerId: owner.id,
+      note: parsed.note,
+      createdByAdminId: admin.id,
+    },
+  });
+  await logAudit({
+    actorAdminId: admin.id,
+    action: "ADD_FINANCE_OWNER_DRAW",
+    targetTable: "FinanceEntry",
+    targetId: entry.id,
+    after: { date: parsed.date, amount: parsed.amount, owner: owner.name },
+  });
+  revalidateFinance();
+  return `${owner.name} took ${formatPeso(parsed.amount)}. It comes off the next payday share.`;
+}
+
+const paydaySchema = z.object({
+  paydayDate: z.string().refine(isRealDateKey, "Reload the page and try again."),
+  percent: z.coerce
+    .number()
+    .positive("Enter the percentage each owner takes.")
+    .transform((n) => Math.round(n * 100) / 100),
+});
+
+/**
+ * The 15th/30th payday. Each owner gets the same percentage of the profit since the last
+ * payday; what they already took comes off, and the rest is paid from the bank. The profit is
+ * worked out here from the ledger, never taken from the form.
+ */
+export async function recordPayday(formData: FormData) {
+  const admin = await requireOwner();
+  const parsed = paydaySchema.parse({
+    paydayDate: formData.get("paydayDate"),
+    percent: numberText(formData.get("percent")),
+  });
+
+  const owners = await activeOwners();
+  if (owners.length < 2) {
+    throw new Error("Add your co-owner's login in Settings first, so the share can be split between you both.");
+  }
+  const maxEach = maxPercentEach(owners.length);
+  if (parsed.percent > maxEach) {
+    throw new Error(`With ${owners.length} owners, each can take at most ${maxEach}%.`);
+  }
+
+  const last = await prisma.financePayday.findFirst({ where: { voided: false }, orderBy: { date: "desc" } });
+  const lastKey = last ? last.date.toISOString().slice(0, 10) : null;
+  const due = nextPaydayToRecord(lastKey, localDateKey(new Date()));
+  if (!due) throw new Error("There is no payday to record yet.");
+  if (due !== parsed.paydayDate) throw new Error("The page was out of date. Reload it and try again.");
+
+  const rows = await allRows();
+  const period = periodProfit(rows, lastKey, due);
+  if (period.profit <= 0) {
+    throw new Error(
+      "There was no profit in this period, so there is nothing to share. Record any missing money received first."
+    );
+  }
+
+  const balances = ownerBalances(rows, owners.map((o) => o.id));
+  const plan = sharePlan(
+    period.profit,
+    parsed.percent,
+    owners.map((o) => ({ id: o.id, before: balances.get(o.id) ?? 0 }))
+  );
+  const totalPayout = Math.round(plan.reduce((sum, p) => sum + p.payout, 0) * 100) / 100;
+  const bank = computeBalances(rows).bank;
+  if (totalPayout > bank + 0.005) {
+    throw new Error(
+      `The payday needs ${formatPeso(totalPayout)} but the bank only has ${formatPeso(bank)}. Record any missing money received first.`
+    );
+  }
+
+  const date = new Date(`${due}T00:00:00.000Z`);
+  const payday = await prisma.$transaction(async (tx) => {
+    const created = await tx.financePayday.create({
+      data: {
+        date,
+        periodStart: new Date(`${period.start}T00:00:00.000Z`),
+        periodEnd: date,
+        profit: period.profit,
+        percent: parsed.percent,
+        createdByAdminId: admin.id,
+      },
+    });
+    const lines = plan.flatMap((p) => [
+      ...(p.share > 0
+        ? [
+            {
+              date,
+              kind: "OWNER_SHARE" as const,
+              amount: p.share,
+              category: "PAYDAY",
+              ownerId: p.ownerId,
+              paydayId: created.id,
+              createdByAdminId: admin.id,
+            },
+          ]
+        : []),
+      ...(p.payout > 0
+        ? [
+            {
+              date,
+              kind: "OWNER_DRAW" as const,
+              amount: p.payout,
+              category: "PAYDAY",
+              paidWith: "BANK" as const,
+              ownerId: p.ownerId,
+              paydayId: created.id,
+              createdByAdminId: admin.id,
+            },
+          ]
+        : []),
+    ]);
+    await tx.financeEntry.createMany({ data: lines });
+    return created;
+  });
+
+  await logAudit({
+    actorAdminId: admin.id,
+    action: "RECORD_FINANCE_PAYDAY",
+    targetTable: "FinancePayday",
+    targetId: payday.id,
+    after: { date: due, profit: period.profit, percent: parsed.percent, payouts: plan.map((p) => p.payout) },
+  });
+  revalidateFinance();
+  return `Payday recorded: ${formatPeso(totalPayout)} paid out from the bank.`;
+}
+
+const voidPaydaySchema = z.object({
+  paydayId: z.string().min(1),
+  reason: z.string().trim().min(3, "Give a reason (at least 3 characters)."),
+});
+
+/** Voids a payday and everything it created. Only the latest payday, so the periods stay in order. */
+export async function voidPayday(formData: FormData) {
+  const admin = await requireOwner();
+  const parsed = voidPaydaySchema.parse({
+    paydayId: formData.get("paydayId"),
+    reason: formData.get("reason"),
+  });
+
+  const payday = await prisma.financePayday.findUnique({ where: { id: parsed.paydayId } });
+  if (!payday) throw new Error("That payday no longer exists.");
+  if (payday.voided) throw new Error("That payday is already voided.");
+  const latest = await prisma.financePayday.findFirst({ where: { voided: false }, orderBy: { date: "desc" } });
+  if (latest?.id !== payday.id) throw new Error("Only the latest payday can be voided.");
+
+  const now = new Date();
+  await prisma.$transaction([
+    prisma.financePayday.update({
+      where: { id: payday.id },
+      data: { voided: true, voidedAt: now, voidReason: parsed.reason },
+    }),
+    prisma.financeEntry.updateMany({
+      where: { paydayId: payday.id, voided: false },
+      data: { voided: true, voidedAt: now, voidedByAdminId: admin.id, voidReason: parsed.reason },
+    }),
+  ]);
+  await logAudit({
+    actorAdminId: admin.id,
+    action: "VOID_FINANCE_PAYDAY",
+    targetTable: "FinancePayday",
+    targetId: payday.id,
+    before: { date: payday.date.toISOString().slice(0, 10), profit: Number(payday.profit), percent: Number(payday.percent) },
+    reason: parsed.reason,
+  });
+  revalidateFinance();
+}
+
+export async function addOwnerDrawForm(_prev: FormState, formData: FormData): Promise<FormState> {
+  return runForm(() => addOwnerDraw(formData));
+}
+
+export async function recordPaydayForm(_prev: FormState, formData: FormData): Promise<FormState> {
+  return runForm(() => recordPayday(formData));
+}
+
+export async function voidPaydayForm(_prev: FormState, formData: FormData): Promise<FormState> {
+  return runForm(() => voidPayday(formData));
 }

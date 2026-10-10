@@ -7,7 +7,14 @@ import {
   dueDateFor,
   daysBetween,
   lastStatementDate,
+  maxPercentEach,
   nextDueDate,
+  nextPaydayToRecord,
+  ownerBalances,
+  paydayAfter,
+  paydayOnOrBefore,
+  periodProfit,
+  sharePlan,
   summarizeMonth,
   type FinanceRow,
 } from "./finance";
@@ -277,5 +284,127 @@ describe("cashLog", () => {
       row({ kind: "EXPENSE", amount: 300, category: "GAS", paidWith: "CASH", date: "2026-10-03", createdAt: 9, voided: true }),
     ];
     expect(cashLog(rows).map((l) => l.balanceAfter)).toEqual([1000, 900]);
+  });
+});
+
+describe("owner draws and paydays", () => {
+  const A = "ownerA";
+  const B = "ownerB";
+
+  it("takes a draw out of the bank without counting it as spent", () => {
+    const rows = [
+      row({ kind: "OPENING_BANK", amount: 100000 }),
+      row({ kind: "OWNER_DRAW", amount: 10000, ownerId: A, category: "EXTRA" }),
+    ];
+    expect(computeBalances(rows)).toEqual({ bank: 90000, cash: 0, total: 90000 });
+    const s = summarizeMonth(rows, "2026-10");
+    expect(s.spent).toBe(0);
+    expect(s.profit).toBe(0);
+    expect(s.drawn).toBe(10000);
+  });
+
+  it("a share moves no money", () => {
+    const rows = [
+      row({ kind: "OPENING_BANK", amount: 100000 }),
+      row({ kind: "OWNER_SHARE", amount: 5000, ownerId: A }),
+    ];
+    expect(computeBalances(rows).bank).toBe(100000);
+  });
+
+  it("ignores voided draws and shares", () => {
+    const rows = [
+      row({ kind: "OPENING_BANK", amount: 100000 }),
+      row({ kind: "OWNER_DRAW", amount: 10000, ownerId: A, voided: true }),
+      row({ kind: "OWNER_SHARE", amount: 5000, ownerId: A, voided: true }),
+    ];
+    expect(computeBalances(rows).bank).toBe(100000);
+    expect(ownerBalances(rows, [A]).get(A)).toBe(0);
+  });
+
+  it("finds paydays on the 15th and 30th, and the last day of February", () => {
+    expect(paydayOnOrBefore("2026-10-10")).toBe("2026-09-30");
+    expect(paydayOnOrBefore("2026-10-15")).toBe("2026-10-15");
+    expect(paydayOnOrBefore("2026-10-29")).toBe("2026-10-15");
+    expect(paydayOnOrBefore("2026-10-30")).toBe("2026-10-30");
+    expect(paydayOnOrBefore("2027-01-05")).toBe("2026-12-30");
+    expect(paydayOnOrBefore("2027-03-01")).toBe("2027-02-28");
+    expect(paydayAfter("2026-09-30")).toBe("2026-10-15");
+    expect(paydayAfter("2026-10-15")).toBe("2026-10-30");
+    expect(paydayAfter("2026-12-30")).toBe("2027-01-15");
+    expect(paydayAfter("2027-01-30")).toBe("2027-02-15");
+    expect(paydayAfter("2027-02-15")).toBe("2027-02-28");
+  });
+
+  it("offers the next payday in order, only once it has come", () => {
+    expect(nextPaydayToRecord("2026-09-30", "2026-10-10")).toBeNull();
+    expect(nextPaydayToRecord("2026-09-30", "2026-10-15")).toBe("2026-10-15");
+    // The 15th was missed: it is still done first.
+    expect(nextPaydayToRecord("2026-09-30", "2026-10-31")).toBe("2026-10-15");
+    // Nothing recorded yet: the latest payday that has come.
+    expect(nextPaydayToRecord(null, "2026-10-10")).toBe("2026-09-30");
+  });
+
+  it("counts profit from the day after the last payday up to the payday", () => {
+    const rows = [
+      row({ kind: "INCOME", amount: 5000, date: "2026-09-30", category: "SHOPEE" }),
+      row({ kind: "INCOME", amount: 20000, date: "2026-10-01", category: "SHOPEE" }),
+      row({ kind: "EXPENSE", amount: 8000, date: "2026-10-14", category: "CHICKEN", paidWith: "CASH" }),
+      row({ kind: "INCOME", amount: 9999, date: "2026-10-16", category: "SHOPEE" }),
+      row({ kind: "EXPENSE", amount: 1, date: "2026-10-05", category: "GAS", paidWith: "BANK", voided: true }),
+      row({ kind: "OWNER_DRAW", amount: 3000, date: "2026-10-10", ownerId: A }),
+    ];
+    const p = periodProfit(rows, "2026-09-30", "2026-10-15");
+    expect(p).toEqual({ start: "2026-10-01", end: "2026-10-15", received: 20000, spent: 8000, profit: 12000 });
+  });
+
+  it("starts the first period at the first recorded day", () => {
+    const rows = [
+      row({ kind: "OPENING_BANK", amount: 1000, date: "2026-08-01" }),
+      row({ kind: "INCOME", amount: 700, date: "2026-09-03", category: "DIRECT" }),
+    ];
+    expect(periodProfit(rows, null, "2026-09-30").start).toBe("2026-09-03");
+  });
+
+  it("gives each owner the same share, and takes early draws off the payout", () => {
+    const plan = sharePlan(12000, 20, [
+      { id: A, before: 0 },
+      { id: B, before: -1000 },
+    ]);
+    expect(plan[0]).toEqual({ ownerId: A, share: 2400, before: 0, payout: 2400, aheadAfter: 0 });
+    expect(plan[1]).toEqual({ ownerId: B, share: 2400, before: -1000, payout: 1400, aheadAfter: 0 });
+  });
+
+  it("carries on when an owner took more than their share", () => {
+    const [a] = sharePlan(5000, 10, [{ id: A, before: -2000 }]);
+    expect(a.share).toBe(500);
+    expect(a.payout).toBe(0);
+    expect(a.aheadAfter).toBe(1500);
+    // Next payday that 1,500 is still taken off.
+    const [next] = sharePlan(10000, 10, [{ id: A, before: -1500 }]);
+    expect(next.payout).toBe(0);
+    expect(next.aheadAfter).toBe(500);
+  });
+
+  it("gives no share when there is no profit", () => {
+    expect(sharePlan(-4000, 20, [{ id: A, before: 0 }])[0].payout).toBe(0);
+    expect(sharePlan(0, 20, [{ id: A, before: 500 }])[0].payout).toBe(500);
+  });
+
+  it("works out balances per owner over several paydays", () => {
+    const rows = [
+      row({ kind: "OWNER_SHARE", amount: 2400, ownerId: A }),
+      row({ kind: "OWNER_SHARE", amount: 2400, ownerId: B }),
+      row({ kind: "OWNER_DRAW", amount: 2400, ownerId: A, category: "PAYDAY" }),
+      row({ kind: "OWNER_DRAW", amount: 3000, ownerId: B, category: "EXTRA" }),
+    ];
+    const b = ownerBalances(rows, [A, B]);
+    expect(b.get(A)).toBe(0);
+    expect(b.get(B)).toBe(-600);
+  });
+
+  it("limits the percentage so the owners' shares can't pass 100%", () => {
+    expect(maxPercentEach(2)).toBe(50);
+    expect(maxPercentEach(3)).toBe(33.33);
+    expect(maxPercentEach(0)).toBe(0);
   });
 });

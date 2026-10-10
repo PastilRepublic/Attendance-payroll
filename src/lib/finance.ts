@@ -9,6 +9,10 @@
  *   comes out of the bank. Neither is ever taken off twice.
  * - An expense charged to a CARD changes neither: it adds to what is owed on that card. The
  *   bank drops only when the card is paid (a card payment).
+ * - Owners: an owner DRAW takes money out of the bank and is never an expense. A SHARE is what
+ *   an owner is entitled to at a payday (a percentage of the profit since the last payday); it
+ *   moves no money. What an owner is still owed = shares - draws, so money taken early comes
+ *   off the next payday and both owners end up equal.
  * - Voided lines count for nothing but stay visible in the records.
  */
 
@@ -18,7 +22,9 @@ export type FinanceKindCode =
   | "INCOME"
   | "EXPENSE"
   | "CASH_WITHDRAWAL"
-  | "CARD_PAYMENT";
+  | "CARD_PAYMENT"
+  | "OWNER_SHARE"
+  | "OWNER_DRAW";
 export type PaidWithCode = "CASH" | "BANK" | "CARD";
 
 export interface FinanceRow {
@@ -31,6 +37,8 @@ export interface FinanceRow {
   paidWith: PaidWithCode | null;
   /** Which card an expense was charged to, or a card payment went to. */
   cardId: string | null;
+  /** Which owner a share or a draw belongs to. */
+  ownerId?: string | null;
   voided: boolean;
   /** Creation time in milliseconds, to put same-day lines in the order they were entered. */
   createdAt: number;
@@ -103,7 +111,7 @@ export function computeBalances(rows: FinanceRow[]): Balances {
     else if (r.kind === "CASH_WITHDRAWAL") {
       bank -= r.amount;
       cash += r.amount;
-    } else if (r.kind === "CARD_PAYMENT") {
+    } else if (r.kind === "CARD_PAYMENT" || r.kind === "OWNER_DRAW") {
       bank -= r.amount;
     } else if (r.kind === "EXPENSE") {
       if (r.paidWith === "CASH") cash -= r.amount;
@@ -121,6 +129,8 @@ export interface MonthSummary {
   profit: number;
   /** Cash taken out of the bank this month (not an expense). */
   withdrawn: number;
+  /** Money owners took out of the bank this month (not an expense). */
+  drawn: number;
   byChannel: { code: string; label: string; amount: number }[];
   byCategory: { code: string; label: string; amount: number }[];
 }
@@ -152,6 +162,7 @@ export function summarizeMonth(rows: FinanceRow[], monthKey: string): MonthSumma
     spent,
     profit: round2(received - spent),
     withdrawn: sum("CASH_WITHDRAWAL"),
+    drawn: sum("OWNER_DRAW"),
     byChannel: group("INCOME", INCOME_CHANNELS),
     byCategory: group("EXPENSE", EXPENSE_CATEGORIES),
   };
@@ -338,3 +349,116 @@ export function cardDue(
 
   return { owed, statementDate, dueDate, dueAmount, notYetBilled, overdue };
 }
+
+// ---- Owners: draws and the 15th / 30th payday ----
+
+/** Paydays are the 15th and the 30th (the last day in February). */
+const PAYDAY_DAYS = [15, 30];
+
+const paydaysInMonth = (y: number, m: number) => PAYDAY_DAYS.map((d) => dateKey(y, m, clampDay(y, m, d)));
+
+/** The latest payday date on or before today. */
+export function paydayOnOrBefore(todayKey: string): string {
+  const [y, m] = todayKey.split("-").map(Number);
+  const py = m === 1 ? y - 1 : y;
+  const pm = m === 1 ? 12 : m - 1;
+  const all = [...paydaysInMonth(py, pm), ...paydaysInMonth(y, m)];
+  return all.filter((d) => d <= todayKey).pop()!;
+}
+
+/** The first payday date strictly after the given date. */
+export function paydayAfter(dateKeyIn: string): string {
+  const [y, m] = dateKeyIn.split("-").map(Number);
+  const ny = m === 12 ? y + 1 : y;
+  const nm = m === 12 ? 1 : m + 1;
+  const all = [...paydaysInMonth(y, m), ...paydaysInMonth(ny, nm)];
+  return all.find((d) => d > dateKeyIn)!;
+}
+
+/**
+ * The next payday to record: the one after the last payday recorded (so a missed payday is
+ * done first, in order). With none recorded yet it is the latest one that has come. Null
+ * while that date has not arrived.
+ */
+export function nextPaydayToRecord(lastPaydayKey: string | null, todayKey: string): string | null {
+  const next = lastPaydayKey ? paydayAfter(lastPaydayKey) : paydayOnOrBefore(todayKey);
+  return next <= todayKey ? next : null;
+}
+
+export interface PeriodProfit {
+  /** First day counted (the day after the last payday, or the first recorded day). */
+  start: string;
+  end: string;
+  received: number;
+  spent: number;
+  profit: number;
+}
+
+/** Money received minus money spent from the day after the last payday up to the payday. */
+export function periodProfit(rows: FinanceRow[], lastPaydayKey: string | null, paydayKey: string): PeriodProfit {
+  const inPeriod = live(rows).filter(
+    (r) => (r.kind === "INCOME" || r.kind === "EXPENSE") && r.date <= paydayKey && (!lastPaydayKey || r.date > lastPaydayKey)
+  );
+  const sum = (kind: FinanceKindCode) => round2(inPeriod.filter((r) => r.kind === kind).reduce((t, r) => t + r.amount, 0));
+  const received = sum("INCOME");
+  const spent = sum("EXPENSE");
+  const firstDay = inPeriod.map((r) => r.date).sort()[0];
+  const start = lastPaydayKey ? addOneDay(lastPaydayKey) : (firstDay ?? paydayKey);
+  return { start, end: paydayKey, received, spent, profit: round2(received - spent) };
+}
+
+function addOneDay(key: string): string {
+  const [y, m, d] = key.split("-").map(Number);
+  const t = new Date(Date.UTC(y, m - 1, d + 1));
+  return dateKey(t.getUTCFullYear(), t.getUTCMonth() + 1, t.getUTCDate());
+}
+
+/** What an owner is still owed: shares so far minus everything they have taken. Negative = taken ahead. */
+export function ownerBalances(rows: FinanceRow[], ownerIds: string[]): Map<string, number> {
+  const out = new Map<string, number>(ownerIds.map((id) => [id, 0]));
+  for (const r of live(rows)) {
+    if (!r.ownerId || !out.has(r.ownerId)) continue;
+    if (r.kind === "OWNER_SHARE") out.set(r.ownerId, out.get(r.ownerId)! + r.amount);
+    else if (r.kind === "OWNER_DRAW") out.set(r.ownerId, out.get(r.ownerId)! - r.amount);
+  }
+  for (const [id, v] of out) out.set(id, round2(v));
+  return out;
+}
+
+export interface OwnerPayout {
+  ownerId: string;
+  /** The owner's percentage of the profit. */
+  share: number;
+  /** What they were owed (or had taken ahead) before this payday. */
+  before: number;
+  /** Cash paid out now: the share plus what was owed, never below zero. */
+  payout: number;
+  /** Still taken ahead after this payday (carried to the next one), as a positive number. */
+  aheadAfter: number;
+}
+
+/**
+ * Each owner gets the same percentage of the profit. Whatever an owner already took comes off
+ * their payout; if they took more than their share, the rest carries to the next payday.
+ * No profit means no share (a loss simply carries into the next period's profit).
+ */
+export function sharePlan(
+  profit: number,
+  percent: number,
+  owners: { id: string; before: number }[]
+): OwnerPayout[] {
+  const share = profit > 0 ? round2((profit * percent) / 100) : 0;
+  return owners.map((o) => {
+    const net = round2(o.before + share);
+    return {
+      ownerId: o.id,
+      share,
+      before: o.before,
+      payout: Math.max(net, 0),
+      aheadAfter: Math.max(round2(-net), 0),
+    };
+  });
+}
+
+/** The biggest percentage that can be given to each of the owners (they can't add up past 100). */
+export const maxPercentEach = (ownerCount: number) => (ownerCount > 0 ? Math.floor((10000 / ownerCount)) / 100 : 0);

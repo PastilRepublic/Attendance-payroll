@@ -111,6 +111,7 @@ model AdminUser {
   inspectedSanitation SanitationAssignment[] @relation("SanitationAssignmentInspectedByAdmin")
   financeEntriesCreated FinanceEntry[] @relation("FinanceEntryCreatedBy")
   financeEntriesVoided  FinanceEntry[] @relation("FinanceEntryVoidedBy")
+  financeOwnerEntries   FinanceEntry[] @relation("FinanceEntryOwner")
 }
 
 model Employee {
@@ -552,6 +553,10 @@ enum FinanceKind {
   CASH_WITHDRAWAL
   /** Money paid from the bank towards a credit card's balance. */
   CARD_PAYMENT
+  /** What an owner is entitled to at a payday (not money moving: see ownerId and paydayId). */
+  OWNER_SHARE
+  /** Money an owner takes out of the bank, at a payday (category PAYDAY) or in between (EXTRA). */
+  OWNER_DRAW
 }
 
 /** Where an expense was paid from. */
@@ -581,6 +586,12 @@ model FinanceEntry {
   /** EXPENSE paid with CARD, and CARD_PAYMENT: which card. */
   cardId   String?
   card     FinanceCard?    @relation(fields: [cardId], references: [id])
+  /** OWNER_SHARE and OWNER_DRAW: which owner (an admin login with the OWNER role). */
+  ownerId  String?
+  owner    AdminUser?      @relation("FinanceEntryOwner", fields: [ownerId], references: [id])
+  /** The payday this share or payout belongs to. */
+  paydayId String?
+  payday   FinancePayday?  @relation(fields: [paydayId], references: [id])
   note     String?
 
   createdByAdminId String?
@@ -597,6 +608,8 @@ model FinanceEntry {
   @@index([date])
   @@index([kind, voided])
   @@index([cardId])
+  @@index([ownerId])
+  @@index([paydayId])
 }
 
 /** A credit card the owners pay supplies and platform charges with. What is owed on it is worked out from the ledger. */
@@ -611,4 +624,30 @@ model FinanceCard {
   createdAt DateTime @default(now())
 
   entries FinanceEntry[]
+}
+
+/**
+ * One payday (the 15th or the 30th): the profit over the period, the percentage each owner
+ * takes, and what that came to. Each owner's share and payout are FinanceEntry lines linked here.
+ * Voiding a payday voids all of them together.
+ */
+model FinancePayday {
+  id          String   @id @default(cuid())
+  /** The payday date. */
+  date        DateTime @db.Date
+  periodStart DateTime @db.Date
+  periodEnd   DateTime @db.Date
+  /** Money received minus money spent over the period, as it stood when the payday was recorded. */
+  profit      Decimal  @db.Decimal(12, 2)
+  /** The percentage of that profit each owner takes. */
+  percent     Decimal  @db.Decimal(5, 2)
+  createdByAdminId String?
+  voided      Boolean  @default(false)
+  voidedAt    DateTime?
+  voidReason  String?
+  createdAt   DateTime @default(now())
+
+  entries FinanceEntry[]
+
+  @@index([date])
 }
