@@ -40,7 +40,7 @@ import NumberInput from "@/components/ui/NumberInput";
 import PillButton from "@/components/ui/PillButton";
 import { inputClass, labelClass, pillClass } from "@/components/ui/styles";
 import PaidWithFields from "./PaidWithFields";
-import PaydayFields from "./PaydayFields";
+import PaydayPanel from "./PaydayPanel";
 import ReminderTicker, { type Reminder } from "./ReminderTicker";
 import CreditCardFace from "./CreditCardFace";
 import {
@@ -243,6 +243,7 @@ export default async function FinancePage({
   const paydayDay = paydayDue ?? upcomingPayday(lastPaydayKey, today, firstActivity);
   const paydayPeriod = periodProfit(rows, lastPaydayKey, paydayDay);
   const maxPercent = maxPercentEach(Math.max(owners.length, 2));
+  const daysToPayday = daysBetween(today, paydayDay);
   const canPayday = !!paydayDue && owners.length >= 2 && paydayPeriod.profit > 0;
   // Why recording is not possible yet, in plain words (empty when it is).
   const paydayBlock = !paydayDue
@@ -974,89 +975,11 @@ export default async function FinancePage({
       </SoftCard>
 
       <SoftCard compact>
-        <h2 className="text-base font-medium text-slate-900">Owners&apos; share</h2>
-        <p className="mt-0.5 text-sm text-slate-500">
-          What each owner has taken, and the payday on the 15th and 30th.
-        </p>
-
-        {summary.drawn > 0 && summary.profit > 0 && (
-          <p className="mt-4 text-sm text-slate-600">
-            In {monthLabel(month)} the owners took{" "}
-            <span className="font-semibold text-slate-900">{formatPeso(summary.drawn)}</span>, which is{" "}
-            {Math.round((summary.drawn / summary.profit) * 1000) / 10}% of the {formatPeso(summary.profit)} net profit.
-          </p>
-        )}
-
-        <div className="mt-5 flex flex-col gap-3 rounded-2xl border border-accent-200 bg-accent-50 p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0">
-            <div className="text-sm font-semibold text-accent-950">
-              {paydayDue ? `Payday ${fmtDate(paydayDay, "MMM d")} is ready` : `Next payday: ${fmtDate(paydayDay, "MMM d, yyyy")}`}
-            </div>
-            <div className="mt-0.5 text-sm text-accent-800">
-              {paydayPeriod.received === 0 && paydayPeriod.spent === 0 ? (
-                <>Nothing recorded for this payday yet.</>
-              ) : (
-                <>
-                  Profit {paydayDue ? "from" : "so far, from"} {fmtDate(paydayPeriod.start, "MMM d")}
-                  {paydayDue ? ` to ${fmtDate(paydayPeriod.end, "MMM d")}` : ""}:{" "}
-                  <span className="font-semibold">{formatPeso(paydayPeriod.profit)}</span>
-                </>
-              )}
-            </div>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-base font-medium text-slate-900">Owners&apos; share</h2>
+            <p className="mt-0.5 text-sm text-slate-500">What each owner takes on the 15th and 30th.</p>
           </div>
-          <FormDialog
-            variant={canPayday ? "primary" : "secondary"}
-            triggerLabel={canPayday ? "Record payday" : "Set the percentage"}
-            title={`Payday ${fmtDate(paydayDay, "MMM d")}`}
-            description={`Profit ${formatPeso(paydayPeriod.profit)}. Type the percentage each owner takes and see what each one gets. Money an owner already took comes off their payout.`}
-          >
-            <ActionForm action={recordPaydayForm} closeDialogOnSuccess className="space-y-4">
-              <input type="hidden" name="paydayDate" value={paydayDay} />
-              <PaydayFields
-                profit={paydayPeriod.profit}
-                owners={owners.map((o) => ({ id: o.id, name: o.name, before: ownerBal.get(o.id) ?? 0 }))}
-                maxPercent={maxPercent}
-                defaultPercent={paydays[0] ? Number(paydays[0].percent) : undefined}
-              />
-              {paydayBlock && (
-                <p className="rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-900">{paydayBlock}</p>
-              )}
-              <PillButton className="w-full" disabled={!canPayday}>
-                Pay out and record
-              </PillButton>
-            </ActionForm>
-          </FormDialog>
-        </div>
-
-        {owners.length > 0 && (
-          <ul className="mt-5 divide-y divide-slate-100">
-            {owners.map((o) => {
-              const bal = ownerBal.get(o.id) ?? 0;
-              return (
-                <li key={o.id} className="flex items-center justify-between gap-3 py-3">
-                  <div className="text-sm font-medium text-slate-800">{o.name}</div>
-                  <div className="text-right">
-                    {bal > 0 ? (
-                      <>
-                        <div className="text-base font-semibold text-emerald-700">{formatPeso(bal)}</div>
-                        <div className="text-xs text-slate-500">share still to be paid</div>
-                      </>
-                    ) : bal < 0 ? (
-                      <>
-                        <div className="text-base font-semibold text-amber-700">{formatPeso(-bal)}</div>
-                        <div className="text-xs text-slate-500">taken ahead, comes off the next payday</div>
-                      </>
-                    ) : (
-                      <div className="text-sm text-slate-500">All even</div>
-                    )}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-
-        <div className="mt-4">
           <FormDialog
             size="sm"
             triggerLabel="+ Owner draw"
@@ -1093,10 +1016,46 @@ export default async function FinancePage({
           </FormDialog>
         </div>
 
+        <ActionForm action={recordPaydayForm} successMessage="Payday recorded" className="mt-4">
+          <input type="hidden" name="paydayDate" value={paydayDay} />
+          <PaydayPanel
+            title={
+              paydayDue
+                ? `Payday ${fmtDate(paydayDay, "MMM d")} is ready`
+                : `Payday ${fmtDate(paydayDay, "MMM d")} · ${daysToPayday === 1 ? "tomorrow" : `in ${daysToPayday} days`}`
+            }
+            subtitle={
+              paydayPeriod.received === 0 && paydayPeriod.spent === 0
+                ? "Nothing recorded for this payday yet."
+                : `Profit ${paydayDue ? "from" : "so far from"} ${fmtDate(paydayPeriod.start, "MMM d")}${
+                    paydayDue ? ` to ${fmtDate(paydayPeriod.end, "MMM d")}` : ""
+                  }: ${formatPeso(paydayPeriod.profit)}`
+            }
+            profit={paydayPeriod.profit}
+            owners={owners.map((o) => ({
+              id: o.id,
+              name: o.name,
+              before: ownerBal.get(o.id) ?? 0,
+              takenSince: rows
+                .filter(
+                  (r) =>
+                    r.kind === "OWNER_DRAW" && !r.voided && r.ownerId === o.id && (!lastPaydayKey || r.date > lastPaydayKey)
+                )
+                .reduce((t, r) => t + r.amount, 0),
+            }))}
+            maxPercent={maxPercent}
+            defaultPercent={paydays[0] ? Number(paydays[0].percent) : undefined}
+            canRecord={canPayday}
+            hint={paydayDue ? undefined : `Available on ${fmtDate(paydayDay, "MMM d")}`}
+            blockReason={paydayDue ? paydayBlock : ""}
+          />
+        </ActionForm>
+
         {paydays.length > 0 && (
-          <div className="mt-6 border-t border-slate-100 pt-5">
+          <div className="mt-5 border-t border-slate-100 pt-4">
             <h3 className="text-sm font-medium text-slate-800">Past paydays</h3>
-            <ul className="mt-3 space-y-4">
+            <p className="text-xs text-slate-500">Tap a row to see each owner.</p>
+            <ul className="mt-2 divide-y divide-slate-100">
               {paydays.map((d, i) => {
                 const perOwner = owners.map((o) => ({
                   id: o.id,
@@ -1105,58 +1064,55 @@ export default async function FinancePage({
                   paid: d.entries.filter((e) => e.ownerId === o.id && e.kind === "OWNER_DRAW").reduce((t, e) => t + Number(e.amount), 0),
                 }));
                 const paidTotal = perOwner.reduce((t, o) => t + o.paid, 0);
+                const profit = Number(d.profit);
                 return (
-                  <li key={d.id} className="rounded-2xl border border-slate-200 p-4">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <div className="text-sm font-medium text-slate-900">
-                          {fmtDate(d.date.toISOString().slice(0, 10), "MMM d, yyyy")}
-                        </div>
-                        <div className="text-xs text-slate-500">
-                          Profit {formatPeso(Number(d.profit))} · {Number(d.percent)}% each
-                        </div>
-                        {Number(d.profit) > 0 && (
-                          <div className="text-xs text-slate-500">
-                            Paid out {formatPeso(paidTotal)} · {Math.round((paidTotal / Number(d.profit)) * 1000) / 10}% of
-                            the net profit
-                          </div>
+                  <li key={d.id}>
+                    <details>
+                      <summary className="grid cursor-pointer list-none grid-cols-[1fr_auto] items-baseline gap-x-3 gap-y-0.5 py-3 text-sm sm:grid-cols-[6.5rem_1fr_auto] [&::-webkit-details-marker]:hidden">
+                        <span className="font-medium text-slate-900">{fmtDate(d.date.toISOString().slice(0, 10), "MMM d, yyyy")}</span>
+                        <span className="order-3 col-span-2 text-xs text-slate-500 sm:order-none sm:col-span-1 sm:text-sm">
+                          Profit {formatPeso(profit)} · {Number(d.percent)}% each
+                          {profit > 0 && ` · ${Math.round((paidTotal / profit) * 1000) / 10}% of profit`}
+                        </span>
+                        <span className="font-semibold text-slate-900">{formatPeso(paidTotal)} paid</span>
+                      </summary>
+                      <div className="pb-3">
+                        <ul className="divide-y divide-slate-100 rounded-2xl border border-slate-200 px-4">
+                          {perOwner.map((o) => (
+                            <li key={o.id} className="flex items-baseline justify-between gap-3 py-2 text-sm">
+                              <span className="text-slate-700">{o.name}</span>
+                              <span className="text-right">
+                                <span className="font-semibold text-slate-900">{formatPeso(o.paid)}</span>
+                                {Math.abs(o.share - o.paid) > 0.004 && (
+                                  <span className="block text-xs text-slate-500">
+                                    share {formatPeso(o.share)}, {formatPeso(o.share - o.paid)} offset by earlier draws
+                                  </span>
+                                )}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                        {i === 0 && (
+                          <details className="relative mt-2">
+                            <summary className={`${pillClass("destructive", "sm")} inline-flex cursor-pointer list-none [&::-webkit-details-marker]:hidden`}>
+                              Void this payday
+                            </summary>
+                            <ActionForm
+                              action={voidPaydayForm}
+                              compactError
+                              className="mt-1.5 flex w-64 flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-lg"
+                            >
+                              <input type="hidden" name="paydayId" value={d.id} />
+                              <label className="text-xs font-medium text-slate-700">Why is it wrong?</label>
+                              <input name="reason" required minLength={3} className={`${inputClass} !py-1.5 !text-xs`} />
+                              <PillButton variant="destructive" size="sm">
+                                Void this payday
+                              </PillButton>
+                            </ActionForm>
+                          </details>
                         )}
                       </div>
-                      {i === 0 && (
-                        <details className="relative">
-                          <summary className={`${pillClass("destructive", "sm")} cursor-pointer list-none [&::-webkit-details-marker]:hidden`}>
-                            Void
-                          </summary>
-                          <ActionForm
-                            action={voidPaydayForm}
-                            compactError
-                            className="absolute right-0 z-10 mt-1.5 flex w-64 flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-lg"
-                          >
-                            <input type="hidden" name="paydayId" value={d.id} />
-                            <label className="text-xs font-medium text-slate-700">Why is it wrong?</label>
-                            <input name="reason" required minLength={3} className={`${inputClass} !py-1.5 !text-xs`} />
-                            <PillButton variant="destructive" size="sm">
-                              Void this payday
-                            </PillButton>
-                          </ActionForm>
-                        </details>
-                      )}
-                    </div>
-                    <ul className="mt-2 divide-y divide-slate-100">
-                      {perOwner.map((o) => (
-                        <li key={o.id} className="flex items-baseline justify-between gap-3 py-2 text-sm">
-                          <span className="text-slate-700">{o.name}</span>
-                          <span className="text-right">
-                            <span className="font-semibold text-slate-900">{formatPeso(o.paid)}</span>
-                            {Math.abs(o.share - o.paid) > 0.004 && (
-                              <span className="block text-xs text-slate-500">
-                                share {formatPeso(o.share)}, {formatPeso(o.share - o.paid)} offset by earlier draws
-                              </span>
-                            )}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
+                    </details>
                   </li>
                 );
               })}
