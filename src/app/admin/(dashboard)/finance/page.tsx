@@ -262,7 +262,7 @@ export default async function FinancePage({
               ? `${e.owner?.name ?? "Owner"} · ${e.category === "PAYDAY" ? "payday" : "taken between paydays"}`
               : KIND_LABEL[e.kind];
     return (
-      <li key={e.id} className={`px-5 py-4 sm:px-7 ${e.voided ? "bg-slate-50" : ""}`}>
+      <li key={e.id} className={`px-4 py-3 sm:px-5 ${e.voided ? "bg-slate-50" : ""}`}>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <div className={`text-sm font-medium ${e.voided ? "text-slate-400 line-through" : "text-slate-900"}`}>
@@ -318,7 +318,7 @@ export default async function FinancePage({
   const RECENT = 10;
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <ReminderTicker reminders={reminders} />
 
       <SoftHeader
@@ -418,8 +418,8 @@ export default async function FinancePage({
       />
 
       {!hasOpening && (
-        <SoftCard accent="amber">
-          <h2 className="text-lg font-medium text-slate-900">Set your starting balances</h2>
+        <SoftCard accent="amber" compact>
+          <h2 className="text-base font-medium text-slate-900">Set your starting balances</h2>
           <p className="mt-0.5 text-sm text-slate-600">
             Enter what you have today, so the bank and cash numbers start right. You only do this once.
           </p>
@@ -438,11 +438,11 @@ export default async function FinancePage({
         </SoftCard>
       )}
 
-      <SoftCard className="sm:!p-8">
+      <SoftCard compact>
         <div className="grid gap-6 sm:grid-cols-[1.2fr_1fr_1fr] sm:items-center sm:gap-8">
-          <Metric big label="Total money" value={formatPeso(balances.total)} hint="Bank + production cash" />
+          <Metric compact big label="Total money" value={formatPeso(balances.total)} hint="Bank + production cash" />
           <div className="sm:border-l sm:border-slate-200 sm:pl-8">
-            <Metric label="In the bank" value={formatPeso(balances.bank)} hint="Estimated from what is recorded" />
+            <Metric compact label="In the bank" value={formatPeso(balances.bank)} hint="Estimated from what is recorded" />
           </div>
           <div className="sm:border-l sm:border-slate-200 sm:pl-8">
             <Metric
@@ -455,17 +455,17 @@ export default async function FinancePage({
         </div>
       </SoftCard>
 
-      <SoftCard className="sm:!p-8">
+      <SoftCard compact>
         <div>
           <div>
-            <h2 className="text-lg font-medium text-slate-900">Credit cards</h2>
+            <h2 className="text-base font-medium text-slate-900">Credit cards</h2>
             <p className="mt-0.5 text-sm text-slate-500">What is due on each card and when the bill is due.</p>
             {cardRows.length === 0 ? (
               <div className="mt-4">
                 <EmptyState>No credit card added yet.</EmptyState>
               </div>
             ) : (
-              <ul className="mt-5 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              <ul className="mt-4 grid grid-cols-[repeat(auto-fill,minmax(15rem,1fr))] gap-4">
                 {cardRows.map((c) => (
                   <li key={c.id} className="min-w-0">
                     <CreditCardFace
@@ -619,11 +619,11 @@ export default async function FinancePage({
         <MonthPicker value={month} current={current} basePath="/admin/finance" />
       </Banner>
 
-      <SoftCard className="sm:!p-8">
+      <SoftCard compact>
         <div className="grid gap-6 sm:grid-cols-3 sm:items-center sm:gap-8">
-          <Metric label="Money received" value={formatPeso(summary.received)} tone="green" />
+          <Metric compact label="Money received" value={formatPeso(summary.received)} tone="green" />
           <div className="sm:border-l sm:border-slate-200 sm:pl-8">
-            <Metric label="Money spent" value={formatPeso(summary.spent)} tone="rose" />
+            <Metric compact label="Money spent" value={formatPeso(summary.spent)} tone="rose" />
           </div>
           <div className="sm:border-l sm:border-slate-200 sm:pl-8">
             <Metric
@@ -638,12 +638,12 @@ export default async function FinancePage({
         <div className="mt-6 grid gap-4 border-t border-slate-100 pt-4 sm:grid-cols-2 sm:gap-8">
           <div>
             <div className="text-sm text-slate-500">Making and selling</div>
-            <div className="text-lg font-semibold text-slate-800">{formatPeso(summary.productionCosts)}</div>
+            <div className="text-base font-semibold text-slate-800">{formatPeso(summary.productionCosts)}</div>
             <div className="text-xs text-slate-400">Chicken, ingredients, oil, gas, jars, delivery</div>
           </div>
           <div className="sm:border-l sm:border-slate-200 sm:pl-8">
             <div className="text-sm text-slate-500">Operating costs</div>
-            <div className="text-lg font-semibold text-slate-800">{formatPeso(summary.operatingCosts)}</div>
+            <div className="text-base font-semibold text-slate-800">{formatPeso(summary.operatingCosts)}</div>
             <div className="text-xs text-slate-400">Rent, bills, salaries, ads, taxes, other</div>
           </div>
         </div>
@@ -660,8 +660,8 @@ export default async function FinancePage({
       </SoftCard>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <SoftCard>
-          <h2 className="text-lg font-medium text-slate-900">Where the money came from</h2>
+        <SoftCard compact>
+          <h2 className="text-base font-medium text-slate-900">Where the money came from</h2>
           <p className="mt-0.5 text-sm text-slate-500">Money received this month, by channel.</p>
           <div className="mt-5">
             {summary.byChannel.length === 0 ? (
@@ -674,7 +674,7 @@ export default async function FinancePage({
                   return (
                     <div key={c.code} className={`rounded-2xl p-4 ${style.box}`}>
                       <div className={`text-sm font-medium ${style.label}`}>{c.label}</div>
-                      <div className={`mt-1 text-xl font-semibold tracking-tight ${style.value}`}>
+                      <div className={`mt-0.5 text-lg font-semibold tracking-tight ${style.value}`}>
                         {formatPeso(c.amount)}
                       </div>
                       <div className={`mt-0.5 text-xs ${style.label}`}>{share}% of money received</div>
@@ -686,8 +686,8 @@ export default async function FinancePage({
           </div>
         </SoftCard>
 
-        <SoftCard>
-          <h2 className="text-lg font-medium text-slate-900">Where the money went</h2>
+        <SoftCard compact>
+          <h2 className="text-base font-medium text-slate-900">Where the money went</h2>
           <p className="mt-0.5 text-sm text-slate-500">Spending this month, biggest first.</p>
           <div className="mt-5">
             {summary.byCategory.length === 0 ? (
@@ -715,21 +715,21 @@ export default async function FinancePage({
       </div>
 
       <SoftCard padded={false}>
-        <div className="px-5 pt-5 sm:px-7 sm:pt-7">
-          <h2 className="text-lg font-medium text-slate-900">Production cash log</h2>
+        <div className="px-4 pt-4 sm:px-5 sm:pt-5">
+          <h2 className="text-base font-medium text-slate-900">Production cash log</h2>
           <p className="mt-0.5 text-sm text-slate-500">
             Every withdrawal and cash expense, newest first, with the cash left after each one.
           </p>
         </div>
         <div className="mt-4">
           {log.length === 0 ? (
-            <div className="p-5 pt-0 sm:p-7 sm:pt-0">
+            <div className="p-4 pt-0 sm:p-5 sm:pt-0">
               <EmptyState>No cash movements yet. Add a cash withdrawal to start.</EmptyState>
             </div>
           ) : (
             <ul className="divide-y divide-slate-100 border-t border-slate-100">
               {log.map((l) => (
-                <li key={l.id} className="flex items-center justify-between gap-3 px-5 py-3 sm:px-7">
+                <li key={l.id} className="flex items-center justify-between gap-3 px-4 py-2.5 sm:px-5">
                   <div className="min-w-0">
                     <div className="text-sm font-medium text-slate-800">
                       {l.kind === "CASH_WITHDRAWAL"
@@ -756,9 +756,9 @@ export default async function FinancePage({
 
       <SoftCard padded={false}>
         <details className="group">
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 sm:px-7 sm:py-5 [&::-webkit-details-marker]:hidden">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 sm:px-5 sm:py-5 [&::-webkit-details-marker]:hidden">
             <div className="min-w-0">
-              <h2 className="text-lg font-medium text-slate-900">Monthly bills</h2>
+              <h2 className="text-base font-medium text-slate-900">Monthly bills</h2>
               <p className="mt-0.5 text-sm text-slate-500">
                 {billRows.length === 0
                   ? "Rent, internet, electricity: save each once."
@@ -919,15 +919,15 @@ export default async function FinancePage({
       </SoftCard>
 
       <SoftCard padded={false}>
-        <div className="px-5 pt-5 sm:px-7 sm:pt-7">
-          <h2 className="text-lg font-medium text-slate-900">Records for {monthLabel(month)}</h2>
+        <div className="px-4 pt-4 sm:px-5 sm:pt-5">
+          <h2 className="text-base font-medium text-slate-900">Records for {monthLabel(month)}</h2>
           <p className="mt-0.5 text-sm text-slate-500">
             A wrong entry is voided, not deleted, so corrections can be reviewed.
           </p>
         </div>
         <div className="mt-4">
           {monthEntries.length === 0 ? (
-            <div className="p-5 pt-0 sm:p-7 sm:pt-0">
+            <div className="p-4 pt-0 sm:p-5 sm:pt-0">
               <EmptyState>No finance records for this month yet.</EmptyState>
             </div>
           ) : (
@@ -962,8 +962,8 @@ export default async function FinancePage({
         </div>
       </SoftCard>
 
-      <SoftCard className="sm:!p-8">
-        <h2 className="text-lg font-medium text-slate-900">Owners&apos; share</h2>
+      <SoftCard compact>
+        <h2 className="text-base font-medium text-slate-900">Owners&apos; share</h2>
         <p className="mt-0.5 text-sm text-slate-500">
           What each owner has taken, and the payday on the 15th and 30th.
         </p>

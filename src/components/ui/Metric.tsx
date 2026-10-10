@@ -19,19 +19,28 @@ export default function Metric({
   tone = "neutral",
   hint,
   big = false,
+  compact = false,
 }: {
   label: string;
   value: React.ReactNode;
   tone?: Tone;
   hint?: string;
   big?: boolean;
+  /** A size smaller, for dense screens like Finance. */
+  compact?: boolean;
 }) {
   return (
     <div className="min-w-0">
       <div className="text-sm text-slate-500">{label}</div>
       <div
         className={`mt-1 font-semibold tracking-tight ${TEXT[tone]} ${
-          big ? "text-3xl sm:text-4xl" : "text-xl sm:text-2xl"
+          big
+            ? compact
+              ? "text-2xl sm:text-3xl"
+              : "text-3xl sm:text-4xl"
+            : compact
+              ? "text-lg sm:text-xl"
+              : "text-xl sm:text-2xl"
         }`}
       >
         {value}

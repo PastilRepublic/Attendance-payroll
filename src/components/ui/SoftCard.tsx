@@ -9,18 +9,21 @@ const ACCENTS = {
 export default function SoftCard({
   accent = "none",
   padded = true,
+  compact = false,
   className = "",
   children,
 }: {
   accent?: keyof typeof ACCENTS;
   /** Standard card padding; turn off when the content (e.g. a table) goes edge to edge. */
   padded?: boolean;
+  /** Tighter padding, for dense screens like Finance. */
+  compact?: boolean;
   className?: string;
   children: React.ReactNode;
 }) {
   return (
     <div
-      className={`rounded-3xl border bg-white shadow-sm ${ACCENTS[accent]} ${padded ? "p-5 sm:p-7" : ""} ${className}`}
+      className={`rounded-3xl border bg-white shadow-sm ${ACCENTS[accent]} ${padded ? (compact ? "p-4 sm:p-5" : "p-5 sm:p-7") : ""} ${className}`}
     >
       {children}
     </div>

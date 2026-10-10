@@ -39,21 +39,21 @@ export default function CreditCardFace({
 
   return (
     <div
-      className={`relative flex aspect-[1.586/1] min-h-[11rem] w-full flex-col justify-between overflow-hidden rounded-2xl bg-gradient-to-br ${THEMES[cardTheme(name)]} p-5 text-white`}
+      className={`relative flex aspect-[1.586/1] min-h-[9.5rem] w-full flex-col justify-between overflow-hidden rounded-2xl bg-gradient-to-br ${THEMES[cardTheme(name)]} p-4 text-white`}
     >
       {/* soft circles, like the shine on a real card */}
       <div className="pointer-events-none absolute -right-12 -top-12 h-44 w-44 rounded-full bg-white/10" />
       <div className="pointer-events-none absolute -bottom-16 -left-10 h-40 w-40 rounded-full bg-black/10" />
 
       <div className="relative flex items-start justify-between gap-3">
-        <div className="min-w-0 truncate text-lg font-semibold tracking-wide">{name}</div>
-        <div className="h-7 w-10 shrink-0 rounded-md bg-gradient-to-br from-amber-200 to-amber-400" aria-hidden />
+        <div className="min-w-0 truncate text-base font-semibold tracking-wide">{name}</div>
+        <div className="h-6 w-9 shrink-0 rounded-md bg-gradient-to-br from-amber-200 to-amber-400" aria-hidden />
       </div>
 
       <div className="relative">
         <div className="text-xs uppercase tracking-wide text-white/75">{amountLabel}</div>
-        <div className="text-3xl font-extrabold tracking-tight">{amount}</div>
-        <div className={`mt-2 inline-block rounded-full px-3 py-1 text-xs ${badge}`}>{statusText}</div>
+        <div className="text-2xl font-extrabold tracking-tight">{amount}</div>
+        <div className={`mt-1.5 inline-block rounded-full px-2.5 py-0.5 text-xs ${badge}`}>{statusText}</div>
       </div>
     </div>
   );
