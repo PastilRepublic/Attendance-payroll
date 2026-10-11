@@ -46,6 +46,7 @@ import PaidWithFields from "./PaidWithFields";
 import PaydayPanel from "./PaydayPanel";
 import CategoryField from "./CategoryField";
 import ManageTypesDialog from "./ManageTypesDialog";
+import RecordsList from "./RecordsList";
 import ReminderTicker, { type Reminder } from "./ReminderTicker";
 import CreditCardFace from "./CreditCardFace";
 import {
@@ -266,9 +267,7 @@ export default async function FinancePage({
         : "";
 
   // One line of the records list.
-  const renderRecord = (e: (typeof entries)[number]) => {
-    const isMoneyOut = e.kind === "EXPENSE";
-    const what =
+  const whatOf = (e: (typeof entries)[number]) =>
       e.kind === "INCOME"
         ? channelLabel(e.category)
         : e.kind === "EXPENSE"
@@ -284,6 +283,16 @@ export default async function FinancePage({
             : e.kind === "OWNER_DRAW"
               ? `${e.owner?.name ?? "Owner"} · ${e.category === "PAYDAY" ? "payday" : "taken between paydays"}`
               : KIND_LABEL[e.kind];
+
+  // What a search looks through for one record.
+  const recordText = (e: (typeof entries)[number]) =>
+    [KIND_LABEL[e.kind], whatOf(e), fmtDate(e.date.toISOString().slice(0, 10), "MMM d, yyyy"), e.createdByAdmin?.name, e.note, formatPeso(Number(e.amount))]
+      .filter(Boolean)
+      .join(" ");
+
+  const renderRecord = (e: (typeof entries)[number]) => {
+    const isMoneyOut = e.kind === "EXPENSE";
+    const what = whatOf(e);
     return (
       <li key={e.id} className={`px-4 py-3 sm:px-5 ${e.voided ? "bg-slate-50" : ""}`}>
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -338,7 +347,6 @@ export default async function FinancePage({
   // The newest few lines show first; the rest and the voided ones are tucked away so the page stays short.
   const activeEntries = monthEntries.filter((e) => !e.voided);
   const voidedEntries = monthEntries.filter((e) => e.voided);
-  const RECENT = 10;
 
   return (
     <div className="space-y-6">
@@ -903,87 +911,72 @@ export default async function FinancePage({
       </SoftCard>
 
       <SoftCard padded={false}>
-        <div className="px-4 pt-4 sm:px-5 sm:pt-5">
-          <h2 className="text-base font-medium text-slate-900">Production cash log</h2>
-          <p className="mt-0.5 text-sm text-slate-500">
-            Every withdrawal and cash expense, newest first, with the cash left after each one.
-          </p>
-        </div>
-        <div className="mt-4">
-          {log.length === 0 ? (
-            <div className="p-4 pt-0 sm:p-5 sm:pt-0">
-              <EmptyState>No cash movements yet. Add a cash withdrawal to start.</EmptyState>
+        <details className="group">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 sm:px-5 [&::-webkit-details-marker]:hidden">
+            <div className="min-w-0">
+              <h2 className="text-base font-medium text-slate-900">Production cash log</h2>
+              <p className="mt-0.5 text-sm text-slate-500">
+                {log.length === 0
+                  ? "No cash movements yet."
+                  : `${log.length === 30 ? "Latest 30" : log.length} ${log.length === 1 ? "movement" : "movements"} · ${formatPeso(balances.cash)} cash left`}
+              </p>
             </div>
-          ) : (
-            <ul className="divide-y divide-slate-100 border-t border-slate-100">
-              {log.map((l) => (
-                <li key={l.id} className="flex items-center justify-between gap-3 px-4 py-2.5 sm:px-5">
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium text-slate-800">
-                      {l.kind === "CASH_WITHDRAWAL"
-                        ? "Cash withdrawal"
-                        : l.kind === "OPENING_CASH"
-                          ? "Starting cash"
-                          : categoryLabel(l.category)}
+            <span className="shrink-0 text-sm font-medium text-accent-800 group-open:hidden">Show</span>
+            <span className="hidden shrink-0 text-sm font-medium text-accent-800 group-open:inline">Hide</span>
+          </summary>
+          <div className="border-t border-slate-100">
+            {log.length === 0 ? (
+              <div className="p-4 pt-0 sm:p-5 sm:pt-0">
+                <EmptyState>No cash movements yet. Add a cash withdrawal to start.</EmptyState>
+              </div>
+            ) : (
+              <ul className="divide-y divide-slate-100 border-t border-slate-100">
+                {log.map((l) => (
+                  <li key={l.id} className="flex items-center justify-between gap-3 px-4 py-2.5 sm:px-5">
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium text-slate-800">
+                        {l.kind === "CASH_WITHDRAWAL"
+                          ? "Cash withdrawal"
+                          : l.kind === "OPENING_CASH"
+                            ? "Starting cash"
+                            : categoryLabel(l.category)}
+                      </div>
+                      <div className="text-xs text-slate-500">{fmtDate(l.date, "MMM d, yyyy")}</div>
                     </div>
-                    <div className="text-xs text-slate-500">{fmtDate(l.date, "MMM d, yyyy")}</div>
-                  </div>
-                  <div className="text-right">
-                    <div className={`text-sm font-semibold ${l.change >= 0 ? "text-emerald-700" : "text-rose-700"}`}>
-                      {l.change >= 0 ? "+" : "−"}
-                      {formatPeso(Math.abs(l.change))}
+                    <div className="text-right">
+                      <div className={`text-sm font-semibold ${l.change >= 0 ? "text-emerald-700" : "text-rose-700"}`}>
+                        {l.change >= 0 ? "+" : "−"}
+                        {formatPeso(Math.abs(l.change))}
+                      </div>
+                      <div className="text-xs text-slate-500">left {formatPeso(l.balanceAfter)}</div>
                     </div>
-                    <div className="text-xs text-slate-500">left {formatPeso(l.balanceAfter)}</div>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </details>
       </SoftCard>
 
       <SoftCard padded={false}>
-        <div className="px-4 pt-4 sm:px-5 sm:pt-5">
+        <div className="px-4 pb-3 pt-4 sm:px-5 sm:pt-5">
           <h2 className="text-base font-medium text-slate-900">Records for {monthLabel(month)}</h2>
           <p className="mt-0.5 text-sm text-slate-500">
-            A wrong entry is voided, not deleted, so corrections can be reviewed.
+            {monthEntries.length === 0
+              ? "Nothing recorded this month yet."
+              : `${activeEntries.length} ${activeEntries.length === 1 ? "record" : "records"}. A wrong one is voided, not deleted.`}
           </p>
         </div>
-        <div className="mt-4">
-          {monthEntries.length === 0 ? (
-            <div className="p-4 pt-0 sm:p-5 sm:pt-0">
-              <EmptyState>No finance records for this month yet.</EmptyState>
-            </div>
-          ) : (
-            <>
-              <ul className="divide-y divide-slate-100 border-t border-slate-100">
-                {activeEntries.slice(0, RECENT).map(renderRecord)}
-              </ul>
-              {activeEntries.length > RECENT && (
-                <details className="group border-t border-slate-100">
-                  <summary className="cursor-pointer list-none px-5 py-3 text-sm font-medium text-accent-800 hover:bg-slate-50 sm:px-7 [&::-webkit-details-marker]:hidden">
-                    <span className="group-open:hidden">Show {activeEntries.length - RECENT} older records</span>
-                    <span className="hidden group-open:inline">Hide older records</span>
-                  </summary>
-                  <ul className="divide-y divide-slate-100 border-t border-slate-100">
-                    {activeEntries.slice(RECENT).map(renderRecord)}
-                  </ul>
-                </details>
-              )}
-              {voidedEntries.length > 0 && (
-                <details className="group border-t border-slate-100">
-                  <summary className="cursor-pointer list-none px-5 py-3 text-sm font-medium text-slate-500 hover:bg-slate-50 sm:px-7 [&::-webkit-details-marker]:hidden">
-                    <span className="group-open:hidden">Show voided records ({voidedEntries.length})</span>
-                    <span className="hidden group-open:inline">Hide voided records</span>
-                  </summary>
-                  <ul className="divide-y divide-slate-100 border-t border-slate-100">
-                    {voidedEntries.map(renderRecord)}
-                  </ul>
-                </details>
-              )}
-            </>
-          )}
-        </div>
+        {monthEntries.length === 0 ? (
+          <div className="p-4 pt-0 sm:p-5 sm:pt-0">
+            <EmptyState>No finance records for this month yet.</EmptyState>
+          </div>
+        ) : (
+          <RecordsList
+            active={activeEntries.map((e) => ({ id: e.id, text: recordText(e), node: renderRecord(e) }))}
+            voided={voidedEntries.map((e) => ({ id: e.id, text: recordText(e), node: renderRecord(e) }))}
+          />
+        )}
       </SoftCard>
 
       <SoftCard compact>
