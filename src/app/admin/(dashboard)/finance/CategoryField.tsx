@@ -15,7 +15,6 @@ export default function CategoryField({
   label = "Spent on",
   fieldName = "category",
   newFieldName = "newCategory",
-  ownLabel = "Your own types",
   newOptionLabel = "+ New type…",
   newBoxLabel = "Name of the new type",
   placeholder = "e.g. Repairs",
@@ -25,7 +24,6 @@ export default function CategoryField({
   label?: string;
   fieldName?: string;
   newFieldName?: string;
-  ownLabel?: string;
   newOptionLabel?: string;
   newBoxLabel?: string;
   placeholder?: string;
@@ -51,15 +49,11 @@ export default function CategoryField({
               {c.label}
             </option>
           ))}
-          {custom.length > 0 && (
-            <optgroup label={ownLabel}>
-              {custom.map((name) => (
-                <option key={name} value={name}>
-                  {name}
-                </option>
-              ))}
-            </optgroup>
-          )}
+          {custom.map((name) => (
+            <option key={name} value={name}>
+              {name}
+            </option>
+          ))}
           <option value={NEW_EXPENSE_TYPE}>{newOptionLabel}</option>
         </select>
       </div>

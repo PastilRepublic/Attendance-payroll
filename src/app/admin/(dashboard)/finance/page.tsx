@@ -364,7 +364,6 @@ export default async function FinancePage({
                   label="From"
                   fieldName="channel"
                   newFieldName="newChannel"
-                  ownLabel="Your own sources"
                   newOptionLabel="+ New source…"
                   newBoxLabel="Name of the new source"
                   placeholder="e.g. Walk-in orders"
