@@ -1087,17 +1087,15 @@ export async function recordPayrollSalaries(formData: FormData) {
 
   assertDateAllowed(parsed.date, "EXPENSE", await ledger());
 
-  // Salaries typed in by hand as an expense would be counted twice.
-  if (formData.get("confirm") !== "yes") {
-    const manual = await unlinkedSalaryEntries(period);
-    if (manual.length > 0) {
-      const list = manual
-        .map((m) => `${formatPeso(Number(m.amount))} on ${shortDate(m.date.toISOString().slice(0, 10))}`)
-        .join(", ");
-      throw new ConfirmNeeded(
-        `Finance already has a Salaries expense for these dates (${list}). If that is this pay period, cancel and tap "Use this" on the payroll page instead of recording the total again. Add anyway?`
-      );
-    }
+  // A Salaries expense already in Finance for these dates (typed in before it moved to Payroll) would be counted twice.
+  const manual = await unlinkedSalaryEntries(period);
+  if (manual.length > 0) {
+    const list = manual
+      .map((m) => `${formatPeso(Number(m.amount))} on ${shortDate(m.date.toISOString().slice(0, 10))}`)
+      .join(", ");
+    throw new Error(
+      `Finance already has Salaries for these dates (${list}). Void that record first if you want to record from payroll instead.`
+    );
   }
 
   const entry = await prisma.financeEntry.create({
@@ -1136,42 +1134,3 @@ export async function recordPayrollSalariesForm(_prev: FormState, formData: Form
   return runForm(() => recordPayrollSalaries(formData));
 }
 
-const linkSalariesSchema = z.object({ payPeriodId: z.string().min(1), entryId: z.string().min(1) });
-
-/** Says "that Salaries expense I typed in is this pay period's", so payroll doesn't record it a second time. */
-export async function linkSalariesEntry(formData: FormData) {
-  const admin = await requireOwner();
-  const parsed = linkSalariesSchema.parse({
-    payPeriodId: formData.get("payPeriodId"),
-    entryId: formData.get("entryId"),
-  });
-
-  const period = await prisma.payPeriod.findUnique({ where: { id: parsed.payPeriodId } });
-  if (!period) throw new Error("That pay period no longer exists.");
-  if (period.status !== "FINALIZED") throw new Error("Finalize the pay period first.");
-  const already = await prisma.financeEntry.findFirst({
-    where: { payPeriodId: period.id, voided: false },
-    select: { id: true },
-  });
-  if (already) throw new Error("Salaries for this pay period are already recorded in Finance.");
-
-  const entry = await prisma.financeEntry.findUnique({ where: { id: parsed.entryId } });
-  if (!entry || entry.voided || entry.kind !== "EXPENSE" || entry.category !== "SALARIES" || entry.payPeriodId) {
-    throw new Error("That entry can't be used for this pay period.");
-  }
-
-  await prisma.financeEntry.update({ where: { id: entry.id }, data: { payPeriodId: period.id } });
-  await logAudit({
-    actorAdminId: admin.id,
-    action: "LINK_FINANCE_SALARIES",
-    targetTable: "FinanceEntry",
-    targetId: entry.id,
-    after: { payPeriodId: period.id, amount: Number(entry.amount) },
-  });
-  revalidateFinance();
-  revalidatePath(`/admin/payroll/${period.id}`);
-}
-
-export async function linkSalariesEntryForm(_prev: FormState, formData: FormData): Promise<FormState> {
-  return runForm(() => linkSalariesEntry(formData));
-}

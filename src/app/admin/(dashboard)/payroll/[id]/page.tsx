@@ -9,7 +9,7 @@ import FormDialog from "@/components/ui/FormDialog";
 import PillButton from "@/components/ui/PillButton";
 import { inputClass, labelClass } from "@/components/ui/styles";
 import { payrollNetForPeriod } from "@/lib/financePayroll";
-import { linkSalariesEntryForm, recordPayrollSalariesForm } from "../../finance/actions";
+import { recordPayrollSalariesForm } from "../../finance/actions";
 import { SALARY_PAYMENT_WINDOW_DAYS, addDays } from "@/lib/finance";
 import PeriodSummary from "./PeriodSummary";
 import { notFound } from "next/navigation";
@@ -133,9 +133,13 @@ export default async function PayPeriodDetailPage({
     ? `Recorded in Finance · ${fmtDate(salariesEntry.date, "MMM d")}, paid from ${
         salariesEntry.paidWith === "CASH" ? "production cash" : "the bank"
       }`
-    : undefined;
+    : manualSalaries.length > 0
+      ? `Salaries already in Finance: ${manualSalaries
+          .map((m) => `${formatPeso(Number(m.amount))} on ${fmtDate(m.date, "MMM d")}`)
+          .join(", ")}`
+      : undefined;
   const salariesAction =
-    period.status === "FINALIZED" && !salariesEntry && salariesTotal > 0 ? (
+    period.status === "FINALIZED" && !salariesEntry && manualSalaries.length === 0 && salariesTotal > 0 ? (
       <FormDialog
         variant="secondary"
         size="sm"
@@ -143,32 +147,6 @@ export default async function PayPeriodDetailPage({
         title="Record salaries"
         description={`${formatPeso(salariesTotal)} for ${fmtDate(period.startDate, "MMM d")} – ${fmtDate(period.endDate, "MMM d")}. It is saved as one Salaries expense.`}
       >
-        {manualSalaries.length > 0 && (
-          <div className="mb-4 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
-            <div className="font-medium">Already in Finance for these dates</div>
-            <p className="mt-0.5 text-xs">
-              If one of these is this period&apos;s pay, tap Use this so it isn&apos;t counted twice. Payroll says{" "}
-              {formatPeso(salariesTotal)}.
-            </p>
-            <ul className="mt-2 divide-y divide-amber-200">
-              {manualSalaries.map((m) => (
-                <li key={m.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
-                  <span>
-                    <span className="font-semibold">{formatPeso(Number(m.amount))}</span> on {fmtDate(m.date, "MMM d")},
-                    added by {m.createdByAdmin?.name ?? "someone"}
-                  </span>
-                  <ActionForm action={linkSalariesEntryForm} compactError>
-                    <input type="hidden" name="payPeriodId" value={period.id} />
-                    <input type="hidden" name="entryId" value={m.id} />
-                    <PillButton variant="secondary" size="sm">
-                      Use this
-                    </PillButton>
-                  </ActionForm>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
         <ActionForm action={recordPayrollSalariesForm} closeDialogOnSuccess className="space-y-3">
           <input type="hidden" name="payPeriodId" value={period.id} />
           <div>
