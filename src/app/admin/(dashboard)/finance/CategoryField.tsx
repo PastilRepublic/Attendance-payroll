@@ -5,24 +5,39 @@ import { NEW_EXPENSE_TYPE } from "@/lib/finance";
 import { inputClass, labelClass } from "@/components/ui/styles";
 
 /**
- * "Spent on" for an expense: the built-in types, any type you added before, and + New type… which
- * shows a box to type a new one. A new type is saved with the expense and then shows in this list.
+ * A choice that can also be typed in: "Spent on" for an expense, or "From" for money received. It
+ * lists the built-in options, any you added before, and a last option that shows a box to type a
+ * new one. A new one is saved with the entry and then shows in this list.
  */
 export default function CategoryField({
   fixed,
   custom,
+  label = "Spent on",
+  fieldName = "category",
+  newFieldName = "newCategory",
+  ownLabel = "Your own types",
+  newOptionLabel = "+ New type…",
+  newBoxLabel = "Name of the new type",
+  placeholder = "e.g. Repairs",
 }: {
   fixed: readonly { code: string; label: string }[];
   custom: string[];
+  label?: string;
+  fieldName?: string;
+  newFieldName?: string;
+  ownLabel?: string;
+  newOptionLabel?: string;
+  newBoxLabel?: string;
+  placeholder?: string;
 }) {
   const [choice, setChoice] = useState("");
 
   return (
     <div className="space-y-3">
       <div>
-        <label className={labelClass}>Spent on</label>
+        <label className={labelClass}>{label}</label>
         <select
-          name="category"
+          name={fieldName}
           required
           value={choice}
           onChange={(e) => setChoice(e.target.value)}
@@ -37,7 +52,7 @@ export default function CategoryField({
             </option>
           ))}
           {custom.length > 0 && (
-            <optgroup label="Your own types">
+            <optgroup label={ownLabel}>
               {custom.map((name) => (
                 <option key={name} value={name}>
                   {name}
@@ -45,18 +60,18 @@ export default function CategoryField({
               ))}
             </optgroup>
           )}
-          <option value={NEW_EXPENSE_TYPE}>+ New type…</option>
+          <option value={NEW_EXPENSE_TYPE}>{newOptionLabel}</option>
         </select>
       </div>
       {choice === NEW_EXPENSE_TYPE && (
         <div>
-          <label className={labelClass}>Name of the new type</label>
+          <label className={labelClass}>{newBoxLabel}</label>
           <input
-            name="newCategory"
+            name={newFieldName}
             required
             maxLength={30}
             autoFocus
-            placeholder="e.g. Repairs"
+            placeholder={placeholder}
             className={inputClass}
           />
         </div>

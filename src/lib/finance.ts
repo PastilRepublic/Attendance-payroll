@@ -637,7 +637,7 @@ export const SALARY_PAYMENT_WINDOW_DAYS = 7;
 
 // ---- Expense types you add yourself ----
 
-/** The dropdown value that means "I'll type a new expense type". */
+/** The dropdown value that means "I'll type a new type" (for expenses or for where money came from). */
 export const NEW_EXPENSE_TYPE = "__new__";
 
 /** Expense types added by hand: any category on a live expense that isn't one of the built-in ones. */
@@ -650,18 +650,42 @@ export function customExpenseTypes(rows: FinanceRow[]): string[] {
   return [...names].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
 }
 
+function resolveTypeName(
+  input: string,
+  builtIn: readonly { code: string; label: string }[],
+  customNames: string[],
+  noun: string
+): { code: string; error?: string } {
+  const name = input.replace(/\s+/g, " ").trim();
+  if (!name) return { code: "", error: `Enter a name for the new ${noun}.` };
+  if (name.length > 30) return { code: "", error: `Keep the ${noun} under 30 characters.` };
+  const lower = name.toLowerCase();
+  const fixed = builtIn.find((c) => c.code.toLowerCase() === lower || c.label.toLowerCase() === lower);
+  if (fixed) return { code: fixed.code };
+  const existing = customNames.find((c) => c.toLowerCase() === lower);
+  return { code: existing ?? name };
+}
+
 /**
  * Turns what was chosen or typed into the category to save. A built-in type (by name or code, any
  * capitals) gives its code; a custom type typed again gives the spelling already in use, so
  * "repairs" and "Repairs" are one type; anything else becomes a new type with that name.
  */
 export function resolveExpenseCategory(input: string, customNames: string[]): { code: string; error?: string } {
-  const name = input.replace(/\s+/g, " ").trim();
-  if (!name) return { code: "", error: "Enter a name for the new expense type." };
-  if (name.length > 30) return { code: "", error: "Keep the expense type under 30 characters." };
-  const lower = name.toLowerCase();
-  const fixed = EXPENSE_CATEGORIES.find((c) => c.code.toLowerCase() === lower || c.label.toLowerCase() === lower);
-  if (fixed) return { code: fixed.code };
-  const existing = customNames.find((c) => c.toLowerCase() === lower);
-  return { code: existing ?? name };
+  return resolveTypeName(input, EXPENSE_CATEGORIES, customNames, "expense type");
+}
+
+/** Where money can come from, added by hand: any source on a live money-received line that isn't built in. */
+export function customIncomeSources(rows: FinanceRow[]): string[] {
+  const fixed = new Set<string>(INCOME_CHANNELS.map((c) => c.code));
+  const names = new Set<string>();
+  for (const r of live(rows)) {
+    if (r.kind === "INCOME" && r.category && !fixed.has(r.category)) names.add(r.category);
+  }
+  return [...names].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+}
+
+/** The same as resolveExpenseCategory, for where money came from. */
+export function resolveIncomeChannel(input: string, customNames: string[]): { code: string; error?: string } {
+  return resolveTypeName(input, INCOME_CHANNELS, customNames, "income source");
 }

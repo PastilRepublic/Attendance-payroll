@@ -12,7 +12,6 @@ import { numberText } from "@/lib/numberInput";
 import {
   SALARY_PAYMENT_WINDOW_DAYS,
   addDays,
-  INCOME_CHANNELS,
   MANUAL_EXPENSE_CATEGORIES,
   cardBalances,
   categoryLabel,
@@ -21,6 +20,7 @@ import {
   checkEntryDate,
   computeBalances,
   customExpenseTypes,
+  customIncomeSources,
   findDuplicate,
   maxPercentEach,
   firstActivityDate,
@@ -28,6 +28,7 @@ import {
   openingDate,
   ownerBalances,
   resolveExpenseCategory,
+  resolveIncomeChannel,
   periodProfit,
   sharePlan,
   shortDate,
@@ -195,20 +196,25 @@ export async function addExpense(formData: FormData) {
 const incomeSchema = z.object({
   date: dateField,
   amount: amountField,
-  channel: z.enum(codes(INCOME_CHANNELS), "Choose where the money came from."),
+  channel: z.string().trim().min(1, "Choose where the money came from, or add a new source."),
   note: noteField,
 });
 
 export async function addIncome(formData: FormData) {
   const admin = await requireOwner();
-  const parsed = incomeSchema.parse({
+  // "+ New source…" sends the typed name in its own field.
+  const chosen = formData.get("channel") === NEW_EXPENSE_TYPE ? formData.get("newChannel") : formData.get("channel");
+  const input = incomeSchema.parse({
     date: formData.get("date"),
     amount: numberText(formData.get("amount")),
-    channel: formData.get("channel"),
+    channel: chosen ? String(chosen) : "",
     note: formData.get("note") || undefined,
   });
 
   const l = await ledger();
+  const resolved = resolveIncomeChannel(input.channel, customIncomeSources(l.rows));
+  if (resolved.error) throw new Error(resolved.error);
+  const parsed = { ...input, channel: resolved.code };
   assertDateAllowed(parsed.date, "INCOME", l);
   await confirmUnlessDuplicate(
     formData,

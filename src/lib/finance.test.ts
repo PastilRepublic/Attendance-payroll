@@ -6,7 +6,9 @@ import {
   categoryLabel,
   billStatus,
   customExpenseTypes,
+  customIncomeSources,
   resolveExpenseCategory,
+  resolveIncomeChannel,
   cardBalances,
   checkEntryDate,
   findDuplicate,
@@ -583,6 +585,40 @@ describe("MANUAL_EXPENSE_CATEGORIES", () => {
     expect(MANUAL_EXPENSE_CATEGORIES.length).toBe(EXPENSE_CATEGORIES.length - 1);
     // Existing Salaries lines still get their label.
     expect(categoryLabel("SALARIES")).toBe("Salaries");
+  });
+});
+
+describe("your own income sources", () => {
+  it("lists custom sources from live money received only", () => {
+    const rows = [
+      row({ kind: "INCOME", amount: 1, category: "SHOPEE" }),
+      row({ kind: "INCOME", amount: 1, category: "Walk-in orders" }),
+      row({ kind: "INCOME", amount: 1, category: "Walk-in orders" }),
+      row({ kind: "INCOME", amount: 1, category: "Old source", voided: true }),
+      row({ kind: "EXPENSE", amount: 1, category: "Repairs", paidWith: "BANK" }),
+    ];
+    expect(customIncomeSources(rows)).toEqual(["Walk-in orders"]);
+  });
+
+  it("matches built-in channels by name or code and reuses an existing spelling", () => {
+    expect(resolveIncomeChannel("tiktok shop", [])).toEqual({ code: "TIKTOK" });
+    expect(resolveIncomeChannel("Direct customers", [])).toEqual({ code: "DIRECT" });
+    expect(resolveIncomeChannel("walk-in ORDERS", ["Walk-in orders"])).toEqual({ code: "Walk-in orders" });
+    expect(resolveIncomeChannel("Lazada", [])).toEqual({ code: "Lazada" });
+    expect(resolveIncomeChannel("  ", []).error).toMatch(/new income source/);
+  });
+
+  it("shows a custom source as its own line in the month summary", () => {
+    const rows = [
+      row({ kind: "INCOME", amount: 700, category: "Walk-in orders" }),
+      row({ kind: "INCOME", amount: 300, category: "SHOPEE" }),
+    ];
+    const s = summarizeMonth(rows, "2026-10");
+    expect(s.received).toBe(1000);
+    expect(s.byChannel).toEqual([
+      { code: "Walk-in orders", label: "Walk-in orders", amount: 700 },
+      { code: "SHOPEE", label: "Shopee", amount: 300 },
+    ]);
   });
 });
 

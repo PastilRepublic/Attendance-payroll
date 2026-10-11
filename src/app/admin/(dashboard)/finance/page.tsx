@@ -10,6 +10,7 @@ import {
   MANUAL_EXPENSE_CATEGORIES,
   NEUTRAL_CHANNEL_STYLE,
   customExpenseTypes,
+  customIncomeSources,
   cardBalances,
   cardDue,
   billStatus,
@@ -162,6 +163,7 @@ export default async function FinancePage({
   }));
 
   const customTypes = customExpenseTypes(rows);
+  const customSources = customIncomeSources(rows);
   const hasOpening = rows.some((r) => (r.kind === "OPENING_BANK" || r.kind === "OPENING_CASH") && !r.voided);
   const balances = computeBalances(rows);
   const summary = summarizeMonth(rows, month);
@@ -347,22 +349,20 @@ export default async function FinancePage({
               title="Money received"
               description="A payout or payment that reached the bank."
             >
-              <ActionForm action={addIncomeForm} multiEntry={{ clear: ["amount", "channel", "note"] }} className="space-y-3">
+              <ActionForm action={addIncomeForm} multiEntry={{ clear: ["amount", "channel", "newChannel", "note"] }} className="space-y-3">
                 <TodayField today={today} />
                 <AmountField label="Amount received (₱)" />
-                <div>
-                  <label className={labelClass}>From</label>
-                  <select name="channel" required defaultValue="" className={inputClass}>
-                    <option value="" disabled>
-                      Choose…
-                    </option>
-                    {INCOME_CHANNELS.map((c) => (
-                      <option key={c.code} value={c.code}>
-                        {c.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <CategoryField
+                  fixed={INCOME_CHANNELS}
+                  custom={customSources}
+                  label="From"
+                  fieldName="channel"
+                  newFieldName="newChannel"
+                  ownLabel="Your own sources"
+                  newOptionLabel="+ New source…"
+                  newBoxLabel="Name of the new source"
+                  placeholder="e.g. Walk-in orders"
+                />
                 <NoteField />
                 <div className="flex flex-col gap-2 sm:flex-row">
                   <PillButton name="after" value="again" className="flex-1">
