@@ -1,7 +1,7 @@
 import StatTile from "@/components/ui/StatTile";
 import { formatPeso } from "@/lib/format";
 
-const ICON = "h-6 w-6";
+const ICON = "h-5 w-5";
 
 function TrendUp() {
   return (
@@ -66,8 +66,9 @@ export default function PeriodSummary({
 }) {
   const net = grossTotal + bonusTotal - deductionTotal;
   return (
-    <div className="mb-6 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+    <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
       <StatTile
+        compact
         tone="green"
         icon={<TrendUp />}
         label="Gross pay"
@@ -75,6 +76,7 @@ export default function PeriodSummary({
         hint={`${employeeCount} ${employeeCount === 1 ? "person" : "people"}`}
       />
       <StatTile
+        compact
         tone="rose"
         icon={<TrendDown />}
         label="Deductions"
@@ -82,6 +84,7 @@ export default function PeriodSummary({
         hint={bonusTotal > 0 ? `Bonuses add ${formatPeso(bonusTotal)}` : "No bonuses this period"}
       />
       <StatTile
+        compact
         tone="amber"
         icon={<Flag />}
         label="To review"
@@ -89,6 +92,7 @@ export default function PeriodSummary({
         hint={openItems === 0 ? "Nothing waiting" : openItems === 1 ? "item before finalizing" : "items before finalizing"}
       />
       <StatTile
+        compact
         tone="dark"
         icon={<Wallet />}
         label="Total to pay"

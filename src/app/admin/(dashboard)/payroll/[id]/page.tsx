@@ -167,7 +167,7 @@ export default async function PayPeriodDetailPage({
 
   return (
     <div>
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
         <div>
           <Link href="/admin/payroll" className="text-sm text-slate-500 hover:underline">
             ← Pay periods
@@ -245,7 +245,7 @@ export default async function PayPeriodDetailPage({
       )}
 
       {hasProductionStaff && (
-        <details open={unsetOffDays.length > 0} className="mb-4 rounded-3xl border border-slate-300 bg-white shadow-sm p-5 sm:p-6">
+        <details open={unsetOffDays.length > 0} className="mb-4 rounded-3xl border border-slate-300 bg-white shadow-sm p-4 sm:p-5">
           <summary className="text-sm font-medium text-slate-700 cursor-pointer">
             Day types this period (sets Production pay rate)
           </summary>
@@ -298,7 +298,7 @@ export default async function PayPeriodDetailPage({
         </details>
       )}
 
-      <div className="space-y-4">
+      <div className="space-y-3">
         {payslips.map(({ employee, payslip, suggestedCleaningBonuses, suggestedLate, earlyOutDays, noTimeOutDays, paidFullDay }) => {
           const adjTotal = adjustmentsTotal(payslip.adjustments);
           const total = Number(payslip.grossPay) + adjTotal;
@@ -306,10 +306,10 @@ export default async function PayPeriodDetailPage({
             (payslip.payBreakdown as { lines?: PayBreakdownLine[] } | null)?.lines ?? [];
 
           return (
-            <div key={employee.id} className="rounded-3xl border border-slate-300 bg-white shadow-sm p-5 sm:p-6">
+            <div key={employee.id} className="rounded-3xl border border-slate-300 bg-white shadow-sm p-4 sm:p-5">
               <div className="flex items-center justify-between mb-2">
                 <div>
-                  <span className="text-lg font-semibold text-slate-900">{employee.name}</span>
+                  <span className="text-base font-semibold text-slate-900">{employee.name}</span>
                   <span className="text-xs text-slate-500 ml-2">
                     {Number(payslip.regularHours).toFixed(2)}h regular
                     {Number(payslip.overtimeHours) > 0 &&
@@ -317,7 +317,7 @@ export default async function PayPeriodDetailPage({
                   </span>
                 </div>
                 <div className="text-right">
-                  <div className={`text-2xl font-extrabold tracking-tight ${total < 0 ? "text-rose-700" : "text-slate-900"}`}>
+                  <div className={`text-xl font-extrabold tracking-tight ${total < 0 ? "text-rose-700" : "text-slate-900"}`}>
                     {formatPeso(total)}
                   </div>
                   {total < 0 && (

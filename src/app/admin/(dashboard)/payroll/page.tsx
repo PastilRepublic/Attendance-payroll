@@ -22,7 +22,7 @@ function PeriodList({ periods }: { periods: PeriodRow[] }) {
   return (
     <ul className="divide-y divide-slate-100">
       {periods.map((p) => (
-        <li key={p.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 sm:px-7">
+        <li key={p.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-5">
           <div>
             <div className="font-medium text-slate-900">
               {fmt(p.startDate, "MMM d")} – {fmt(p.endDate, "MMM d, yyyy")}
@@ -91,7 +91,7 @@ export default async function PayrollPage({
         }
       />
 
-      <div className="mb-6">
+      <div className="mb-4">
         <Banner
           title={month === current ? "This month" : monthLabel(month)}
           description={`Pay periods that end in ${monthLabel(month)}. Pick another month to see earlier ones.`}
@@ -101,9 +101,9 @@ export default async function PayrollPage({
       </div>
 
       {stillOpen.length > 0 && (
-        <div className="mb-6">
+        <div className="mb-4">
           <SoftCard accent="amber" padded={false}>
-            <div className="px-5 pt-5 sm:px-7">
+            <div className="px-4 pt-4 sm:px-5">
               <div className="font-medium text-amber-900">Still open from earlier months</div>
               <p className="mt-0.5 text-sm text-amber-800">These weren&apos;t finalized yet.</p>
             </div>
@@ -114,7 +114,7 @@ export default async function PayrollPage({
 
       <SoftCard padded={false}>
         {periods.length === 0 ? (
-          <div className="p-5 sm:p-7">
+          <div className="p-4 sm:p-5">
             <EmptyState>No pay periods in {monthLabel(month)} yet.</EmptyState>
           </div>
         ) : (
