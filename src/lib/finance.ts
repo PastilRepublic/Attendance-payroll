@@ -89,6 +89,12 @@ export const EXPENSE_CATEGORIES = [
  */
 export const PRODUCTION_COST_CODES: readonly string[] = ["CHICKEN", "INGREDIENTS", "OIL", "GAS", "PACKAGING", "DELIVERY"];
 
+/**
+ * What can be picked when adding an expense or a monthly bill by hand. Salaries are left out: they
+ * come only from a finalized pay period on the Payroll page, so they can't be counted twice.
+ */
+export const MANUAL_EXPENSE_CATEGORIES = EXPENSE_CATEGORIES.filter((c) => c.code !== "SALARIES");
+
 export const channelLabel = (code: string | null) =>
   INCOME_CHANNELS.find((c) => c.code === code)?.label ?? code ?? "Other";
 export const categoryLabel = (code: string | null) =>

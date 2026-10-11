@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
+  EXPENSE_CATEGORIES,
+  MANUAL_EXPENSE_CATEGORIES,
   addDays,
+  categoryLabel,
   billStatus,
   cardBalances,
   checkEntryDate,
@@ -569,5 +572,14 @@ describe("addDays", () => {
     expect(addDays("2026-10-30", 2)).toBe("2026-11-01");
     expect(addDays("2026-12-28", 5)).toBe("2027-01-02");
     expect(addDays("2026-03-02", -3)).toBe("2026-02-27");
+  });
+});
+
+describe("MANUAL_EXPENSE_CATEGORIES", () => {
+  it("leaves out Salaries, which come from payroll", () => {
+    expect(MANUAL_EXPENSE_CATEGORIES.map((c) => c.code as string).includes("SALARIES")).toBe(false);
+    expect(MANUAL_EXPENSE_CATEGORIES.length).toBe(EXPENSE_CATEGORIES.length - 1);
+    // Existing Salaries lines still get their label.
+    expect(categoryLabel("SALARIES")).toBe("Salaries");
   });
 });

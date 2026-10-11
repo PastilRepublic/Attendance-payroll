@@ -12,8 +12,8 @@ import { numberText } from "@/lib/numberInput";
 import {
   SALARY_PAYMENT_WINDOW_DAYS,
   addDays,
-  EXPENSE_CATEGORIES,
   INCOME_CHANNELS,
+  MANUAL_EXPENSE_CATEGORIES,
   cardBalances,
   categoryLabel,
   channelLabel,
@@ -110,14 +110,17 @@ async function confirmUnlessDuplicate(
 const expenseSchema = z.object({
   date: dateField,
   amount: amountField,
-  category: z.enum(codes(EXPENSE_CATEGORIES), "Choose what it was spent on."),
+  category: z.enum(codes(MANUAL_EXPENSE_CATEGORIES), "Choose what it was spent on."),
   paidWith: z.enum(["CASH", "BANK", "CARD"], "Choose how it was paid."),
   cardId: z.string().optional(),
   note: noteField,
 });
 
+const SALARIES_FROM_PAYROLL = "Salaries are recorded from the Payroll page: open a finalized pay period and tap Record salaries in Finance.";
+
 export async function addExpense(formData: FormData) {
   const admin = await requireOwner();
+  if (formData.get("category") === "SALARIES") throw new Error(SALARIES_FROM_PAYROLL);
   const parsed = expenseSchema.parse({
     date: formData.get("date"),
     amount: numberText(formData.get("amount")),
@@ -135,25 +138,6 @@ export async function addExpense(formData: FormData) {
     { kind: "EXPENSE", date: parsed.date, amount: parsed.amount, category: parsed.category, paidWith: parsed.paidWith },
     `a ${categoryLabel(parsed.category).toLowerCase()} expense`
   );
-
-  // A Salaries expense typed in by hand, when payroll salaries for those dates are already in Finance.
-  if (parsed.category === "SALARIES" && formData.get("confirm") !== "yes") {
-    const day = new Date(`${parsed.date}T00:00:00.000Z`);
-    const earliestEnd = new Date(`${addDays(parsed.date, -SALARY_PAYMENT_WINDOW_DAYS)}T00:00:00.000Z`);
-    const recorded = await prisma.financeEntry.findFirst({
-      where: {
-        voided: false,
-        payPeriodId: { not: null },
-        payPeriod: { startDate: { lte: day }, endDate: { gte: earliestEnd } },
-      },
-      select: { amount: true, payPeriod: { select: { startDate: true, endDate: true } } },
-    });
-    if (recorded?.payPeriod) {
-      throw new ConfirmNeeded(
-        `Salaries for payroll ${shortDate(recorded.payPeriod.startDate.toISOString().slice(0, 10))} to ${shortDate(recorded.payPeriod.endDate.toISOString().slice(0, 10))} are already recorded in Finance (${formatPeso(Number(recorded.amount))}). Adding these too would count salaries twice. Add anyway?`
-      );
-    }
-  }
 
   // A card expense needs to say which card, and it has to be one that is still in use.
   let card: { id: string; name: string } | null = null;
@@ -864,7 +848,7 @@ export async function voidPaydayForm(_prev: FormState, formData: FormData): Prom
 const billSchema = z
   .object({
     name: z.string().trim().min(1, "Give the bill a name, like Rent.").max(40, "Keep the name under 40 characters."),
-    category: z.enum(codes(EXPENSE_CATEGORIES), "Choose what kind of bill it is."),
+    category: z.enum(codes(MANUAL_EXPENSE_CATEGORIES), "Choose what kind of bill it is."),
     amount: amountField,
     dueDay: dayOfMonth("due day"),
     paidWith: z.enum(["CASH", "BANK", "CARD"], "Choose how it is paid."),
@@ -884,6 +868,7 @@ async function activeCardOrThrow(cardId: string) {
 /** Saves a bill that comes every month, so it only has to be recorded with one tap. */
 export async function addBill(formData: FormData) {
   const admin = await requireOwner();
+  if (formData.get("category") === "SALARIES") throw new Error(SALARIES_FROM_PAYROLL);
   const parsed = billSchema.parse({
     name: formData.get("name"),
     category: formData.get("category"),

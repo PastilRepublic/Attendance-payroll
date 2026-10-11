@@ -5,9 +5,9 @@ import { localDateKey } from "@/lib/payroll";
 import { formatPeso } from "@/lib/format";
 import { currentMonthKey, isMonthKey, monthLabel } from "@/lib/payPeriods";
 import {
-  EXPENSE_CATEGORIES,
   CHANNEL_STYLE,
   INCOME_CHANNELS,
+  MANUAL_EXPENSE_CATEGORIES,
   NEUTRAL_CHANNEL_STYLE,
   cardBalances,
   cardDue,
@@ -386,7 +386,7 @@ export default async function FinancePage({
                     <option value="" disabled>
                       Choose…
                     </option>
-                    {EXPENSE_CATEGORIES.map((c) => (
+                    {MANUAL_EXPENSE_CATEGORIES.map((c) => (
                       <option key={c.code} value={c.code}>
                         {c.label}
                       </option>
@@ -856,7 +856,7 @@ export default async function FinancePage({
                       <option value="" disabled>
                         Choose…
                       </option>
-                      {EXPENSE_CATEGORIES.map((c) => (
+                      {MANUAL_EXPENSE_CATEGORIES.map((c) => (
                         <option key={c.code} value={c.code}>
                           {c.label}
                         </option>
