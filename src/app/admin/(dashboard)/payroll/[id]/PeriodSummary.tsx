@@ -49,6 +49,8 @@ export default function PeriodSummary({
   deductionTotal,
   openItems,
   employeeCount,
+  totalHint,
+  totalAction,
 }: {
   grossTotal: number;
   bonusTotal: number;
@@ -57,6 +59,10 @@ export default function PeriodSummary({
   /** How many things still need a look before finalizing. */
   openItems: number;
   employeeCount: number;
+  /** Replaces the small line under the total (e.g. "Recorded in Finance"). */
+  totalHint?: string;
+  /** A button under the total (e.g. Record salaries in Finance). */
+  totalAction?: React.ReactNode;
 }) {
   const net = grossTotal + bonusTotal - deductionTotal;
   return (
@@ -82,7 +88,14 @@ export default function PeriodSummary({
         value={openItems === 0 ? "All clear" : String(openItems)}
         hint={openItems === 0 ? "Nothing waiting" : openItems === 1 ? "item before finalizing" : "items before finalizing"}
       />
-      <StatTile tone="dark" icon={<Wallet />} label="Total to pay" value={formatPeso(net)} hint="Gross + bonuses − deductions" />
+      <StatTile
+        tone="dark"
+        icon={<Wallet />}
+        label="Total to pay"
+        value={formatPeso(net)}
+        hint={totalHint ?? "Gross + bonuses − deductions"}
+        footer={totalAction}
+      />
     </div>
   );
 }
