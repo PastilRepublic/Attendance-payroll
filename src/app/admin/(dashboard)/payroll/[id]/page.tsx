@@ -5,6 +5,11 @@ import { formatInTimeZone } from "date-fns-tz";
 import { pillClass } from "@/components/ui/styles";
 import { formatPeso, formatAmount } from "@/lib/format";
 import NumberInput from "@/components/ui/NumberInput";
+import FormDialog from "@/components/ui/FormDialog";
+import PillButton from "@/components/ui/PillButton";
+import { inputClass, labelClass } from "@/components/ui/styles";
+import { payrollNetForPeriod } from "@/lib/financePayroll";
+import { recordPayrollSalariesForm } from "../../finance/actions";
 import PeriodSummary from "./PeriodSummary";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -96,6 +101,14 @@ export default async function PayPeriodDetailPage({
   const endDate = period.endDate.toISOString().slice(0, 10);
   const periodEnded = localDateKey(new Date()) > endDate;
 
+  // Finalized: has this period's pay been recorded in Finance as salaries yet?
+  const salariesEntry =
+    period.status === "FINALIZED"
+      ? await prisma.financeEntry.findFirst({ where: { payPeriodId: id, voided: false }, select: { date: true, amount: true, paidWith: true } })
+      : null;
+  const salariesTotal = period.status === "FINALIZED" && !salariesEntry ? await payrollNetForPeriod(id) : 0;
+  const todayKey = localDateKey(new Date());
+
   return (
     <div>
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
@@ -144,6 +157,54 @@ export default async function PayPeriodDetailPage({
         openItems={issues.byEmployee.reduce((n, e) => n + e.issues.length, 0) + (unsetOffDays.length > 0 ? 1 : 0)}
         employeeCount={payslips.length}
       />
+
+      {period.status === "FINALIZED" && (
+        <div className="mb-6 flex flex-col gap-3 rounded-2xl border border-slate-300 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+          {salariesEntry ? (
+            <div className="text-sm">
+              <span className="font-semibold text-emerald-700">Recorded in Finance</span>
+              <span className="text-slate-500">
+                {" "}
+                · {formatPeso(Number(salariesEntry.amount))} on {fmtDate(salariesEntry.date, "MMM d, yyyy")}, paid from{" "}
+                {salariesEntry.paidWith === "CASH" ? "production cash" : "the bank"}
+              </span>
+            </div>
+          ) : (
+            <>
+              <div className="text-sm">
+                <div className="font-medium text-slate-900">Salaries not in Finance yet</div>
+                <div className="text-slate-500">
+                  Record the {formatPeso(salariesTotal)} total as one Salaries expense, so Finance counts it in the profit.
+                </div>
+              </div>
+              {salariesTotal > 0 && (
+                <FormDialog
+                  variant="primary"
+                  triggerLabel="Record salaries in Finance"
+                  title="Record salaries"
+                  description={`${formatPeso(salariesTotal)} for ${fmtDate(period.startDate, "MMM d")} – ${fmtDate(period.endDate, "MMM d")}. It is saved as one Salaries expense.`}
+                >
+                  <ActionForm action={recordPayrollSalariesForm} closeDialogOnSuccess className="space-y-3">
+                    <input type="hidden" name="payPeriodId" value={period.id} />
+                    <div>
+                      <label className={labelClass}>Date paid</label>
+                      <input type="date" name="date" defaultValue={todayKey} max={todayKey} required className={inputClass} />
+                    </div>
+                    <div>
+                      <label className={labelClass}>Paid from</label>
+                      <select name="paidWith" required defaultValue="CASH" className={inputClass}>
+                        <option value="CASH">Production cash</option>
+                        <option value="BANK">Bank</option>
+                      </select>
+                    </div>
+                    <PillButton className="w-full">Record {formatPeso(salariesTotal)}</PillButton>
+                  </ActionForm>
+                </FormDialog>
+              )}
+            </>
+          )}
+        </div>
+      )}
 
       {period.status === "OPEN" && openIssues && (
         <div className="mb-4 rounded-2xl bg-rose-50 border border-rose-200 p-4 text-sm text-rose-900">

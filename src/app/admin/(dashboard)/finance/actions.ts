@@ -30,6 +30,7 @@ import {
   type FinanceRow,
 } from "@/lib/finance";
 import { formatPeso } from "@/lib/format";
+import { payrollNetForPeriod } from "@/lib/financePayroll";
 
 const MAX_AMOUNT = 10_000_000;
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -1021,4 +1022,80 @@ export async function setBillActiveForm(_prev: FormState, formData: FormData): P
 
 export async function recordBillForm(_prev: FormState, formData: FormData): Promise<FormState> {
   return runForm(() => recordBill(formData));
+}
+
+// ---- Salaries: one expense for a finished pay period ----
+
+const salariesSchema = z.object({
+  payPeriodId: z.string().min(1),
+  date: dateField,
+  paidWith: z.enum(["CASH", "BANK"], "Choose how the salaries were paid."),
+  note: noteField,
+});
+
+/** Records a finalized pay period's total pay as one Salaries expense. Once per period. */
+export async function recordPayrollSalaries(formData: FormData) {
+  const admin = await requireOwner();
+  const parsed = salariesSchema.parse({
+    payPeriodId: formData.get("payPeriodId"),
+    date: formData.get("date"),
+    paidWith: formData.get("paidWith"),
+    note: formData.get("note") || undefined,
+  });
+
+  const period = await prisma.payPeriod.findUnique({ where: { id: parsed.payPeriodId } });
+  if (!period) throw new Error("That pay period no longer exists.");
+  if (period.status !== "FINALIZED") throw new Error("Finalize the pay period first.");
+  const startKey = period.startDate.toISOString().slice(0, 10);
+  const endKey = period.endDate.toISOString().slice(0, 10);
+  if (parsed.date < startKey) throw new Error(`Salaries can't be dated before the pay period starts (${shortDate(startKey)}).`);
+
+  const already = await prisma.financeEntry.findFirst({
+    where: { payPeriodId: period.id, voided: false },
+    select: { id: true },
+  });
+  if (already) {
+    throw new Error("Salaries for this pay period are already recorded in Finance. Void that record first if it was wrong.");
+  }
+
+  const total = await payrollNetForPeriod(period.id);
+  if (total <= 0) throw new Error("There is nothing to pay in this period.");
+  if (total > MAX_AMOUNT) throw new Error("That total is over ₱10,000,000. Check the payslips.");
+
+  assertDateAllowed(parsed.date, "EXPENSE", await ledger());
+
+  const entry = await prisma.financeEntry.create({
+    data: {
+      date: new Date(`${parsed.date}T00:00:00.000Z`),
+      kind: "EXPENSE",
+      amount: total,
+      category: "SALARIES",
+      paidWith: parsed.paidWith,
+      payPeriodId: period.id,
+      note: parsed.note ?? `Payroll ${shortDate(startKey)} to ${shortDate(endKey)}`,
+      createdByAdminId: admin.id,
+    },
+  });
+  await logAudit({
+    actorAdminId: admin.id,
+    action: "RECORD_FINANCE_SALARIES",
+    targetTable: "FinanceEntry",
+    targetId: entry.id,
+    after: { payPeriodId: period.id, date: parsed.date, amount: total, paidWith: parsed.paidWith },
+  });
+  revalidateFinance();
+  revalidatePath(`/admin/payroll/${period.id}`);
+
+  const now = computeBalances(await allRows());
+  const warn =
+    parsed.paidWith === "CASH" && now.cash < 0
+      ? " Production cash is now below zero, so a withdrawal may be missing."
+      : parsed.paidWith === "BANK" && now.bank < 0
+        ? " The bank is now below zero, so some money received may be missing."
+        : "";
+  return `Salaries of ${formatPeso(total)} recorded in Finance.${warn}`;
+}
+
+export async function recordPayrollSalariesForm(_prev: FormState, formData: FormData): Promise<FormState> {
+  return runForm(() => recordPayrollSalaries(formData));
 }

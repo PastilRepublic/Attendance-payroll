@@ -216,6 +216,7 @@ model PayPeriod {
   createdAt   DateTime        @default(now())
 
   payslips Payslip[]
+  financeEntries FinanceEntry[]
 
   @@unique([startDate, endDate])
 }
@@ -595,6 +596,9 @@ model FinanceEntry {
   /** EXPENSE recorded from a monthly bill: which one (so the bill shows as done for that month). */
   billId   String?
   bill     FinanceBill?    @relation(fields: [billId], references: [id])
+  /** EXPENSE recording a pay period's salaries: which period (so it is recorded once). */
+  payPeriodId String?
+  payPeriod   PayPeriod?   @relation(fields: [payPeriodId], references: [id])
   note     String?
 
   createdByAdminId String?
@@ -614,6 +618,7 @@ model FinanceEntry {
   @@index([ownerId])
   @@index([paydayId])
   @@index([billId])
+  @@index([payPeriodId])
 }
 
 /** A credit card the owners pay supplies and platform charges with. What is owed on it is worked out from the ledger. */

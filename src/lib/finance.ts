@@ -613,3 +613,8 @@ export function findDuplicate(
     ) ?? null
   );
 }
+
+/** What a pay period comes to: pay plus bonuses minus deductions, over all its payslips. */
+export function periodNetPay(payslips: { gross: number; adjustments: number[] }[]): number {
+  return round2(payslips.reduce((sum, p) => sum + p.gross + p.adjustments.reduce((a, x) => a + x, 0), 0));
+}

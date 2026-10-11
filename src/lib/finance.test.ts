@@ -16,6 +16,7 @@ import {
   nextPaydayToRecord,
   openingDate,
   ownerBalances,
+  periodNetPay,
   paydayAfter,
   paydayOnOrBefore,
   periodProfit,
@@ -542,5 +543,21 @@ describe("entry checks", () => {
     expect(findDuplicate(rows, { ...same, paidWith: "BANK" })).toBeNull();
     expect(findDuplicate(rows, { ...same, date: "2026-10-09" })).toBeNull();
     expect(findDuplicate([rows[1]], same)).toBeNull();
+  });
+});
+
+describe("periodNetPay", () => {
+  it("adds pay and bonuses and takes off deductions", () => {
+    expect(
+      periodNetPay([
+        { gross: 2800, adjustments: [200, -150] },
+        { gross: 2450, adjustments: [] },
+        { gross: 2800, adjustments: [-400] },
+      ])
+    ).toBe(7700);
+  });
+  it("is zero for no payslips and rounds to centavos", () => {
+    expect(periodNetPay([])).toBe(0);
+    expect(periodNetPay([{ gross: 100.1, adjustments: [0.2] }])).toBe(100.3);
   });
 });
