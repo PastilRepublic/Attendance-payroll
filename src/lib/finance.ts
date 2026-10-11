@@ -634,3 +634,34 @@ export function addDays(key: string, days: number): string {
 
 /** Salaries are usually paid within a week after a pay period ends; a Salaries expense that close counts as that period's. */
 export const SALARY_PAYMENT_WINDOW_DAYS = 7;
+
+// ---- Expense types you add yourself ----
+
+/** The dropdown value that means "I'll type a new expense type". */
+export const NEW_EXPENSE_TYPE = "__new__";
+
+/** Expense types added by hand: any category on a live expense that isn't one of the built-in ones. */
+export function customExpenseTypes(rows: FinanceRow[]): string[] {
+  const fixed = new Set<string>(EXPENSE_CATEGORIES.map((c) => c.code));
+  const names = new Set<string>();
+  for (const r of live(rows)) {
+    if (r.kind === "EXPENSE" && r.category && !fixed.has(r.category)) names.add(r.category);
+  }
+  return [...names].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+}
+
+/**
+ * Turns what was chosen or typed into the category to save. A built-in type (by name or code, any
+ * capitals) gives its code; a custom type typed again gives the spelling already in use, so
+ * "repairs" and "Repairs" are one type; anything else becomes a new type with that name.
+ */
+export function resolveExpenseCategory(input: string, customNames: string[]): { code: string; error?: string } {
+  const name = input.replace(/\s+/g, " ").trim();
+  if (!name) return { code: "", error: "Enter a name for the new expense type." };
+  if (name.length > 30) return { code: "", error: "Keep the expense type under 30 characters." };
+  const lower = name.toLowerCase();
+  const fixed = EXPENSE_CATEGORIES.find((c) => c.code.toLowerCase() === lower || c.label.toLowerCase() === lower);
+  if (fixed) return { code: fixed.code };
+  const existing = customNames.find((c) => c.toLowerCase() === lower);
+  return { code: existing ?? name };
+}

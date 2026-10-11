@@ -9,6 +9,7 @@ import {
   INCOME_CHANNELS,
   MANUAL_EXPENSE_CATEGORIES,
   NEUTRAL_CHANNEL_STYLE,
+  customExpenseTypes,
   cardBalances,
   cardDue,
   billStatus,
@@ -41,6 +42,7 @@ import PillButton from "@/components/ui/PillButton";
 import { inputClass, labelClass, pillClass } from "@/components/ui/styles";
 import PaidWithFields from "./PaidWithFields";
 import PaydayPanel from "./PaydayPanel";
+import CategoryField from "./CategoryField";
 import ReminderTicker, { type Reminder } from "./ReminderTicker";
 import CreditCardFace from "./CreditCardFace";
 import {
@@ -159,6 +161,7 @@ export default async function FinancePage({
     createdAt: e.createdAt.getTime(),
   }));
 
+  const customTypes = customExpenseTypes(rows);
   const hasOpening = rows.some((r) => (r.kind === "OPENING_BANK" || r.kind === "OPENING_CASH") && !r.voided);
   const balances = computeBalances(rows);
   const summary = summarizeMonth(rows, month);
@@ -377,22 +380,10 @@ export default async function FinancePage({
               title="Add expense"
               description="Chicken, oil, gas, anything we spend on."
             >
-              <ActionForm action={addExpenseForm} multiEntry={{ clear: ["amount", "category", "note"] }} className="space-y-3">
+              <ActionForm action={addExpenseForm} multiEntry={{ clear: ["amount", "category", "newCategory", "note"] }} className="space-y-3">
                 <TodayField today={today} />
                 <AmountField />
-                <div>
-                  <label className={labelClass}>Spent on</label>
-                  <select name="category" required defaultValue="" className={inputClass}>
-                    <option value="" disabled>
-                      Choose…
-                    </option>
-                    {MANUAL_EXPENSE_CATEGORIES.map((c) => (
-                      <option key={c.code} value={c.code}>
-                        {c.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <CategoryField fixed={MANUAL_EXPENSE_CATEGORIES} custom={customTypes} />
                 <PaidWithFields cards={cards.map((c) => ({ id: c.id, name: c.name }))} />
                 <NoteField />
                 <div className="flex flex-col gap-2 sm:flex-row">

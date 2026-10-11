@@ -5,6 +5,8 @@ import {
   addDays,
   categoryLabel,
   billStatus,
+  customExpenseTypes,
+  resolveExpenseCategory,
   cardBalances,
   checkEntryDate,
   findDuplicate,
@@ -581,5 +583,47 @@ describe("MANUAL_EXPENSE_CATEGORIES", () => {
     expect(MANUAL_EXPENSE_CATEGORIES.length).toBe(EXPENSE_CATEGORIES.length - 1);
     // Existing Salaries lines still get their label.
     expect(categoryLabel("SALARIES")).toBe("Salaries");
+  });
+});
+
+describe("your own expense types", () => {
+  it("lists custom types from live expenses only, once each", () => {
+    const rows = [
+      row({ kind: "EXPENSE", amount: 1, category: "CHICKEN", paidWith: "CASH" }),
+      row({ kind: "EXPENSE", amount: 1, category: "Repairs", paidWith: "CASH" }),
+      row({ kind: "EXPENSE", amount: 1, category: "Repairs", paidWith: "BANK" }),
+      row({ kind: "EXPENSE", amount: 1, category: "Permits", paidWith: "BANK" }),
+      row({ kind: "EXPENSE", amount: 1, category: "Old thing", paidWith: "BANK", voided: true }),
+      row({ kind: "INCOME", amount: 1, category: "SHOPEE" }),
+    ];
+    expect(customExpenseTypes(rows)).toEqual(["Permits", "Repairs"]);
+  });
+
+  it("matches built-in types by name or code, and reuses an existing spelling", () => {
+    expect(resolveExpenseCategory("chicken", [])).toEqual({ code: "CHICKEN" });
+    expect(resolveExpenseCategory("Cooking oil", [])).toEqual({ code: "OIL" });
+    expect(resolveExpenseCategory("jars & packaging", [])).toEqual({ code: "PACKAGING" });
+    expect(resolveExpenseCategory("  repairs ", ["Repairs"])).toEqual({ code: "Repairs" });
+    expect(resolveExpenseCategory("Permits", ["Repairs"])).toEqual({ code: "Permits" });
+    expect(resolveExpenseCategory("Car   wash", [])).toEqual({ code: "Car wash" });
+  });
+
+  it("refuses an empty or very long name", () => {
+    expect(resolveExpenseCategory("   ", []).error).toMatch(/Enter a name/);
+    expect(resolveExpenseCategory("x".repeat(31), []).error).toMatch(/under 30/);
+  });
+
+  it("keeps Salaries recognisable so it can be refused", () => {
+    expect(resolveExpenseCategory("salaries", []).code).toBe("SALARIES");
+  });
+
+  it("counts a custom type as an operating cost in the month summary", () => {
+    const rows = [
+      row({ kind: "INCOME", amount: 1000, category: "DIRECT" }),
+      row({ kind: "EXPENSE", amount: 300, category: "Repairs", paidWith: "BANK" }),
+    ];
+    const s = summarizeMonth(rows, "2026-10");
+    expect(s.operatingCosts).toBe(300);
+    expect(s.byCategory).toEqual([{ code: "Repairs", label: "Repairs", amount: 300 }]);
   });
 });

@@ -60,6 +60,11 @@ export default function ActionForm({
         const el = form?.elements.namedItem(name);
         if (el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement) {
           el.value = "";
+          // A choice list a component keeps track of (e.g. the expense type) needs to hear that it was cleared.
+          if (el instanceof HTMLSelectElement) {
+            Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")?.set?.call(el, "");
+            el.dispatchEvent(new Event("change", { bubbles: true }));
+          }
         }
       }
       if (closeAfterSave.current) {

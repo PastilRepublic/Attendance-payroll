@@ -17,14 +17,17 @@ import {
   cardBalances,
   categoryLabel,
   channelLabel,
+  NEW_EXPENSE_TYPE,
   checkEntryDate,
   computeBalances,
+  customExpenseTypes,
   findDuplicate,
   maxPercentEach,
   firstActivityDate,
   nextPaydayToRecord,
   openingDate,
   ownerBalances,
+  resolveExpenseCategory,
   periodProfit,
   sharePlan,
   shortDate,
@@ -110,7 +113,7 @@ async function confirmUnlessDuplicate(
 const expenseSchema = z.object({
   date: dateField,
   amount: amountField,
-  category: z.enum(codes(MANUAL_EXPENSE_CATEGORIES), "Choose what it was spent on."),
+  category: z.string().trim().min(1, "Choose what it was spent on, or add a new type."),
   paidWith: z.enum(["CASH", "BANK", "CARD"], "Choose how it was paid."),
   cardId: z.string().optional(),
   note: noteField,
@@ -120,17 +123,22 @@ const SALARIES_FROM_PAYROLL = "Salaries are recorded from the Payroll page: open
 
 export async function addExpense(formData: FormData) {
   const admin = await requireOwner();
-  if (formData.get("category") === "SALARIES") throw new Error(SALARIES_FROM_PAYROLL);
-  const parsed = expenseSchema.parse({
+  // "+ New type…" sends the typed name in its own field.
+  const chosen = formData.get("category") === NEW_EXPENSE_TYPE ? formData.get("newCategory") : formData.get("category");
+  const input = expenseSchema.parse({
     date: formData.get("date"),
     amount: numberText(formData.get("amount")),
-    category: formData.get("category"),
+    category: chosen ? String(chosen) : "",
     paidWith: formData.get("paidWith"),
     cardId: formData.get("cardId") || undefined,
     note: formData.get("note") || undefined,
   });
 
   const l = await ledger();
+  const resolved = resolveExpenseCategory(input.category, customExpenseTypes(l.rows));
+  if (resolved.error) throw new Error(resolved.error);
+  if (resolved.code === "SALARIES") throw new Error(SALARIES_FROM_PAYROLL);
+  const parsed = { ...input, category: resolved.code };
   assertDateAllowed(parsed.date, "EXPENSE", l);
   await confirmUnlessDuplicate(
     formData,
