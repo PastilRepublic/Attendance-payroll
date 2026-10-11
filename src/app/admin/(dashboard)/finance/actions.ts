@@ -12,10 +12,10 @@ import { numberText } from "@/lib/numberInput";
 import {
   SALARY_PAYMENT_WINDOW_DAYS,
   addDays,
-  MANUAL_EXPENSE_CATEGORIES,
   cardBalances,
   categoryLabel,
   channelLabel,
+  EXPENSE_CATEGORIES,
   NEW_EXPENSE_TYPE,
   checkEntryDate,
   computeBalances,
@@ -58,9 +58,6 @@ const noteField = z
   .max(300, "Keep the note under 300 characters.")
   .optional()
   .transform((v) => v || undefined);
-
-const codes = <T extends readonly { code: string }[]>(list: T) =>
-  list.map((c) => c.code) as [T[number]["code"], ...T[number]["code"][]];
 
 function revalidateFinance() {
   revalidatePath("/admin/finance");
@@ -862,7 +859,7 @@ export async function voidPaydayForm(_prev: FormState, formData: FormData): Prom
 const billSchema = z
   .object({
     name: z.string().trim().min(1, "Give the bill a name, like Rent.").max(40, "Keep the name under 40 characters."),
-    category: z.enum(codes(MANUAL_EXPENSE_CATEGORIES), "Choose what kind of bill it is."),
+    category: z.string().trim().min(1, "Choose what kind of bill it is, or add a new type."),
     amount: amountField,
     dueDay: dayOfMonth("due day"),
     paidWith: z.enum(["CASH", "BANK", "CARD"], "Choose how it is paid."),
@@ -882,15 +879,26 @@ async function activeCardOrThrow(cardId: string) {
 /** Saves a bill that comes every month, so it only has to be recorded with one tap. */
 export async function addBill(formData: FormData) {
   const admin = await requireOwner();
-  if (formData.get("category") === "SALARIES") throw new Error(SALARIES_FROM_PAYROLL);
-  const parsed = billSchema.parse({
+  // "+ New type…" sends the typed name in its own field.
+  const chosen = formData.get("category") === NEW_EXPENSE_TYPE ? formData.get("newCategory") : formData.get("category");
+  const input = billSchema.parse({
     name: formData.get("name"),
-    category: formData.get("category"),
+    category: chosen ? String(chosen) : "",
     amount: numberText(formData.get("amount")),
     dueDay: formData.get("dueDay"),
     paidWith: formData.get("paidWith"),
     cardId: formData.get("cardId") || undefined,
   });
+
+  // Types added by hand (on an expense or another bill), so a name typed again keeps its spelling.
+  const fixedCodes = new Set<string>(EXPENSE_CATEGORIES.map((c) => c.code));
+  const billTypes = (await prisma.financeBill.findMany({ where: { active: true }, select: { category: true } }))
+    .map((b) => b.category)
+    .filter((c) => !fixedCodes.has(c));
+  const resolved = resolveExpenseCategory(input.category, [...customExpenseTypes(await allRows()), ...billTypes]);
+  if (resolved.error) throw new Error(resolved.error);
+  if (resolved.code === "SALARIES") throw new Error(SALARIES_FROM_PAYROLL);
+  const parsed = { ...input, category: resolved.code };
 
   const duplicate = await prisma.financeBill.findFirst({
     where: { active: true, name: { equals: parsed.name, mode: "insensitive" } },

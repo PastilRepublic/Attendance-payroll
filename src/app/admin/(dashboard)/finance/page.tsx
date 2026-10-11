@@ -7,6 +7,7 @@ import { currentMonthKey, isMonthKey, monthLabel } from "@/lib/payPeriods";
 import {
   CHANNEL_STYLE,
   INCOME_CHANNELS,
+  EXPENSE_CATEGORIES,
   MANUAL_EXPENSE_CATEGORIES,
   NEUTRAL_CHANNEL_STYLE,
   customExpenseTypes,
@@ -162,7 +163,11 @@ export default async function FinancePage({
     createdAt: e.createdAt.getTime(),
   }));
 
-  const customTypes = customExpenseTypes(rows);
+  // Types you added by hand, from expenses and from monthly bills (one shared list).
+  const fixedExpenseCodes = new Set<string>(EXPENSE_CATEGORIES.map((c) => c.code));
+  const customTypes = [
+    ...new Set([...customExpenseTypes(rows), ...bills.map((b) => b.category).filter((c) => !fixedExpenseCodes.has(c))]),
+  ].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
   const customSources = customIncomeSources(rows);
   const hasOpening = rows.some((r) => (r.kind === "OPENING_BANK" || r.kind === "OPENING_CASH") && !r.voided);
   const balances = computeBalances(rows);
@@ -841,19 +846,7 @@ export default async function FinancePage({
                     <label className={labelClass}>Name</label>
                     <input name="name" required maxLength={40} placeholder="e.g. Rent" className={inputClass} />
                   </div>
-                  <div>
-                    <label className={labelClass}>Kind of bill</label>
-                    <select name="category" required defaultValue="" className={inputClass}>
-                      <option value="" disabled>
-                        Choose…
-                      </option>
-                      {MANUAL_EXPENSE_CATEGORIES.map((c) => (
-                        <option key={c.code} value={c.code}>
-                          {c.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  <CategoryField fixed={MANUAL_EXPENSE_CATEGORIES} custom={customTypes} label="Kind of bill" />
                   <div>
                     <label className={labelClass}>Usual amount (₱)</label>
                     <NumberInput name="amount" required placeholder="0.00" className={inputClass} />
