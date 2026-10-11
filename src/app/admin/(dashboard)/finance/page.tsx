@@ -45,6 +45,7 @@ import { inputClass, labelClass, pillClass } from "@/components/ui/styles";
 import PaidWithFields from "./PaidWithFields";
 import PaydayPanel from "./PaydayPanel";
 import CategoryField from "./CategoryField";
+import ManageTypesDialog from "./ManageTypesDialog";
 import ReminderTicker, { type Reminder } from "./ReminderTicker";
 import CreditCardFace from "./CreditCardFace";
 import {
@@ -669,8 +670,21 @@ export default async function FinancePage({
 
       <div className="grid gap-4 lg:grid-cols-2">
         <SoftCard compact>
-          <h2 className="text-base font-medium text-slate-900">Where the money came from</h2>
-          <p className="mt-0.5 text-sm text-slate-500">Money received this month, by channel.</p>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-base font-medium text-slate-900">Where the money came from</h2>
+              <p className="mt-0.5 text-sm text-slate-500">Money received this month, by channel.</p>
+            </div>
+            {customSources.length > 0 && (
+              <ManageTypesDialog
+                kind="income"
+                types={customSources.map((name) => ({
+                  name,
+                  uses: rows.filter((r) => r.kind === "INCOME" && !r.voided && r.category === name).length,
+                }))}
+              />
+            )}
+          </div>
           <div className="mt-5">
             {summary.byChannel.length === 0 ? (
               <EmptyState>No money received in {monthLabel(month)} yet.</EmptyState>
@@ -695,8 +709,23 @@ export default async function FinancePage({
         </SoftCard>
 
         <SoftCard compact>
-          <h2 className="text-base font-medium text-slate-900">Where the money went</h2>
-          <p className="mt-0.5 text-sm text-slate-500">Spending this month, biggest first.</p>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-base font-medium text-slate-900">Where the money went</h2>
+              <p className="mt-0.5 text-sm text-slate-500">Spending this month, biggest first.</p>
+            </div>
+            {customTypes.length > 0 && (
+              <ManageTypesDialog
+                kind="expense"
+                types={customTypes.map((name) => ({
+                  name,
+                  uses:
+                    rows.filter((r) => r.kind === "EXPENSE" && !r.voided && r.category === name).length +
+                    bills.filter((b) => b.category === name).length,
+                }))}
+              />
+            )}
+          </div>
           <div className="mt-5">
             {summary.byCategory.length === 0 ? (
               <EmptyState>No expenses in {monthLabel(month)} yet.</EmptyState>

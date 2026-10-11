@@ -1156,3 +1156,75 @@ export async function recordPayrollSalariesForm(_prev: FormState, formData: Form
   return runForm(() => recordPayrollSalaries(formData));
 }
 
+// ---- Fixing the types you added (a misspelling, or merging two) ----
+
+const renameTypeSchema = z.object({
+  kind: z.enum(["expense", "income"]),
+  from: z.string().min(1),
+  to: z.string().trim().min(1, "Enter the new name."),
+});
+
+/**
+ * Renames a type you added, on every entry (and monthly bill) that uses it. If the new name is
+ * another type that already exists, the two become one. Only the name changes, never an amount,
+ * so this is allowed even for days a payday has already closed.
+ */
+export async function renameType(formData: FormData) {
+  const admin = await requireOwner();
+  const parsed = renameTypeSchema.parse({
+    kind: formData.get("kind"),
+    from: formData.get("from"),
+    to: formData.get("to"),
+  });
+
+  const rows = await allRows();
+  const fixedCodes = new Set<string>(EXPENSE_CATEGORIES.map((c) => c.code));
+  const billTypes =
+    parsed.kind === "expense"
+      ? (await prisma.financeBill.findMany({ where: { active: true }, select: { category: true } }))
+          .map((b) => b.category)
+          .filter((c) => !fixedCodes.has(c))
+      : [];
+  const current =
+    parsed.kind === "expense" ? [...customExpenseTypes(rows), ...billTypes] : customIncomeSources(rows);
+  if (!current.includes(parsed.from)) throw new Error("That type no longer exists. Reload the page.");
+
+  // The typed name is matched against the other types, so a capital-letter fix ("repairs" to "Repairs") sticks.
+  const others = current.filter((c) => c !== parsed.from);
+  const resolved =
+    parsed.kind === "expense"
+      ? resolveExpenseCategory(parsed.to, others)
+      : resolveIncomeChannel(parsed.to, others);
+  if (resolved.error) throw new Error(resolved.error);
+  if (resolved.code === "SALARIES") throw new Error(SALARIES_FROM_PAYROLL);
+  if (resolved.code === parsed.from) throw new Error("That is already its name.");
+
+  const entryKind = parsed.kind === "expense" ? "EXPENSE" : "INCOME";
+  const { entries, bills } = await prisma.$transaction(async (tx) => {
+    const entries = await tx.financeEntry.updateMany({
+      where: { kind: entryKind, category: parsed.from },
+      data: { category: resolved.code },
+    });
+    const bills =
+      parsed.kind === "expense"
+        ? await tx.financeBill.updateMany({ where: { category: parsed.from }, data: { category: resolved.code } })
+        : { count: 0 };
+    return { entries, bills };
+  });
+
+  await logAudit({
+    actorAdminId: admin.id,
+    action: "RENAME_FINANCE_TYPE",
+    targetTable: "FinanceEntry",
+    targetId: parsed.from,
+    before: { name: parsed.from },
+    after: { name: resolved.code, kind: parsed.kind, entries: entries.count, bills: bills.count },
+  });
+  revalidateFinance();
+  const shown = parsed.kind === "expense" ? categoryLabel(resolved.code) : channelLabel(resolved.code);
+  return `"${parsed.from}" is now "${shown}" on ${entries.count} ${entries.count === 1 ? "entry" : "entries"}`;
+}
+
+export async function renameTypeForm(_prev: FormState, formData: FormData): Promise<FormState> {
+  return runForm(() => renameType(formData));
+}
