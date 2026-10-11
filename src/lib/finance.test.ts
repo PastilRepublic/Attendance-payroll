@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  addDays,
   billStatus,
   cardBalances,
   checkEntryDate,
@@ -559,5 +560,14 @@ describe("periodNetPay", () => {
   it("is zero for no payslips and rounds to centavos", () => {
     expect(periodNetPay([])).toBe(0);
     expect(periodNetPay([{ gross: 100.1, adjustments: [0.2] }])).toBe(100.3);
+  });
+});
+
+describe("addDays", () => {
+  it("moves a date forward and back across months and years", () => {
+    expect(addDays("2026-10-04", 7)).toBe("2026-10-11");
+    expect(addDays("2026-10-30", 2)).toBe("2026-11-01");
+    expect(addDays("2026-12-28", 5)).toBe("2027-01-02");
+    expect(addDays("2026-03-02", -3)).toBe("2026-02-27");
   });
 });

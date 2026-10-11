@@ -10,6 +10,8 @@ import { isRealDateKey } from "@/lib/punchRules";
 import { ConfirmNeeded, runForm, type FormState } from "@/lib/formAction";
 import { numberText } from "@/lib/numberInput";
 import {
+  SALARY_PAYMENT_WINDOW_DAYS,
+  addDays,
   EXPENSE_CATEGORIES,
   INCOME_CHANNELS,
   cardBalances,
@@ -133,6 +135,25 @@ export async function addExpense(formData: FormData) {
     { kind: "EXPENSE", date: parsed.date, amount: parsed.amount, category: parsed.category, paidWith: parsed.paidWith },
     `a ${categoryLabel(parsed.category).toLowerCase()} expense`
   );
+
+  // A Salaries expense typed in by hand, when payroll salaries for those dates are already in Finance.
+  if (parsed.category === "SALARIES" && formData.get("confirm") !== "yes") {
+    const day = new Date(`${parsed.date}T00:00:00.000Z`);
+    const earliestEnd = new Date(`${addDays(parsed.date, -SALARY_PAYMENT_WINDOW_DAYS)}T00:00:00.000Z`);
+    const recorded = await prisma.financeEntry.findFirst({
+      where: {
+        voided: false,
+        payPeriodId: { not: null },
+        payPeriod: { startDate: { lte: day }, endDate: { gte: earliestEnd } },
+      },
+      select: { amount: true, payPeriod: { select: { startDate: true, endDate: true } } },
+    });
+    if (recorded?.payPeriod) {
+      throw new ConfirmNeeded(
+        `Salaries for payroll ${shortDate(recorded.payPeriod.startDate.toISOString().slice(0, 10))} to ${shortDate(recorded.payPeriod.endDate.toISOString().slice(0, 10))} are already recorded in Finance (${formatPeso(Number(recorded.amount))}). Adding these too would count salaries twice. Add anyway?`
+      );
+    }
+  }
 
   // A card expense needs to say which card, and it has to be one that is still in use.
   let card: { id: string; name: string } | null = null;
@@ -1033,6 +1054,23 @@ const salariesSchema = z.object({
   note: noteField,
 });
 
+/** Salaries expenses entered by hand (not tied to a pay period) that fall in or just after a period. */
+async function unlinkedSalaryEntries(period: { startDate: Date; endDate: Date }) {
+  const endKey = period.endDate.toISOString().slice(0, 10);
+  const until = new Date(`${addDays(endKey, SALARY_PAYMENT_WINDOW_DAYS)}T00:00:00.000Z`);
+  return prisma.financeEntry.findMany({
+    where: {
+      kind: "EXPENSE",
+      category: "SALARIES",
+      voided: false,
+      payPeriodId: null,
+      date: { gte: period.startDate, lte: until },
+    },
+    orderBy: { date: "asc" },
+    select: { id: true, date: true, amount: true, createdByAdmin: { select: { name: true } } },
+  });
+}
+
 /** Records a finalized pay period's total pay as one Salaries expense. Once per period. */
 export async function recordPayrollSalaries(formData: FormData) {
   const admin = await requireOwner();
@@ -1063,6 +1101,19 @@ export async function recordPayrollSalaries(formData: FormData) {
   if (total > MAX_AMOUNT) throw new Error("That total is over ₱10,000,000. Check the payslips.");
 
   assertDateAllowed(parsed.date, "EXPENSE", await ledger());
+
+  // Salaries typed in by hand as an expense would be counted twice.
+  if (formData.get("confirm") !== "yes") {
+    const manual = await unlinkedSalaryEntries(period);
+    if (manual.length > 0) {
+      const list = manual
+        .map((m) => `${formatPeso(Number(m.amount))} on ${shortDate(m.date.toISOString().slice(0, 10))}`)
+        .join(", ");
+      throw new ConfirmNeeded(
+        `Finance already has a Salaries expense for these dates (${list}). If that is this pay period, cancel and tap "Use this" on the payroll page instead of recording the total again. Add anyway?`
+      );
+    }
+  }
 
   const entry = await prisma.financeEntry.create({
     data: {
@@ -1098,4 +1149,44 @@ export async function recordPayrollSalaries(formData: FormData) {
 
 export async function recordPayrollSalariesForm(_prev: FormState, formData: FormData): Promise<FormState> {
   return runForm(() => recordPayrollSalaries(formData));
+}
+
+const linkSalariesSchema = z.object({ payPeriodId: z.string().min(1), entryId: z.string().min(1) });
+
+/** Says "that Salaries expense I typed in is this pay period's", so payroll doesn't record it a second time. */
+export async function linkSalariesEntry(formData: FormData) {
+  const admin = await requireOwner();
+  const parsed = linkSalariesSchema.parse({
+    payPeriodId: formData.get("payPeriodId"),
+    entryId: formData.get("entryId"),
+  });
+
+  const period = await prisma.payPeriod.findUnique({ where: { id: parsed.payPeriodId } });
+  if (!period) throw new Error("That pay period no longer exists.");
+  if (period.status !== "FINALIZED") throw new Error("Finalize the pay period first.");
+  const already = await prisma.financeEntry.findFirst({
+    where: { payPeriodId: period.id, voided: false },
+    select: { id: true },
+  });
+  if (already) throw new Error("Salaries for this pay period are already recorded in Finance.");
+
+  const entry = await prisma.financeEntry.findUnique({ where: { id: parsed.entryId } });
+  if (!entry || entry.voided || entry.kind !== "EXPENSE" || entry.category !== "SALARIES" || entry.payPeriodId) {
+    throw new Error("That entry can't be used for this pay period.");
+  }
+
+  await prisma.financeEntry.update({ where: { id: entry.id }, data: { payPeriodId: period.id } });
+  await logAudit({
+    actorAdminId: admin.id,
+    action: "LINK_FINANCE_SALARIES",
+    targetTable: "FinanceEntry",
+    targetId: entry.id,
+    after: { payPeriodId: period.id, amount: Number(entry.amount) },
+  });
+  revalidateFinance();
+  revalidatePath(`/admin/payroll/${period.id}`);
+}
+
+export async function linkSalariesEntryForm(_prev: FormState, formData: FormData): Promise<FormState> {
+  return runForm(() => linkSalariesEntry(formData));
 }

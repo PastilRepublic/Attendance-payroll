@@ -618,3 +618,13 @@ export function findDuplicate(
 export function periodNetPay(payslips: { gross: number; adjustments: number[] }[]): number {
   return round2(payslips.reduce((sum, p) => sum + p.gross + p.adjustments.reduce((a, x) => a + x, 0), 0));
 }
+
+/** A date key moved by some days (negative goes back). */
+export function addDays(key: string, days: number): string {
+  const [y, m, d] = key.split("-").map(Number);
+  const t = new Date(Date.UTC(y, m - 1, d + days));
+  return dateKey(t.getUTCFullYear(), t.getUTCMonth() + 1, t.getUTCDate());
+}
+
+/** Salaries are usually paid within a week after a pay period ends; a Salaries expense that close counts as that period's. */
+export const SALARY_PAYMENT_WINDOW_DAYS = 7;

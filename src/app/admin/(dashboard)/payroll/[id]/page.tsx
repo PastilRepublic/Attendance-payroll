@@ -9,7 +9,8 @@ import FormDialog from "@/components/ui/FormDialog";
 import PillButton from "@/components/ui/PillButton";
 import { inputClass, labelClass } from "@/components/ui/styles";
 import { payrollNetForPeriod } from "@/lib/financePayroll";
-import { recordPayrollSalariesForm } from "../../finance/actions";
+import { linkSalariesEntryForm, recordPayrollSalariesForm } from "../../finance/actions";
+import { SALARY_PAYMENT_WINDOW_DAYS, addDays } from "@/lib/finance";
 import PeriodSummary from "./PeriodSummary";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -107,6 +108,24 @@ export default async function PayPeriodDetailPage({
       ? await prisma.financeEntry.findFirst({ where: { payPeriodId: id, voided: false }, select: { date: true, amount: true, paidWith: true } })
       : null;
   const salariesTotal = period.status === "FINALIZED" && !salariesEntry ? await payrollNetForPeriod(id) : 0;
+  // Salaries someone already typed in as an expense for these dates (so they aren't counted twice).
+  const manualSalaries =
+    period.status === "FINALIZED" && !salariesEntry
+      ? await prisma.financeEntry.findMany({
+          where: {
+            kind: "EXPENSE",
+            category: "SALARIES",
+            voided: false,
+            payPeriodId: null,
+            date: {
+              gte: period.startDate,
+              lte: new Date(`${addDays(endDate, SALARY_PAYMENT_WINDOW_DAYS)}T00:00:00.000Z`),
+            },
+          },
+          orderBy: { date: "asc" },
+          select: { id: true, date: true, amount: true, createdByAdmin: { select: { name: true } } },
+        })
+      : [];
   const todayKey = localDateKey(new Date());
 
   return (
@@ -159,7 +178,8 @@ export default async function PayPeriodDetailPage({
       />
 
       {period.status === "FINALIZED" && (
-        <div className="mb-6 flex flex-col gap-3 rounded-2xl border border-slate-300 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mb-6 rounded-2xl border border-slate-300 bg-white p-4">
+         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           {salariesEntry ? (
             <div className="text-sm">
               <span className="font-semibold text-emerald-700">Recorded in Finance</span>
@@ -202,6 +222,33 @@ export default async function PayPeriodDetailPage({
                 </FormDialog>
               )}
             </>
+          )}
+         </div>
+          {manualSalaries.length > 0 && (
+            <div className="mt-4 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+              <div className="font-medium">Finance already has Salaries recorded for these dates</div>
+              <p className="mt-0.5 text-xs">
+                If one of these is this period&apos;s pay, tap Use this so it isn&apos;t counted twice. Payroll says{" "}
+                {formatPeso(salariesTotal)}.
+              </p>
+              <ul className="mt-2 divide-y divide-amber-200">
+                {manualSalaries.map((m) => (
+                  <li key={m.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                    <span>
+                      <span className="font-semibold">{formatPeso(Number(m.amount))}</span> on{" "}
+                      {fmtDate(m.date, "MMM d")}, added by {m.createdByAdmin?.name ?? "someone"}
+                    </span>
+                    <ActionForm action={linkSalariesEntryForm} compactError>
+                      <input type="hidden" name="payPeriodId" value={period.id} />
+                      <input type="hidden" name="entryId" value={m.id} />
+                      <PillButton variant="secondary" size="sm">
+                        Use this
+                      </PillButton>
+                    </ActionForm>
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
         </div>
       )}
