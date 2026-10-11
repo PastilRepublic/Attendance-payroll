@@ -14,6 +14,7 @@ export default function FormDialog({
   description,
   variant = "secondary",
   size = "md",
+  triggerClassName = "",
   children,
 }: {
   triggerLabel: React.ReactNode;
@@ -21,6 +22,8 @@ export default function FormDialog({
   description?: string;
   variant?: PillVariant;
   size?: PillSize;
+  /** Extra classes for the button that opens the pop-up (e.g. w-full). */
+  triggerClassName?: string;
   children: React.ReactNode;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -34,7 +37,7 @@ export default function FormDialog({
           setFreshKey((k) => k + 1);
           dialogRef.current?.showModal();
         }}
-        className={pillClass(variant, size)}
+        className={pillClass(variant, size, triggerClassName)}
       >
         {triggerLabel}
       </button>

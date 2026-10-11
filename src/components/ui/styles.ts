@@ -4,7 +4,7 @@
  * one product.
  */
 
-export type PillVariant = "primary" | "dark" | "secondary" | "destructive";
+export type PillVariant = "primary" | "dark" | "secondary" | "destructive" | "light";
 export type PillSize = "md" | "sm";
 
 const PILL_VARIANTS: Record<PillVariant, string> = {
@@ -12,6 +12,8 @@ const PILL_VARIANTS: Record<PillVariant, string> = {
   dark: "bg-slate-900 text-white hover:bg-slate-800",
   secondary: "border border-slate-300 bg-slate-100 text-slate-800 hover:bg-slate-200",
   destructive: "border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100",
+  /** A bright button for a dark tile, where the grey secondary one looks switched off. */
+  light: "border border-white bg-white font-semibold text-slate-900 shadow-sm hover:bg-accent-100",
 };
 
 const PILL_SIZES: Record<PillSize, string> = {

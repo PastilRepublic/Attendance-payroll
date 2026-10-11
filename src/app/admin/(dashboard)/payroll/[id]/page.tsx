@@ -141,9 +141,9 @@ export default async function PayPeriodDetailPage({
   const salariesAction =
     period.status === "FINALIZED" && !salariesEntry && manualSalaries.length === 0 && salariesTotal > 0 ? (
       <FormDialog
-        variant="secondary"
-        size="sm"
-        triggerLabel="Record salaries in Finance"
+        variant="light"
+        triggerClassName="w-full"
+        triggerLabel="Record salaries in Finance →"
         title="Record salaries"
         description={`${formatPeso(salariesTotal)} for ${fmtDate(period.startDate, "MMM d")} – ${fmtDate(period.endDate, "MMM d")}. It is saved as one Salaries expense.`}
       >
